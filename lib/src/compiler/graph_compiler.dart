@@ -25,9 +25,10 @@ Set<AudioNode> discoverNodes(Iterable<AudioNode> roots) {
     final current = queue.removeLast();
     if (!visited.add(current)) continue;
 
-    for (final port in current.inputs) {
-      if (!visited.contains(port.node)) {
-        queue.add(port.node);
+    for (final inlet in current.inlets) {
+      final upstream = inlet.source?.node;
+      if (upstream != null && !visited.contains(upstream)) {
+        queue.add(upstream);
       }
     }
   }
@@ -46,7 +47,10 @@ List<AudioNode> topologicalSort(Set<AudioNode> nodes) {
 
   // Build the dependency graph
   for (final consumer in nodes) {
-    final upstreamNodes = consumer.inputs.map((p) => p.node).toSet();
+    final upstreamNodes = consumer.inlets
+        .map((inlet) => inlet.source?.node)
+        .whereType<AudioNode>()
+        .toSet();
     inDegree[consumer] = upstreamNodes.length;
 
     for (final producer in upstreamNodes) {
@@ -87,7 +91,7 @@ List<AudioNode> topologicalSort(Set<AudioNode> nodes) {
 AudioPipeline compilePipeline({
   AudioNode? root,
   List<AudioNode>? roots,
-  List<AudioPort>? targetOutputs,
+  List<Outlet>? targetOutputs,
   required ProcessContext context,
 }) {
   final resolvedRoots = <AudioNode>{
@@ -109,26 +113,34 @@ AudioPipeline compilePipeline({
   final sortedNodes = topologicalSort(discovered);
 
   // 3. Buffer allocation & mapping
-  // Map every unique AudioPort to a pre-allocated Float32List
-  final portBuffers = <AudioPort, Float32List>{};
+  // Map every unique Outlet to a pre-allocated Float32List
+  final outletBuffers = <Outlet, Float32List>{};
 
-  Float32List getBuffer(AudioPort port) {
-    return portBuffers.putIfAbsent(port, () => Float32List(context.vectorSize));
+  Float32List getBuffer(Outlet outlet) {
+    return outletBuffers.putIfAbsent(
+      outlet,
+      () => Float32List(context.vectorSize),
+    );
   }
 
-  // Pre-allocate for all declared outputs of active nodes
+  // Pre-allocate for all declared outlets of active nodes
   for (final node in sortedNodes) {
-    for (final port in node.outputs) {
-      getBuffer(port);
+    for (final outlet in node.outlets) {
+      getBuffer(outlet);
     }
   }
+
+  final emptyBuffer = Float32List(context.vectorSize);
 
   // 4. Create RenderSteps
   final steps = <RenderStep>[];
   for (final node in sortedNodes) {
     final processor = node.createProcessor();
-    final stepInputs = [for (final port in node.inputs) getBuffer(port)];
-    final stepOutputs = [for (final port in node.outputs) getBuffer(port)];
+    final stepInputs = [
+      for (final inlet in node.inlets)
+        inlet.source != null ? getBuffer(inlet.source!) : emptyBuffer,
+    ];
+    final stepOutputs = [for (final outlet in node.outlets) getBuffer(outlet)];
 
     steps.add(
       RenderStep(
@@ -141,20 +153,24 @@ AudioPipeline compilePipeline({
   }
 
   // 5. Determine pipeline outputs
-  List<AudioPort> finalOutputPorts;
+  List<Outlet> finalOutputPorts;
   if (targetOutputs != null) {
     finalOutputPorts = targetOutputs;
   } else if (root != null) {
-    finalOutputPorts = root.outputs.isNotEmpty ? root.outputs : root.inputs;
+    finalOutputPorts = root.outlets.isNotEmpty
+        ? root.outlets
+        : [for (final inlet in root.inlets) ?inlet.source];
   } else {
     finalOutputPorts = [
       for (final r in resolvedRoots)
-        ...(r.outputs.isNotEmpty ? r.outputs : r.inputs),
+        ...(r.outlets.isNotEmpty
+            ? r.outlets
+            : [for (final inlet in r.inlets) ?inlet.source]),
     ];
   }
 
   final pipelineOutputs = [
-    for (final port in finalOutputPorts) getBuffer(port),
+    for (final outlet in finalOutputPorts) getBuffer(outlet),
   ];
 
   return AudioPipeline(

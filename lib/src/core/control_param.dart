@@ -2,6 +2,18 @@ import 'dart:async';
 
 import 'package:dsp/dsp.dart';
 
+extension ControlParamExtension<T> on ControlParam<T> {
+  T? get valueOrNull => switch (this) {
+    ControlParamValue(:final value) => value,
+    _ => null,
+  };
+
+  Outlet? get outletOrNull => switch (this) {
+    ControlParamSignal(:final outlet) => outlet,
+    _ => null,
+  };
+}
+
 sealed class ControlParam<T> {
   const ControlParam();
 
@@ -11,8 +23,8 @@ sealed class ControlParam<T> {
   const factory ControlParam.value(T value) = ControlParamValue<T>;
   factory ControlParam.stream(Stream<T> stream, T initialValue) =
       ControlParamStream<T>;
-  static ControlParam<double> signal(AudioPort port) =>
-      ControlParamSignal(port);
+  static ControlParam<double> signal(Outlet outlet) =>
+      ControlParamSignal(outlet);
 }
 
 class ControlParamValue<T> extends ControlParam<T> {
@@ -49,7 +61,7 @@ class ControlParamStream<T> extends ControlParam<T>
 }
 
 class ControlParamSignal extends ControlParam<double> {
-  final AudioPort port;
+  final Outlet outlet;
 
-  const ControlParamSignal(this.port);
+  const ControlParamSignal(this.outlet);
 }

@@ -11,10 +11,10 @@ import 'package:test/test.dart';
 
 class _LoopNode implements AudioNode<AudioProcessor> {
   @override
-  List<AudioPort> inputs = [];
+  List<Inlet> inlets = [];
 
   @override
-  List<AudioPort> get outputs => [AudioPort(node: this, index: 0)];
+  List<Outlet> get outlets => [Outlet(node: this, index: 0)];
 
   @override
   AudioProcessor createProcessor() => throw UnimplementedError();
@@ -26,9 +26,9 @@ class _LoopNode implements AudioNode<AudioProcessor> {
 void main() {
   test('discoverNodes finds all upstream reachable nodes', () {
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.5), input: sine.output);
-    final pan = StereoPan(input: gain.outputs[0], pan: .value(0.0));
-    final dac = Dac(inputs: [pan.left, pan.right]);
+    final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
+    final pan = StereoPan(input: gain.outlets[0], pan: .value(0.0));
+    final dac = Dac(channels: [pan.left, pan.right]);
 
     // An unattached node that should NOT be discovered
     final orphan = SineOscillator(frequency: .value(880));
@@ -42,9 +42,9 @@ void main() {
 
   test('topologicalSort sorts nodes in correct execution order', () {
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.5), input: sine.output);
-    final pan = StereoPan(input: gain.outputs[0], pan: .value(0.0));
-    final dac = Dac(inputs: [pan.left, pan.right]);
+    final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
+    final pan = StereoPan(input: gain.outlets[0], pan: .value(0.0));
+    final dac = Dac(channels: [pan.left, pan.right]);
 
     final discovered = discoverNodes([dac]);
     final sorted = topologicalSort(discovered);
@@ -59,8 +59,8 @@ void main() {
     final a = _LoopNode();
     final b = _LoopNode();
 
-    a.inputs = [AudioPort(node: b, index: 0)];
-    b.inputs = [AudioPort(node: a, index: 0)];
+    a.inlets = [Inlet(node: a, index: 0, source: b.outlets.first)];
+    b.inlets = [Inlet(node: b, index: 0, source: a.outlets.first)];
 
     expect(() => topologicalSort({a, b}), throwsA(isA<GraphCycleException>()));
   });
@@ -68,9 +68,9 @@ void main() {
   test('compilePipeline builds and executes complete rendering pipeline', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.5), input: sine.output);
-    final pan = StereoPan(input: gain.outputs[0], pan: .value(0.0));
-    final dac = Dac(inputs: [pan.left, pan.right]);
+    final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
+    final pan = StereoPan(input: gain.outlets[0], pan: .value(0.0));
+    final dac = Dac(channels: [pan.left, pan.right]);
 
     final pipeline = compilePipeline(root: dac, context: context);
 
@@ -94,14 +94,14 @@ void main() {
   test('AudioPipeline.update updates live processor without rebuild', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(1.0), input: sine.output);
+    final gain = Gain.mono(gain: .value(1.0), input: sine.outlet);
     final pipeline = compilePipeline(root: gain, context: context);
 
     final processor = pipeline.processorOf(gain);
     expect(processor.gain, equals(1.0));
 
     // Update gain node to 0.5
-    final updatedGain = Gain.mono(gain: .value(0.5), input: sine.output);
+    final updatedGain = Gain.mono(gain: .value(0.5), input: sine.outlet);
     pipeline.update(gain, updatedGain);
 
     expect(processor.gain, equals(0.5));

@@ -11,7 +11,7 @@ void main() {
   const numBlocks = sr ~/ vs; // 1 second
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final sine = SineOscillator(frequency: .value(440));
-  final gain = Gain.mono(gain: .value(0.5), input: sine.output);
+  final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
   final sineProcessor = sine.createProcessor();
   final gainProcessor = gain.createProcessor();
 

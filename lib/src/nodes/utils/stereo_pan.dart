@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:dsp/dsp.dart';
 
 class StereoPan implements AudioNode<StereoPanProcessor> {
-  final AudioPort input;
+  final Outlet input;
 
   /// Pan position from -1.0 (hard left) to +1.0 (hard right). 0.0 is centre.
   final ControlParam<double> pan;
@@ -14,32 +14,33 @@ class StereoPan implements AudioNode<StereoPanProcessor> {
     this.pan = const ControlParam.value(0.0),
   });
 
-  AudioPort get left => AudioPort(node: this, index: 0);
-  AudioPort get right => AudioPort(node: this, index: 1);
+  static const inputInlet = 0;
+  static const panInlet = 1;
+  static const leftOutlet = 0;
+  static const rightOutlet = 1;
+
+  Outlet get left => outlets[leftOutlet];
+  Outlet get right => outlets[rightOutlet];
 
   @override
-  List<AudioPort> get inputs => [
-    input,
-    if (pan case ControlParamSignal(:final port)) port,
+  List<Inlet> get inlets => [
+    Inlet(node: this, index: inputInlet, source: input),
+    Inlet(node: this, index: panInlet, source: pan.outletOrNull),
   ];
 
   @override
-  List<AudioPort> get outputs => [left, right];
+  List<Outlet> get outlets => [
+    Outlet(node: this, index: leftOutlet),
+    Outlet(node: this, index: rightOutlet),
+  ];
 
   @override
-  StereoPanProcessor createProcessor() => StereoPanProcessor(
-    pan: switch (pan) {
-      ControlParamValue(:final value) => value,
-      ControlParamSignal() => null,
-    },
-  );
+  StereoPanProcessor createProcessor() =>
+      StereoPanProcessor(pan: pan.valueOrNull);
 
   @override
   void updateProcessor(StereoPanProcessor processor) {
-    processor.pan = switch (pan) {
-      ControlParamValue(:final value) => value,
-      ControlParamSignal() => null,
-    };
+    processor.pan = pan.valueOrNull;
   }
 }
 
@@ -55,9 +56,9 @@ class StereoPanProcessor implements AudioProcessor {
     List<Float32List> inputs,
     List<Float32List> outputs,
   ) {
-    final inBuf = inputs[0];
-    final outLeft = outputs[0];
-    final outRight = outputs[1];
+    final inBuf = inputs[StereoPan.inputInlet];
+    final outLeft = outputs[StereoPan.leftOutlet];
+    final outRight = outputs[StereoPan.rightOutlet];
     final pan = this.pan;
 
     if (pan != null) {
@@ -72,7 +73,7 @@ class StereoPanProcessor implements AudioProcessor {
         outRight[i] = sample * rightGain;
       }
     } else {
-      final panBuffer = inputs[1];
+      final panBuffer = inputs[StereoPan.panInlet];
 
       for (int i = 0; i < context.vectorSize; i++) {
         final sample = inBuf[i];

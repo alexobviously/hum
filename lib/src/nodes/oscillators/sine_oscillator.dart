@@ -7,15 +7,17 @@ class SineOscillator implements AudioNode<SineOscillatorProcessor> {
   final ControlParam<double> frequency;
   const SineOscillator({required this.frequency});
 
-  AudioPort get output => AudioPort(node: this, index: 0);
+  static const freqInlet = 0;
 
   @override
-  List<AudioPort> get inputs => [
-    if (frequency case ControlParamSignal(:final port)) port,
+  List<Inlet> get inlets => [
+    Inlet(node: this, index: freqInlet, source: frequency.outletOrNull),
   ];
 
   @override
-  List<AudioPort> get outputs => [output];
+  List<Outlet> get outlets => [Outlet(node: this, index: 0)];
+
+  Outlet get outlet => outlets.first;
 
   @override
   SineOscillatorProcessor createProcessor() => SineOscillatorProcessor(
@@ -62,7 +64,7 @@ class SineOscillatorProcessor implements AudioProcessor {
         if (phase >= 1.0) phase -= 1.0;
       }
     } else {
-      final freqBuffer = inputs[0];
+      final freqBuffer = inputs[SineOscillator.freqInlet];
 
       for (int i = 0; i < context.vectorSize; i++) {
         output[i] = math.sin(phase * 2 * math.pi);

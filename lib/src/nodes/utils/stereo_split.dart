@@ -6,18 +6,27 @@ import 'package:dsp/src/core/audio_processor.dart';
 import 'package:dsp/src/core/process_context.dart';
 
 class StereoSplit implements AudioNode<StereoSplitProcessor> {
-  final AudioPort input;
+  final Outlet input;
 
   const StereoSplit({required this.input});
 
-  AudioPort get left => AudioPort(node: this, index: 0);
-  AudioPort get right => AudioPort(node: this, index: 1);
+  static const inputInlet = 0;
+  static const leftOutlet = 0;
+  static const rightOutlet = 1;
+
+  Outlet get left => outlets[leftOutlet];
+  Outlet get right => outlets[rightOutlet];
 
   @override
-  List<AudioPort> get inputs => [input];
+  List<Inlet> get inlets => [
+    Inlet(node: this, index: inputInlet, source: input),
+  ];
 
   @override
-  List<AudioPort> get outputs => [left, right];
+  List<Outlet> get outlets => [
+    Outlet(node: this, index: leftOutlet),
+    Outlet(node: this, index: rightOutlet),
+  ];
 
   @override
   StereoSplitProcessor createProcessor() => StereoSplitProcessor();
@@ -33,9 +42,9 @@ class StereoSplitProcessor implements AudioProcessor {
     List<Float32List> inputs,
     List<Float32List> outputs,
   ) {
-    final inBuf = inputs[0];
-    final outLeft = outputs[0];
-    final outRight = outputs[1];
+    final inBuf = inputs[StereoSplit.inputInlet];
+    final outLeft = outputs[StereoSplit.leftOutlet];
+    final outRight = outputs[StereoSplit.rightOutlet];
 
     for (int i = 0; i < context.vectorSize; i++) {
       final sample = inBuf[i];

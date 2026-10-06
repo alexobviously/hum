@@ -4,30 +4,37 @@ import 'package:dsp/dsp.dart';
 
 class Offset implements AudioNode<OffsetProcessor> {
   final ControlParam<double> value;
-  final List<AudioPort> channels;
+  final List<Outlet> channels;
 
   const Offset({required this.value, required this.channels});
 
   factory Offset.mono({
     required ControlParam<double> value,
-    required AudioPort input,
+    required Outlet input,
   }) => Offset(value: value, channels: [input]);
 
   factory Offset.stereo({
     required ControlParam<double> value,
-    required AudioPort leftInput,
-    required AudioPort rightInput,
+    required Outlet leftInput,
+    required Outlet rightInput,
   }) => Offset(value: value, channels: [leftInput, rightInput]);
 
+  static const valueInlet = 0;
+
   @override
-  List<AudioPort> get inputs => [
-    ...channels,
-    if (value case ControlParamSignal(:final port)) port,
+  List<Inlet> get inlets => [
+    Inlet(node: this, index: valueInlet, source: value.outletOrNull),
+    ...List.generate(
+      channels.length,
+      (i) => Inlet(node: this, index: i + 1, source: channels[i]),
+    ),
   ];
 
   @override
-  List<AudioPort> get outputs =>
-      List.generate(channels.length, (i) => AudioPort(node: this, index: i));
+  List<Outlet> get outlets =>
+      List.generate(channels.length, (i) => Outlet(node: this, index: i));
+
+  Outlet get outlet => outlets.first;
 
   @override
   OffsetProcessor createProcessor() => OffsetProcessor(
@@ -65,16 +72,16 @@ class OffsetProcessor implements AudioProcessor {
       for (int c = 0; c < numChannels; c++) {
         final output = outputs[c];
         for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = inputs[c][i] + value;
+          output[i] = inputs[c + 1][i] + value;
         }
       }
     } else {
-      final valueBuffer = inputs[inputs.length - 1];
+      final valueBuffer = inputs[Offset.valueInlet];
 
       for (int c = 0; c < numChannels; c++) {
         final output = outputs[c];
         for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = inputs[c][i] + valueBuffer[i];
+          output[i] = inputs[c + 1][i] + valueBuffer[i];
         }
       }
     }

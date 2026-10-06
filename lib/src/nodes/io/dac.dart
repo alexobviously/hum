@@ -6,12 +6,17 @@ import 'package:dsp/src/core/audio_processor.dart';
 import 'package:dsp/src/core/process_context.dart';
 
 class Dac implements AudioNode<DacProcessor> {
-  @override
-  final List<AudioPort> inputs;
-  const Dac({required this.inputs});
+  final List<Outlet> channels;
+  const Dac({required this.channels});
 
   @override
-  List<AudioPort> get outputs => [];
+  List<Inlet> get inlets => List.generate(
+    channels.length,
+    (i) => Inlet(node: this, index: i, source: channels[i]),
+  );
+
+  @override
+  List<Outlet> get outlets => [];
 
   @override
   DacProcessor createProcessor() => DacProcessor();

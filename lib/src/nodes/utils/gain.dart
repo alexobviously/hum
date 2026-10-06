@@ -4,30 +4,37 @@ import 'package:dsp/dsp.dart';
 
 class Gain implements AudioNode<GainProcessor> {
   final ControlParam<double> gain;
-  final List<AudioPort> channels;
+  final List<Outlet> channels;
 
   const Gain({required this.gain, required this.channels});
 
   factory Gain.mono({
     required ControlParam<double> gain,
-    required AudioPort input,
+    required Outlet input,
   }) => Gain(gain: gain, channels: [input]);
 
   factory Gain.stereo({
     required ControlParam<double> gain,
-    required AudioPort leftInput,
-    required AudioPort rightInput,
+    required Outlet leftInput,
+    required Outlet rightInput,
   }) => Gain(gain: gain, channels: [leftInput, rightInput]);
 
+  static const gainInlet = 0;
+
   @override
-  List<AudioPort> get inputs => [
-    ...channels,
-    if (gain case ControlParamSignal(:final port)) port,
+  List<Inlet> get inlets => [
+    Inlet(node: this, index: gainInlet, source: gain.outletOrNull),
+    ...List.generate(
+      channels.length,
+      (i) => Inlet(node: this, index: i + 1, source: channels[i]),
+    ),
   ];
 
   @override
-  List<AudioPort> get outputs =>
-      List.generate(channels.length, (i) => AudioPort(node: this, index: i));
+  List<Outlet> get outlets =>
+      List.generate(channels.length, (i) => Outlet(node: this, index: i));
+
+  Outlet get outlet => outlets.first;
 
   @override
   GainProcessor createProcessor() => GainProcessor(
@@ -66,17 +73,17 @@ class GainProcessor implements AudioProcessor {
         final output = outputs[c];
 
         for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = inputs[c][i] * gain;
+          output[i] = inputs[c + 1][i] * gain;
         }
       }
     } else {
-      final gainBuffer = inputs[inputs.length - 1];
+      final gainBuffer = inputs[Gain.gainInlet];
 
       for (int c = 0; c < numChannels; c++) {
         final output = outputs[c];
 
         for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = inputs[c][i] * gainBuffer[i];
+          output[i] = inputs[c + 1][i] * gainBuffer[i];
         }
       }
     }
