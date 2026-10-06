@@ -27,7 +27,7 @@ void main() {
   test('discoverNodes finds all upstream reachable nodes', () {
     final sine = SineOscillator(frequency: .value(440));
     final gain = Gain.mono(gain: .value(0.5), input: sine.output);
-    final pan = StereoPan(input: gain.outputs[0], pan: 0.5);
+    final pan = StereoPan(input: gain.outputs[0], pan: .value(0.0));
     final dac = Dac(inputs: [pan.left, pan.right]);
 
     // An unattached node that should NOT be discovered
@@ -43,7 +43,7 @@ void main() {
   test('topologicalSort sorts nodes in correct execution order', () {
     final sine = SineOscillator(frequency: .value(440));
     final gain = Gain.mono(gain: .value(0.5), input: sine.output);
-    final pan = StereoPan(input: gain.outputs[0], pan: 0.5);
+    final pan = StereoPan(input: gain.outputs[0], pan: .value(0.0));
     final dac = Dac(inputs: [pan.left, pan.right]);
 
     final discovered = discoverNodes([dac]);
@@ -69,7 +69,7 @@ void main() {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
     final gain = Gain.mono(gain: .value(0.5), input: sine.output);
-    final pan = StereoPan(input: gain.outputs[0], pan: 0.5);
+    final pan = StereoPan(input: gain.outputs[0], pan: .value(0.0));
     final dac = Dac(inputs: [pan.left, pan.right]);
 
     final pipeline = compilePipeline(root: dac, context: context);

@@ -9,5 +9,6 @@ export 'src/io/wav_writer.dart';
 export 'src/nodes/io/dac.dart';
 export 'src/nodes/oscillators/sine_oscillator.dart';
 export 'src/nodes/utils/gain.dart';
+export 'src/nodes/utils/offset.dart';
 export 'src/nodes/utils/stereo_pan.dart';
 export 'src/nodes/utils/stereo_split.dart';
