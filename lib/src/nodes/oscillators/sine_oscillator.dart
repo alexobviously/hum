@@ -21,18 +21,12 @@ class SineOscillator implements AudioNode<SineOscillatorProcessor> {
 
   @override
   SineOscillatorProcessor createProcessor() => SineOscillatorProcessor(
-    frequency: switch (frequency) {
-      ControlParamValue(:final value) => value,
-      ControlParamSignal() => null,
-    },
+    frequency: frequency.valueOrNull,
   );
 
   @override
   void updateProcessor(SineOscillatorProcessor processor) {
-    processor.frequency = switch (frequency) {
-      ControlParamValue(:final value) => value,
-      ControlParamSignal() => null,
-    };
+    processor.frequency = frequency.valueOrNull;
   }
 }
 
