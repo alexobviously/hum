@@ -25,13 +25,13 @@ class _LoopNode implements AudioNode<AudioProcessor> {
 
 void main() {
   test('discoverNodes finds all upstream reachable nodes', () {
-    final sine = SineOscillator(frequency: 440);
-    final gain = Gain.mono(gain: 0.5, input: sine.output);
+    final sine = SineOscillator(frequency: .value(440));
+    final gain = Gain.mono(gain: .value(0.5), input: sine.output);
     final pan = StereoPan(input: gain.outputs[0], pan: 0.5);
     final dac = Dac(inputs: [pan.left, pan.right]);
 
     // An unattached node that should NOT be discovered
-    final orphan = SineOscillator(frequency: 880);
+    final orphan = SineOscillator(frequency: .value(880));
 
     final discovered = discoverNodes([dac]);
 
@@ -41,8 +41,8 @@ void main() {
   });
 
   test('topologicalSort sorts nodes in correct execution order', () {
-    final sine = SineOscillator(frequency: 440);
-    final gain = Gain.mono(gain: 0.5, input: sine.output);
+    final sine = SineOscillator(frequency: .value(440));
+    final gain = Gain.mono(gain: .value(0.5), input: sine.output);
     final pan = StereoPan(input: gain.outputs[0], pan: 0.5);
     final dac = Dac(inputs: [pan.left, pan.right]);
 
@@ -67,8 +67,8 @@ void main() {
 
   test('compilePipeline builds and executes complete rendering pipeline', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-    final sine = SineOscillator(frequency: 440);
-    final gain = Gain.mono(gain: 0.5, input: sine.output);
+    final sine = SineOscillator(frequency: .value(440));
+    final gain = Gain.mono(gain: .value(0.5), input: sine.output);
     final pan = StereoPan(input: gain.outputs[0], pan: 0.5);
     final dac = Dac(inputs: [pan.left, pan.right]);
 
@@ -93,15 +93,15 @@ void main() {
 
   test('AudioPipeline.update updates live processor without rebuild', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-    final sine = SineOscillator(frequency: 440);
-    final gain = Gain.mono(gain: 1.0, input: sine.output);
+    final sine = SineOscillator(frequency: .value(440));
+    final gain = Gain.mono(gain: .value(1.0), input: sine.output);
     final pipeline = compilePipeline(root: gain, context: context);
 
     final processor = pipeline.processorOf(gain);
     expect(processor.gain, equals(1.0));
 
     // Update gain node to 0.5
-    final updatedGain = Gain.mono(gain: 0.5, input: sine.output);
+    final updatedGain = Gain.mono(gain: .value(0.5), input: sine.output);
     pipeline.update(gain, updatedGain);
 
     expect(processor.gain, equals(0.5));

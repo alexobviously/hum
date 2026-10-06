@@ -42,9 +42,7 @@ List<AudioNode> topologicalSort(Set<AudioNode> nodes) {
   final dependents = <AudioNode, List<AudioNode>>{
     for (final node in nodes) node: [],
   };
-  final inDegree = <AudioNode, int>{
-    for (final node in nodes) node: 0,
-  };
+  final inDegree = <AudioNode, int>{for (final node in nodes) node: 0};
 
   // Build the dependency graph
   for (final consumer in nodes) {
@@ -115,10 +113,7 @@ AudioPipeline compilePipeline({
   final portBuffers = <AudioPort, Float32List>{};
 
   Float32List getBuffer(AudioPort port) {
-    return portBuffers.putIfAbsent(
-      port,
-      () => Float32List(context.vectorSize),
-    );
+    return portBuffers.putIfAbsent(port, () => Float32List(context.vectorSize));
   }
 
   // Pre-allocate for all declared outputs of active nodes

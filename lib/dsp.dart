@@ -3,6 +3,7 @@ export 'src/compiler/pipeline.dart';
 export 'src/core/audio_node.dart';
 export 'src/core/audio_port.dart';
 export 'src/core/audio_processor.dart';
+export 'src/core/control_param.dart';
 export 'src/core/process_context.dart';
 export 'src/io/wav_writer.dart';
 export 'src/nodes/io/dac.dart';

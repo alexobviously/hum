@@ -7,9 +7,9 @@ void main() {
   const vs = 64;
   const blocks = sr ~/ vs; // one second
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
-  final sine = SineOscillator(frequency: 440);
-  final gain = Gain.mono(gain: 0.7, input: sine.output);
-  final pan = StereoPan(input: gain.outputs.first, pan: 0.3);
+  final sine = SineOscillator(frequency: .value(440));
+  final gain = Gain.mono(gain: .value(0.7), input: sine.output);
+  final pan = StereoPan(input: gain.outputs.first, pan: 0.9);
   final dac = Dac(inputs: pan.outputs);
   final pipeline = compilePipeline(root: dac, context: context);
 
@@ -18,7 +18,6 @@ void main() {
     pipeline.process();
     final left = pipeline.outputs[0];
     final right = pipeline.outputs[1];
-    // Fresh buffer + sample-by-sample interleaving:
     final interleaved = Float32List(vs * 2);
     for (int s = 0; s < vs; s++) {
       interleaved[s * 2] = left[s];
