@@ -14,7 +14,7 @@ void main() {
     value: .value(440),
     input: depth.outlet,
   ); // 440 ± 25 Hz
-  final carrier = SineOscillator(frequency: .signal(pitch.outlet));
+  final carrier = SquareOscillator(frequency: .signal(pitch.outlet));
   final gain = Gain.mono(gain: .value(0.7), input: carrier.outlet);
 
   final pan = StereoPan(
@@ -37,5 +37,5 @@ void main() {
     audio.add(interleaved);
   }
 
-  writeWav('pipeline_test3.wav', audio, numChannels: 2);
+  writeWav('pipeline_test4.wav', audio, numChannels: 2);
 }
