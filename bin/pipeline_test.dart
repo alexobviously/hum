@@ -37,5 +37,5 @@ void main() {
     audio.add(interleaved);
   }
 
-  writeWav('pipeline_test4.wav', audio, numChannels: 2);
+  writeWav('tmp/pipeline_test6.wav', audio, numChannels: 2);
 }
