@@ -7,6 +7,7 @@ export 'src/core/control_param.dart';
 export 'src/core/process_context.dart';
 export 'src/io/wav_writer.dart';
 export 'src/nodes/io/dac.dart';
+export 'src/nodes/io/wav_sink.dart';
 export 'src/nodes/oscillators/sawtooth_oscillator.dart';
 export 'src/nodes/oscillators/sine_oscillator.dart';
 export 'src/nodes/oscillators/square_oscillator.dart';

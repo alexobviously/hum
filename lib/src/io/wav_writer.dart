@@ -27,7 +27,7 @@ void writeWav(
   final bytesPerSample = format.bitsPerSample ~/ 8;
   final dataSize = totalSamples * bytesPerSample;
 
-  final header = _buildWavHeader(
+  final header = buildWavHeader(
     dataSize: dataSize,
     sampleRate: sampleRate,
     numChannels: numChannels,
@@ -58,7 +58,7 @@ void writeWav(
   File(path).writeAsBytesSync(builder.takeBytes());
 }
 
-ByteData _buildWavHeader({
+ByteData buildWavHeader({
   required int dataSize,
   required int sampleRate,
   required int numChannels,

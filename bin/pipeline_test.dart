@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:dsp/dsp.dart';
 
 void main() {
@@ -21,21 +19,15 @@ void main() {
     input: gain.outlet,
     pan: .signal(lfo2.outlet),
   );
-  final dac = Dac(channels: pan.outlets);
-  final pipeline = compilePipeline(root: dac, context: context);
+  final wav = WavSink.file(
+    channels: pan.outlets,
+    path: 'tmp/pipeline_test7.wav',
+  );
+  final pipeline = compilePipeline(root: wav, context: context);
 
-  final audio = <Float32List>[];
   for (int i = 0; i < blocks; i++) {
     pipeline.process();
-    final left = pipeline.outputs[0];
-    final right = pipeline.outputs[1];
-    final interleaved = Float32List(vs * 2);
-    for (int s = 0; s < vs; s++) {
-      interleaved[s * 2] = left[s];
-      interleaved[s * 2 + 1] = right[s];
-    }
-    audio.add(interleaved);
   }
 
-  writeWav('tmp/pipeline_test6.wav', audio, numChannels: 2);
+  pipeline.processorOf(wav).close();
 }
