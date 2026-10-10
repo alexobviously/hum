@@ -5,7 +5,8 @@ import 'package:dsp/dsp.dart';
 
 typedef SineOscillatorParams = ({double? frequency});
 
-class SineOscillator implements AudioNode<SineOscillatorProcessor> {
+class SineOscillator implements OscillatorNode<SineOscillatorProcessor> {
+  @override
   final ControlParam<double> frequency;
   const SineOscillator({required this.frequency});
 
@@ -19,6 +20,7 @@ class SineOscillator implements AudioNode<SineOscillatorProcessor> {
   @override
   List<Outlet> get outlets => [Outlet(node: this, index: 0)];
 
+  @override
   Outlet get outlet => outlets.first;
 
   @override

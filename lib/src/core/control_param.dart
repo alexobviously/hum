@@ -20,9 +20,8 @@ sealed class ControlParam<T> {
   void init() {}
   void dispose() {}
 
-  const factory ControlParam.value(T value) = ControlParamValue<T>;
-  factory ControlParam.stream(Stream<T> stream, T initialValue) =
-      ControlParamStream<T>;
+  const factory value(T value) = ControlParamValue<T>;
+  factory stream(Stream<T> stream, T initialValue) = ControlParamStream<T>;
   static ControlParam<double> signal(Outlet outlet) =>
       ControlParamSignal(outlet);
 }
@@ -31,6 +30,9 @@ class ControlParamValue<T> extends ControlParam<T> {
   final T value;
 
   const ControlParamValue(this.value);
+
+  const factory value(T value) = ControlParamValue<T>;
+  factory stream(Stream<T> stream, T initialValue) = ControlParamStream<T>;
 }
 
 class ControlParamStream<T> extends ControlParam<T>
