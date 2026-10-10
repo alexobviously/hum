@@ -13,6 +13,7 @@ export 'src/nodes/oscillators/sawtooth_oscillator.dart';
 export 'src/nodes/oscillators/sine_oscillator.dart';
 export 'src/nodes/oscillators/square_oscillator.dart';
 export 'src/nodes/oscillators/triangle_oscillator.dart';
+export 'src/nodes/sources/noise_generator.dart';
 export 'src/nodes/utils/gain.dart';
 export 'src/nodes/utils/offset.dart';
 export 'src/nodes/utils/scale.dart';
