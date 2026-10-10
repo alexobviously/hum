@@ -6,7 +6,9 @@ import 'oscillator_utils.dart';
 
 typedef SawtoothOscillatorParams = ({double? frequency, bool usePolyBlep});
 
-class SawtoothOscillator implements AudioNode<SawtoothOscillatorProcessor> {
+class SawtoothOscillator
+    implements OscillatorNode<SawtoothOscillatorProcessor> {
+  @override
   final ControlParam<double> frequency;
   final bool usePolyBlep;
 
@@ -22,6 +24,7 @@ class SawtoothOscillator implements AudioNode<SawtoothOscillatorProcessor> {
   @override
   List<Outlet> get outlets => [Outlet(node: this, index: 0)];
 
+  @override
   Outlet get outlet => outlets.first;
 
   @override

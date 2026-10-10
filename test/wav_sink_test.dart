@@ -39,8 +39,14 @@ void main() {
       // Check channels (index 22) and sample rate (index 24)
       expect(byteData.getUint16(20, Endian.little), equals(1)); // PCM format
       expect(byteData.getUint16(22, Endian.little), equals(2)); // Stereo
-      expect(byteData.getUint32(24, Endian.little), equals(44100)); // Sample rate
-      expect(byteData.getUint32(40, Endian.little), equals(1280)); // Data length
+      expect(
+        byteData.getUint32(24, Endian.little),
+        equals(44100),
+      ); // Sample rate
+      expect(
+        byteData.getUint32(40, Endian.little),
+        equals(1280),
+      ); // Data length
     });
 
     test('WavSink.file streams audio directly to a file', () {
@@ -74,9 +80,15 @@ void main() {
       final byteData = ByteData.sublistView(fileBytes);
       expect(String.fromCharCodes(fileBytes.sublist(0, 4)), equals('RIFF'));
       expect(String.fromCharCodes(fileBytes.sublist(8, 12)), equals('WAVE'));
-      expect(byteData.getUint16(20, Endian.little), equals(3)); // float32 format
+      expect(
+        byteData.getUint16(20, Endian.little),
+        equals(3),
+      ); // float32 format
       expect(byteData.getUint16(22, Endian.little), equals(1)); // Mono
-      expect(byteData.getUint32(40, Endian.little), equals(2560)); // Data length
+      expect(
+        byteData.getUint32(40, Endian.little),
+        equals(2560),
+      ); // Data length
 
       // Clean up
       tmpFile.deleteSync();

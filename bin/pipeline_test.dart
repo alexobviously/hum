@@ -13,7 +13,7 @@ void main() {
   //   value: .value(440),
   //   input: depth.outlet,
   // ); // 440 ± 25 Hz
-  final carrier = SquareOscillator(frequency: .signal(pitchLfo.outlet));
+  final carrier = TriangleOscillator(frequency: .signal(pitchLfo.outlet));
   final gain = Gain.mono(gain: .value(0.7), input: carrier.outlet);
 
   final pan = StereoPan(
@@ -22,7 +22,7 @@ void main() {
   );
   final wav = WavSink.file(
     channels: pan.outlets,
-    path: 'tmp/pipeline_test7.wav',
+    path: 'tmp/pipeline_test8.wav',
   );
   final pipeline = compilePipeline(root: wav, context: context);
 

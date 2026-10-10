@@ -37,3 +37,23 @@ double polyBlep(double phase, double dt) {
 
   return 0.0;
 }
+
+/// For antialiasing triangle waves (derivative discontinuities).
+/// Integrated PolyBLEP (PolyBLAMP).
+/// https://www.martin-finke.de/articles/audio-plugins-018-polyblep-oscillator/
+@pragma('vm:prefer-inline')
+double polyBlamp(double phase, double dt) {
+  if (dt <= 0.0 || dt > 0.5) return 0.0;
+
+  if (phase < dt) {
+    final t = phase / dt - 1.0;
+    return -1.0 / 3.0 * t * t * t;
+  }
+
+  if (phase > 1.0 - dt) {
+    final t = (phase - 1.0) / dt + 1.0;
+    return 1.0 / 3.0 * t * t * t;
+  }
+
+  return 0.0;
+}

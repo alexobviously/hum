@@ -6,7 +6,8 @@ import 'oscillator_utils.dart';
 
 typedef SquareOscillatorParams = ({double? frequency, bool usePolyBlep});
 
-class SquareOscillator implements AudioNode<SquareOscillatorProcessor> {
+class SquareOscillator implements OscillatorNode<SquareOscillatorProcessor> {
+  @override
   final ControlParam<double> frequency;
   final bool usePolyBlep;
 
@@ -22,6 +23,7 @@ class SquareOscillator implements AudioNode<SquareOscillatorProcessor> {
   @override
   List<Outlet> get outlets => [Outlet(node: this, index: 0)];
 
+  @override
   Outlet get outlet => outlets.first;
 
   @override
