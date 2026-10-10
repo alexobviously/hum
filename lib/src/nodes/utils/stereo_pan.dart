@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
+typedef StereoPanParams = ({double? pan});
+
 class StereoPan implements AudioNode<StereoPanProcessor> {
   final Outlet input;
 
@@ -39,9 +41,7 @@ class StereoPan implements AudioNode<StereoPanProcessor> {
       StereoPanProcessor(pan: pan.valueOrNull);
 
   @override
-  void updateProcessor(StereoPanProcessor processor) {
-    processor.pan = pan.valueOrNull;
-  }
+  StereoPanParams get params => (pan: pan.valueOrNull);
 }
 
 class StereoPanProcessor implements AudioProcessor {
@@ -49,6 +49,12 @@ class StereoPanProcessor implements AudioProcessor {
 
   /// Pan position from -1.0 (hard left) to +1.0 (hard right), or null if signal modulated.
   double? pan;
+
+  @override
+  void update(Object params) {
+    params = params as StereoPanParams;
+    pan = params.pan;
+  }
 
   @override
   void process(

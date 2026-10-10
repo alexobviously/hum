@@ -4,6 +4,8 @@ import 'package:dsp/dsp.dart';
 
 import 'oscillator_utils.dart';
 
+typedef SquareOscillatorParams = ({double? frequency, bool usePolyBlep});
+
 class SquareOscillator implements AudioNode<SquareOscillatorProcessor> {
   final ControlParam<double> frequency;
   final bool usePolyBlep;
@@ -29,10 +31,8 @@ class SquareOscillator implements AudioNode<SquareOscillatorProcessor> {
   );
 
   @override
-  void updateProcessor(SquareOscillatorProcessor processor) {
-    processor.frequency = frequency.valueOrNull;
-    processor.usePolyBlep = usePolyBlep;
-  }
+  SquareOscillatorParams get params =>
+      (frequency: frequency.valueOrNull, usePolyBlep: usePolyBlep);
 }
 
 class SquareOscillatorProcessor implements AudioProcessor {
@@ -49,6 +49,13 @@ class SquareOscillatorProcessor implements AudioProcessor {
 
   /// 0.0 - 1.0 normalised phase.
   double phase = 0.0;
+
+  @override
+  void update(Object params) {
+    params = params as SquareOscillatorParams;
+    frequency = params.frequency;
+    usePolyBlep = params.usePolyBlep;
+  }
 
   @override
   void process(

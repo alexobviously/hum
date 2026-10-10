@@ -20,7 +20,7 @@ class _LoopNode implements AudioNode<AudioProcessor> {
   AudioProcessor createProcessor() => throw UnimplementedError();
 
   @override
-  void updateProcessor(AudioProcessor processor) {}
+  Object get params => ();
 }
 
 void main() {

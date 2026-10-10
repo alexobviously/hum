@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:dsp/src/core/process_context.dart';
 
 abstract class AudioProcessor {
+  void update(Object params);
+
   void process(
     ProcessContext context,
     List<Float32List> inputs,

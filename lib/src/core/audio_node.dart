@@ -6,5 +6,6 @@ abstract class AudioNode<T extends AudioProcessor> {
   List<Outlet> get outlets;
 
   T createProcessor();
-  void updateProcessor(T processor);
+
+  Object get params;
 }

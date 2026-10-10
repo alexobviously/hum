@@ -68,6 +68,6 @@ class AudioPipeline {
     AudioNode<T> newSpec,
   ) {
     final processor = processorOf(target);
-    newSpec.updateProcessor(processor);
+    processor.update(newSpec.params);
   }
 }

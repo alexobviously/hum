@@ -32,10 +32,13 @@ class StereoSplit implements AudioNode<StereoSplitProcessor> {
   StereoSplitProcessor createProcessor() => StereoSplitProcessor();
 
   @override
-  void updateProcessor(StereoSplitProcessor processor) {}
+  Object get params => ();
 }
 
 class StereoSplitProcessor implements AudioProcessor {
+  @override
+  void update(Object params) {}
+
   @override
   void process(
     ProcessContext context,

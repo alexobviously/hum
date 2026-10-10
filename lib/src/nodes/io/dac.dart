@@ -22,10 +22,13 @@ class Dac implements AudioNode<DacProcessor> {
   DacProcessor createProcessor() => DacProcessor();
 
   @override
-  void updateProcessor(DacProcessor processor) {}
+  Object get params => ();
 }
 
 class DacProcessor implements AudioProcessor {
+  @override
+  void update(Object params) {}
+
   @override
   void process(
     ProcessContext context,

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
+typedef SineOscillatorParams = ({double? frequency});
+
 class SineOscillator implements AudioNode<SineOscillatorProcessor> {
   final ControlParam<double> frequency;
   const SineOscillator({required this.frequency});
@@ -25,9 +27,7 @@ class SineOscillator implements AudioNode<SineOscillatorProcessor> {
   );
 
   @override
-  void updateProcessor(SineOscillatorProcessor processor) {
-    processor.frequency = frequency.valueOrNull;
-  }
+  SineOscillatorParams get params => (frequency: frequency.valueOrNull);
 }
 
 class SineOscillatorProcessor implements AudioProcessor {
@@ -40,6 +40,12 @@ class SineOscillatorProcessor implements AudioProcessor {
   double phase = 0.0;
 
   @override
+  void update(Object params) {
+    params = params as SineOscillatorParams;
+    frequency = params.frequency;
+  }
+
+  @override
   void process(
     ProcessContext context,
     List<Float32List> inputs,
@@ -49,6 +55,7 @@ class SineOscillatorProcessor implements AudioProcessor {
     final frequency = this.frequency;
 
     if (frequency != null) {
+      // Constant branch
       final phaseIncrement = frequency / context.sampleRate;
 
       for (int i = 0; i < output.length; i++) {
@@ -58,6 +65,7 @@ class SineOscillatorProcessor implements AudioProcessor {
         if (phase >= 1.0) phase -= 1.0;
       }
     } else {
+      // Signal branch
       final freqBuffer = inputs[SineOscillator.freqInlet];
 
       for (int i = 0; i < context.vectorSize; i++) {

@@ -4,6 +4,8 @@ import 'package:dsp/dsp.dart';
 
 import 'oscillator_utils.dart';
 
+typedef SawtoothOscillatorParams = ({double? frequency, bool usePolyBlep});
+
 class SawtoothOscillator implements AudioNode<SawtoothOscillatorProcessor> {
   final ControlParam<double> frequency;
   final bool usePolyBlep;
@@ -29,10 +31,8 @@ class SawtoothOscillator implements AudioNode<SawtoothOscillatorProcessor> {
   );
 
   @override
-  void updateProcessor(SawtoothOscillatorProcessor processor) {
-    processor.frequency = frequency.valueOrNull;
-    processor.usePolyBlep = usePolyBlep;
-  }
+  SawtoothOscillatorParams get params =>
+      (frequency: frequency.valueOrNull, usePolyBlep: usePolyBlep);
 }
 
 class SawtoothOscillatorProcessor implements AudioProcessor {
@@ -49,6 +49,13 @@ class SawtoothOscillatorProcessor implements AudioProcessor {
 
   /// 0.0 - 1.0 normalised phase.
   double phase = 0.0;
+
+  @override
+  void update(Object params) {
+    params = params as SawtoothOscillatorParams;
+    frequency = params.frequency;
+    usePolyBlep = params.usePolyBlep;
+  }
 
   @override
   void process(
