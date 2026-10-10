@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
-typedef GainParams = ({double? gain});
+typedef GainParams = ({double? gain, int numChannels});
 
 class Gain implements AudioNode<GainProcessor> {
   final ControlParam<double> gain;
@@ -48,7 +48,8 @@ class Gain implements AudioNode<GainProcessor> {
   );
 
   @override
-  GainParams get params => (gain: gain.valueOrNull);
+  GainParams get params =>
+      (gain: gain.valueOrNull, numChannels: channels.length);
 }
 
 class GainProcessor implements AudioProcessor {
@@ -57,9 +58,15 @@ class GainProcessor implements AudioProcessor {
 
   double? gain;
 
+  factory build(Object params) {
+    params = params as GainParams;
+    return GainProcessor(gain: params.gain, numChannels: params.numChannels);
+  }
+
   @override
   void update(Object params) {
     params = params as GainParams;
+    assert(params.numChannels == numChannels, 'cannot update numChannels');
     gain = params.gain;
   }
 

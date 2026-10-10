@@ -50,6 +50,14 @@ class SquareOscillatorProcessor implements AudioProcessor {
   /// 0.0 - 1.0 normalised phase.
   double phase = 0.0;
 
+  factory build(Object params) {
+    params = params as SquareOscillatorParams;
+    return SquareOscillatorProcessor(
+      frequency: params.frequency,
+      usePolyBlep: params.usePolyBlep,
+    );
+  }
+
   @override
   void update(Object params) {
     params = params as SquareOscillatorParams;

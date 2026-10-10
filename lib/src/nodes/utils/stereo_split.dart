@@ -36,6 +36,9 @@ class StereoSplit implements AudioNode<StereoSplitProcessor> {
 }
 
 class StereoSplitProcessor implements AudioProcessor {
+  StereoSplitProcessor();
+  factory build(Object params) => StereoSplitProcessor();
+
   @override
   void update(Object params) {}
 
