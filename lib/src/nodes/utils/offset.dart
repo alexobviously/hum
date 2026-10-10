@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
-typedef OffsetParams = ({double? value, int numChannels});
+typedef OffsetParams = ({double? value});
 
 /// Takes an input and adds a [value] to it.
 class Offset implements AudioNode<OffsetProcessor> {
@@ -41,16 +41,12 @@ class Offset implements AudioNode<OffsetProcessor> {
 
   @override
   OffsetProcessor createProcessor() => OffsetProcessor(
-    value: switch (value) {
-      ControlParamValue(:final value) => value,
-      ControlParamSignal() => null,
-    },
+    value: value.valueOrNull,
     numChannels: channels.length,
   );
 
   @override
-  OffsetParams get params =>
-      (value: value.valueOrNull, numChannels: channels.length);
+  OffsetParams get params => (value: value.valueOrNull);
 }
 
 class OffsetProcessor implements AudioProcessor {
@@ -59,18 +55,9 @@ class OffsetProcessor implements AudioProcessor {
 
   double? value;
 
-  factory build(Object params) {
-    params = params as OffsetParams;
-    return OffsetProcessor(
-      value: params.value,
-      numChannels: params.numChannels,
-    );
-  }
-
   @override
   void update(Object params) {
     params = params as OffsetParams;
-    assert(params.numChannels == numChannels, 'cannot update numChannels');
     value = params.value;
   }
 

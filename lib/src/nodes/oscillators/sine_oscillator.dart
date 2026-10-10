@@ -39,11 +39,6 @@ class SineOscillatorProcessor implements AudioProcessor {
   /// 0.0 - 1.0 normalized phase.
   double phase = 0.0;
 
-  factory build(Object params) {
-    params = params as SineOscillatorParams;
-    return SineOscillatorProcessor(frequency: params.frequency);
-  }
-
   @override
   void update(Object params) {
     params = params as SineOscillatorParams;

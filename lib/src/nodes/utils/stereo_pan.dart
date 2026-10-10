@@ -50,11 +50,6 @@ class StereoPanProcessor implements AudioProcessor {
   /// Pan position from -1.0 (hard left) to +1.0 (hard right), or null if signal modulated.
   double? pan;
 
-  factory build(Object params) {
-    params = params as StereoPanParams;
-    return StereoPanProcessor(pan: params.pan);
-  }
-
   @override
   void update(Object params) {
     params = params as StereoPanParams;

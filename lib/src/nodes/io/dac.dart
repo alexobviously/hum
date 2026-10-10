@@ -27,7 +27,6 @@ class Dac implements AudioNode<DacProcessor> {
 
 class DacProcessor implements AudioProcessor {
   DacProcessor();
-  factory build(Object params) => DacProcessor();
 
   @override
   void update(Object params) {}

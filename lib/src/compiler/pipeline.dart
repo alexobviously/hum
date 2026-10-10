@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:dsp/src/core/audio_node.dart';
+import 'package:dsp/src/core/audio_processor.dart';
+import 'package:dsp/src/core/process_context.dart';
 
 /// A single step in the linear execution schedule.
 class RenderStep {
@@ -26,7 +28,6 @@ class RenderStep {
 /// A compiled, linear audio rendering pipeline.
 class AudioPipeline {
   final ProcessContext context;
-  final ProcessorRegistry processorRegistry;
   final List<RenderStep> steps;
 
   /// The output buffers of the pipeline (one [Float32List] per output channel).
@@ -34,7 +35,6 @@ class AudioPipeline {
 
   AudioPipeline({
     required this.context,
-    required this.processorRegistry,
     required this.steps,
     required this.outputs,
   });

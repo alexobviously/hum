@@ -12,6 +12,5 @@ export 'src/nodes/oscillators/sine_oscillator.dart';
 export 'src/nodes/oscillators/square_oscillator.dart';
 export 'src/nodes/utils/gain.dart';
 export 'src/nodes/utils/offset.dart';
-export 'src/nodes/utils/registry.dart';
 export 'src/nodes/utils/stereo_pan.dart';
 export 'src/nodes/utils/stereo_split.dart';

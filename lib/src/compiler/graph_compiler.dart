@@ -1,7 +1,10 @@
 import 'dart:collection';
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:dsp/src/compiler/pipeline.dart';
+import 'package:dsp/src/core/audio_node.dart';
+import 'package:dsp/src/core/audio_port.dart';
+import 'package:dsp/src/core/process_context.dart';
 
 export 'package:dsp/src/compiler/pipeline.dart';
 
@@ -90,10 +93,7 @@ AudioPipeline compilePipeline({
   List<AudioNode>? roots,
   List<Outlet>? targetOutputs,
   required ProcessContext context,
-  ProcessorRegistry? processorRegistry,
 }) {
-  processorRegistry ??= defaultRegistry();
-
   final resolvedRoots = <AudioNode>{
     ?root,
     ...?roots,
@@ -135,10 +135,7 @@ AudioPipeline compilePipeline({
   // 4. Create RenderSteps
   final steps = <RenderStep>[];
   for (final node in sortedNodes) {
-    final processor = processorRegistry.build(
-      processorRegistry.keyForNode(node),
-      node.params,
-    );
+    final processor = node.createProcessor();
     final stepInputs = [
       for (final inlet in node.inlets)
         inlet.source != null ? getBuffer(inlet.source!) : emptyBuffer,
@@ -178,7 +175,6 @@ AudioPipeline compilePipeline({
 
   return AudioPipeline(
     context: context,
-    processorRegistry: processorRegistry,
     steps: steps,
     outputs: pipelineOutputs,
   );
