@@ -45,7 +45,7 @@ extension NoiseGeneratorScale on NoiseGenerator {
 
 class NoiseGeneratorProcessor implements AudioProcessor {
   NoiseGeneratorProcessor({
-    this.type = NoiseType.white,
+    this.type = .white,
     int? seed,
   }) : _state = (seed == null || seed == 0) ? 2463534242 : seed & 0xFFFFFFFF;
 
