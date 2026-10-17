@@ -11,10 +11,16 @@ void main() {
       final oscB = SineOscillator(frequency: const .value(880));
 
       final mono = Crossfade.mono(a: oscA.outlet, b: oscB.outlet);
-      expect(mono.inlets.length, equals(3)); // a, b, mix
-      expect(mono.inlets[0].source, equals(oscA.outlet));
-      expect(mono.inlets[1].source, equals(oscB.outlet));
-      expect(mono.inlets[2].source, isNull);
+      expect(mono.inlets.length, equals(3)); // mix, a, b
+      expect(mono.inlets[Crossfade.mixInlet].source, isNull);
+      expect(
+        mono.inlets[Crossfade.audioInletOffset].source,
+        equals(oscA.outlet),
+      );
+      expect(
+        mono.inlets[Crossfade.audioInletOffset + 1].source,
+        equals(oscB.outlet),
+      );
       expect(mono.outlets.length, equals(1));
 
       final oscALeft = SineOscillator(frequency: const .value(440));
@@ -28,7 +34,7 @@ void main() {
         bLeft: oscBLeft.outlet,
         bRight: oscBRight.outlet,
       );
-      expect(stereo.inlets.length, equals(5)); // aL, aR, bL, bR, mix
+      expect(stereo.inlets.length, equals(5)); // mix, aL, aR, bL, bR
       expect(stereo.outlets.length, equals(2));
       expect(stereo.left, equals(stereo.outlets[0]));
       expect(stereo.right, equals(stereo.outlets[1]));
@@ -110,7 +116,7 @@ void main() {
         mix: null,
         mode: CrossfadeMode.linear,
       );
-      p.process(context, [inA, inB, mixSig], [out]);
+      p.process(context, [mixSig, inA, inB], [out]);
 
       expect(out[0], closeTo(10.0, 1e-5));
       expect(out[1], closeTo(12.5, 1e-5));

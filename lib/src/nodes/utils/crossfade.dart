@@ -70,19 +70,24 @@ class Crossfade implements AudioNode<CrossfadeProcessor> {
 
   int get numChannels => a.length;
 
-  int get mixInlet => numChannels * 2;
+  static const mixInlet = 0;
+  static const audioInletOffset = 1;
 
   @override
   List<Inlet> get inlets => [
-    ...List.generate(
-      numChannels,
-      (i) => Inlet(node: this, index: i, source: a[i]),
-    ),
-    ...List.generate(
-      numChannels,
-      (i) => Inlet(node: this, index: numChannels + i, source: b[i]),
-    ),
     Inlet(node: this, index: mixInlet, source: mix.outletOrNull),
+    ...List.generate(
+      numChannels,
+      (i) => Inlet(node: this, index: audioInletOffset + i, source: a[i]),
+    ),
+    ...List.generate(
+      numChannels,
+      (i) => Inlet(
+        node: this,
+        index: audioInletOffset + numChannels + i,
+        source: b[i],
+      ),
+    ),
   ];
 
   @override
@@ -130,7 +135,8 @@ class CrossfadeProcessor implements AudioProcessor {
   ) {
     final length = context.vectorSize;
     final mix = this.mix;
-    final mixInlet = numChannels * 2;
+    final audioOffset =
+        inputs.length > numChannels * 2 ? Crossfade.audioInletOffset : 0;
 
     if (mix != null) {
       // Constant mix over the entire block
@@ -140,8 +146,8 @@ class CrossfadeProcessor implements AudioProcessor {
       };
 
       for (int c = 0; c < numChannels; c++) {
-        final inA = inputs[c];
-        final inB = inputs[numChannels + c];
+        final inA = inputs[audioOffset + c];
+        final inB = inputs[audioOffset + numChannels + c];
         final out = outputs[c];
 
         for (int i = 0; i < length; i++) {
@@ -150,13 +156,13 @@ class CrossfadeProcessor implements AudioProcessor {
       }
     } else {
       // Audio-rate signal modulation for mix
-      final mixBuf = inputs[mixInlet];
+      final mixBuf = inputs[Crossfade.mixInlet];
 
       switch (mode) {
         case .equalPower:
           for (int c = 0; c < numChannels; c++) {
-            final inA = inputs[c];
-            final inB = inputs[numChannels + c];
+            final inA = inputs[audioOffset + c];
+            final inB = inputs[audioOffset + numChannels + c];
             final out = outputs[c];
 
             for (int i = 0; i < length; i++) {
@@ -167,8 +173,8 @@ class CrossfadeProcessor implements AudioProcessor {
 
         case .linear:
           for (int c = 0; c < numChannels; c++) {
-            final inA = inputs[c];
-            final inB = inputs[numChannels + c];
+            final inA = inputs[audioOffset + c];
+            final inB = inputs[audioOffset + numChannels + c];
             final out = outputs[c];
 
             for (int i = 0; i < length; i++) {
