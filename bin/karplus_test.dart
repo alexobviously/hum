@@ -22,17 +22,19 @@ void main() {
     mix: .value(0.75),
   );
 
-  final delay = Delay.mono(
-    input: bitcrusher.outlet,
-    time: .value(tempo.durationOf(NoteValue.sixteenth, triplet: true)),
-    feedback: const .value(0.74),
-    mix: .value(0),
-    damp: const .value(0.8),
-  );
+  final verb = Freeverb.mono(input: bitcrusher.outlet);
+
+  // final delay = Delay.mono(
+  //   input: bitcrusher.outlet,
+  //   time: .value(tempo.durationOf(NoteValue.sixteenth, triplet: true)),
+  //   feedback: const .value(0.74),
+  //   mix: .value(0),
+  //   damp: const .value(0.8),
+  // );
 
   final wav = WavSink.file(
-    channels: [delay.outlet],
-    path: 'tmp/karplus_test.wav',
+    channels: verb.outlets,
+    path: 'tmp/karplus_test_fv.wav',
   );
   final pipeline = compilePipeline(root: wav, context: context);
 
