@@ -7,8 +7,8 @@ void main() {
   test('dsp library exports core symbols and builds simple graph', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.8), input: sine.outlet);
-    final pipeline = compilePipeline(root: gain, context: context);
+    final mult = Mult.mono(value: .value(0.8), input: sine.outlet);
+    final pipeline = compilePipeline(root: mult, context: context);
 
     expect(pipeline.numChannels, equals(1));
     pipeline.process();

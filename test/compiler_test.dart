@@ -5,7 +5,7 @@ import 'package:dsp/src/core/audio_processor.dart';
 import 'package:dsp/src/core/process_context.dart';
 import 'package:dsp/src/nodes/io/dac.dart';
 import 'package:dsp/src/nodes/oscillators/sine_oscillator.dart';
-import 'package:dsp/src/nodes/utils/gain.dart';
+import 'package:dsp/src/nodes/utils/mult.dart';
 import 'package:dsp/src/nodes/utils/stereo_pan.dart';
 import 'package:test/test.dart';
 
@@ -26,8 +26,8 @@ class _LoopNode implements AudioNode<AudioProcessor> {
 void main() {
   test('discoverNodes finds all upstream reachable nodes', () {
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
-    final pan = StereoPan(input: gain.outlets[0], pan: .value(0.0));
+    final mult = Mult.mono(value: .value(0.5), input: sine.outlet);
+    final pan = StereoPan(input: mult.outlets[0], pan: .value(0.0));
     final dac = Dac(channels: [pan.left, pan.right]);
 
     // An unattached node that should NOT be discovered
@@ -35,23 +35,23 @@ void main() {
 
     final discovered = discoverNodes([dac]);
 
-    expect(discovered, containsAll([dac, pan, gain, sine]));
+    expect(discovered, containsAll([dac, pan, mult, sine]));
     expect(discovered, isNot(contains(orphan)));
     expect(discovered.length, equals(4));
   });
 
   test('topologicalSort sorts nodes in correct execution order', () {
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
-    final pan = StereoPan(input: gain.outlets[0], pan: .value(0.0));
+    final mult = Mult.mono(value: .value(0.5), input: sine.outlet);
+    final pan = StereoPan(input: mult.outlets[0], pan: .value(0.0));
     final dac = Dac(channels: [pan.left, pan.right]);
 
     final discovered = discoverNodes([dac]);
     final sorted = topologicalSort(discovered);
 
     expect(sorted.length, equals(4));
-    expect(sorted.indexOf(sine), lessThan(sorted.indexOf(gain)));
-    expect(sorted.indexOf(gain), lessThan(sorted.indexOf(pan)));
+    expect(sorted.indexOf(sine), lessThan(sorted.indexOf(mult)));
+    expect(sorted.indexOf(mult), lessThan(sorted.indexOf(pan)));
     expect(sorted.indexOf(pan), lessThan(sorted.indexOf(dac)));
   });
 
@@ -68,8 +68,8 @@ void main() {
   test('compilePipeline builds and executes complete rendering pipeline', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(0.5), input: sine.outlet);
-    final pan = StereoPan(input: gain.outlets[0], pan: .value(0.0));
+    final mult = Mult.mono(value: .value(0.5), input: sine.outlet);
+    final pan = StereoPan(input: mult.outlets[0], pan: .value(0.0));
     final dac = Dac(channels: [pan.left, pan.right]);
 
     final pipeline = compilePipeline(root: dac, context: context);
@@ -94,16 +94,16 @@ void main() {
   test('AudioPipeline.update updates live processor without rebuild', () {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
-    final gain = Gain.mono(gain: .value(1.0), input: sine.outlet);
-    final pipeline = compilePipeline(root: gain, context: context);
+    final mult = Mult.mono(value: .value(1.0), input: sine.outlet);
+    final pipeline = compilePipeline(root: mult, context: context);
 
-    final processor = pipeline.processorOf(gain);
-    expect(processor.gain, equals(1.0));
+    final processor = pipeline.processorOf(mult);
+    expect(processor.value, equals(1.0));
 
-    // Update gain node to 0.5
-    final updatedGain = Gain.mono(gain: .value(0.5), input: sine.outlet);
-    pipeline.update(gain, updatedGain);
+    // Update mult node to 0.5
+    final updatedMult = Mult.mono(value: .value(0.5), input: sine.outlet);
+    pipeline.update(mult, updatedMult);
 
-    expect(processor.gain, equals(0.5));
+    expect(processor.value, equals(0.5));
   });
 }

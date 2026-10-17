@@ -25,9 +25,11 @@ void main() {
     frequency: .signal(ramp.scale(low.hz / 2, high.hz / 2).outlet),
   );
   final noise = NoiseGenerator.pink();
-  final amp = Gain.mono(
-    gain: .signal(adsr.outlet),
-    input: sine.outlet + saw.outlet * 0.1 + noise.outlet * 0.25,
+  final sawScaled = Mult.mono(value: const .value(0.1), input: saw.outlet);
+  final noiseScaled = Mult.mono(value: const .value(0.25), input: noise.outlet);
+  final amp = Mult.mono(
+    value: ControlParam.signal(adsr.outlet),
+    input: sine.outlet + sawScaled.outlet + noiseScaled.outlet,
   );
   final bitcrush = Bitcrusher.mono(
     input: amp.outlet,

@@ -59,8 +59,8 @@ void main() {
     test('processes in compiled pipeline', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 128);
       final noise = NoiseGenerator.pink(seed: 999);
-      final gain = Gain.mono(gain: .value(0.5), input: noise.outlet);
-      final pipeline = compilePipeline(root: gain, context: context);
+      final mult = Mult.mono(value: .value(0.5), input: noise.outlet);
+      final pipeline = compilePipeline(root: mult, context: context);
 
       pipeline.process();
       final output = pipeline.outputs[0];

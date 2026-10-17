@@ -5,10 +5,8 @@ void main() {
   const vs = 64;
   const blocks = sr * 5 ~/ vs; // 5 seconds
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
-  final pitchLfo = SineOscillator(frequency: .value(5))
-      .scale(440 - 25, 440 + 25);
   final noisePitchLfo = SineOscillator(frequency: .value(0.8)).scale(200, 2000);
-  final noisePitchLfo2 = Offset(
+  final noisePitchLfo2 = Add(
     value: .value(200),
     channels: [noisePitchLfo.outlet],
   );
@@ -18,7 +16,7 @@ void main() {
   //   value: .value(440),
   //   input: depth.outlet,
   // ); // 440 ± 25 Hz
-  final carrier = TriangleOscillator(frequency: .signal(pitchLfo.outlet));
+  // final carrier = TriangleOscillator(frequency: .signal(pitchLfo.outlet));
   final noise = NoiseGenerator();
   final lp = OnePoleFilter(
     cutoff: .signal(noisePitchLfo.outlet),
@@ -29,10 +27,10 @@ void main() {
     input: lp.outlet,
     type: .highpass,
   );
-  final gain = Gain.mono(gain: .value(0.7), input: hp.outlet);
+  final mult = Mult.mono(value: .value(0.7), input: hp.outlet);
 
   final pan = StereoPan(
-    input: gain.outlet,
+    input: mult.outlet,
     pan: .signal(lfo2.outlet),
   );
   final wav = WavSink.file(

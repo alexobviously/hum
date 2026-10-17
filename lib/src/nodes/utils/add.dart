@@ -2,25 +2,26 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
-typedef OffsetParams = ({double? value});
+typedef AddParams = ({double? value});
 
-/// Takes an input and adds a [value] to it.
-class Offset implements AudioNode<OffsetProcessor> {
-  final ControlParam<double> value;
-  final List<Outlet> channels;
-
-  const Offset({required this.value, required this.channels});
-
-  factory Offset.mono({
+/// An [AudioNode] that adds a [value] to incoming audio [channels].
+///
+/// If [value] is a static number, this applies a constant DC offset.
+/// If [value] is an [Outlet], this performs audio-rate vector addition.
+class const Add({
+  required final ControlParam<double> value,
+  required final List<Outlet> channels,
+}) implements AudioNode<AddProcessor> {
+  factory mono({
     required ControlParam<double> value,
     required Outlet input,
-  }) => Offset(value: value, channels: [input]);
+  }) => Add(value: value, channels: [input]);
 
-  factory Offset.stereo({
+  factory stereo({
     required ControlParam<double> value,
     required Outlet leftInput,
     required Outlet rightInput,
-  }) => Offset(value: value, channels: [leftInput, rightInput]);
+  }) => Add(value: value, channels: [leftInput, rightInput]);
 
   static const valueInlet = 0;
 
@@ -40,24 +41,24 @@ class Offset implements AudioNode<OffsetProcessor> {
   Outlet get outlet => outlets.first;
 
   @override
-  OffsetProcessor createProcessor() => OffsetProcessor(
+  AddProcessor createProcessor() => AddProcessor(
     value: value.valueOrNull,
     numChannels: channels.length,
   );
 
   @override
-  OffsetParams get params => (value: value.valueOrNull);
+  AddParams get params => (value: value.valueOrNull);
 }
 
-class OffsetProcessor implements AudioProcessor {
+class AddProcessor implements AudioProcessor {
   final int numChannels;
-  OffsetProcessor({required this.value, required this.numChannels});
+  AddProcessor({required this.value, required this.numChannels});
 
   double? value;
 
   @override
   void update(Object params) {
-    params = params as OffsetParams;
+    params = params as AddParams;
     value = params.value;
   }
 
@@ -72,17 +73,21 @@ class OffsetProcessor implements AudioProcessor {
     if (value != null) {
       for (int c = 0; c < numChannels; c++) {
         final output = outputs[c];
+        final input = inputs[c + 1];
+
         for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = inputs[c + 1][i] + value;
+          output[i] = input[i] + value;
         }
       }
     } else {
-      final valueBuffer = inputs[Offset.valueInlet];
+      final valueBuffer = inputs[Add.valueInlet];
 
       for (int c = 0; c < numChannels; c++) {
         final output = outputs[c];
+        final input = inputs[c + 1];
+
         for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = inputs[c + 1][i] + valueBuffer[i];
+          output[i] = input[i] + valueBuffer[i];
         }
       }
     }
