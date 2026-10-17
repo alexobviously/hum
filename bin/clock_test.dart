@@ -29,8 +29,13 @@ void main() {
     gain: .signal(adsr.outlet),
     input: sine.outlet + saw.outlet * 0.1 + noise.outlet * 0.25,
   );
-  final delay = Delay.mono(
+  final bitcrush = Bitcrusher.mono(
     input: amp.outlet,
+    bitDepth: .value(4),
+    downsample: .value(0.5),
+  );
+  final delay = Delay.mono(
+    input: bitcrush.outlet,
     time: .value(tempo.tripletEighth),
     feedback: .value(0.8),
     mix: .value(-0.7),
@@ -38,7 +43,7 @@ void main() {
 
   final wav = WavSink.file(
     channels: [delay.outlet],
-    path: 'tmp/clock_test2.wav',
+    path: 'tmp/clock_test3.wav',
   );
   final pipeline = compilePipeline(root: wav, context: context);
 
