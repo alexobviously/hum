@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
@@ -68,10 +67,7 @@ class StereoPanProcessor implements AudioProcessor {
     final pan = this.pan;
 
     if (pan != null) {
-      final clampedPan = pan.clamp(-1.0, 1.0);
-      final angle = (clampedPan + 1.0) * (math.pi / 4);
-      final leftGain = math.cos(angle);
-      final rightGain = math.sin(angle);
+      final (leftGain, rightGain) = equalPowerGains(pan);
 
       for (int i = 0; i < context.vectorSize; i++) {
         final sample = inBuf[i];
@@ -83,10 +79,9 @@ class StereoPanProcessor implements AudioProcessor {
 
       for (int i = 0; i < context.vectorSize; i++) {
         final sample = inBuf[i];
-        final clampedPan = panBuffer[i].clamp(-1.0, 1.0);
-        final angle = (clampedPan + 1.0) * (math.pi / 4);
-        outLeft[i] = sample * math.cos(angle);
-        outRight[i] = sample * math.sin(angle);
+        final (leftGain, rightGain) = equalPowerGains(panBuffer[i]);
+        outLeft[i] = sample * leftGain;
+        outRight[i] = sample * rightGain;
       }
     }
   }
