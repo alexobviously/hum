@@ -89,3 +89,10 @@ class GainProcessor implements AudioProcessor {
     }
   }
 }
+
+extension OutletGainExtension on Outlet {
+  Outlet operator *(double gain) => Gain(
+    gain: .value(gain),
+    channels: [this],
+  ).outlet;
+}

@@ -6,6 +6,8 @@ export 'src/core/audio_processor.dart';
 export 'src/core/control_param.dart';
 export 'src/core/process_context.dart';
 export 'src/io/wav_writer.dart';
+export 'src/music/pitch.dart';
+export 'src/music/tempo.dart';
 export 'src/nodes/effects/delay.dart';
 export 'src/nodes/filters/onepole.dart';
 export 'src/nodes/filters/svf.dart';
