@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
+// TODO: add damping (onepole filter in feedback path)
+
 typedef DelayParams = ({
   double? time,
   double? feedback,
