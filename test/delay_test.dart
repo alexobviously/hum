@@ -10,7 +10,7 @@ void main() {
       final monoDelay = Delay.mono(input: osc.outlet);
 
       expect(monoDelay.numChannels, equals(1));
-      expect(monoDelay.inlets.length, equals(4)); // input, time, feedback, mix
+      expect(monoDelay.inlets.length, equals(5)); // time, feedback, mix, damp, input
       expect(monoDelay.outlets.length, equals(1));
       expect(monoDelay.outlet, equals(monoDelay.outlets.first));
 
@@ -22,7 +22,7 @@ void main() {
       );
 
       expect(stereoDelay.numChannels, equals(2));
-      expect(stereoDelay.inlets.length, equals(5)); // inL, inR, time, fb, mix
+      expect(stereoDelay.inlets.length, equals(6)); // time, feedback, mix, damp, inL, inR
       expect(stereoDelay.outlets.length, equals(2));
       expect(stereoDelay.left, equals(stereoDelay.outlets[0]));
       expect(stereoDelay.right, equals(stereoDelay.outlets[1]));
@@ -162,12 +162,12 @@ void main() {
       final pipeline = compilePipeline(root: sink, context: context);
       pipeline.process();
 
-      // Update parameters live
       final updatedDelay = Delay.mono(
         input: osc.outlet,
         time: const .value(0.25),
         feedback: const .value(0.7),
         mix: const .value(0.5),
+        damp: const .value(0.6),
       );
       pipeline.update(delay, updatedDelay);
       pipeline.process();
@@ -176,11 +176,66 @@ void main() {
       expect(proc.time, equals(0.25));
       expect(proc.feedback, equals(0.7));
       expect(proc.mix, equals(0.5));
+      expect(proc.damp, equals(0.6));
 
       final wavProc = pipeline.processorOf(sink);
       final bytes = wavProc.close();
       expect(bytes, isNotNull);
       expect(bytes!.length, greaterThan(44));
+    });
+
+    test('damps high frequencies across recirculating feedback echoes', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      // Delay time: 4 samples (0.004 s), feedback = 0.8, 100% wet
+      // Test 1: undamped delay (damp = 0.0)
+      final undamped = DelayProcessor(
+        numChannels: 1,
+        time: 0.004,
+        feedback: 0.8,
+        mix: 1.0,
+        damp: 0.0,
+      );
+
+      // Test 2: heavily damped delay (damp = 0.8)
+      final damped = DelayProcessor(
+        numChannels: 1,
+        time: 0.004,
+        feedback: 0.8,
+        mix: 1.0,
+        damp: 0.8,
+      );
+
+      // Single sharp impulse at sample 0
+      final inBuf = Float32List(vectorSize);
+      inBuf[0] = 1.0;
+
+      final outUndamped = Float32List(vectorSize);
+      final outDamped = Float32List(vectorSize);
+
+      undamped.process(context, [inBuf], [outUndamped]);
+      damped.process(context, [inBuf], [outDamped]);
+
+      // Echo 1 (sample 4): First arrival has not passed through feedback loop yet,
+      // so both undamped and damped produce identical first echo amplitude: 1.0
+      expect(outUndamped[4], closeTo(1.0, 1e-4));
+      expect(outDamped[4], closeTo(1.0, 1e-4));
+
+      // Echo 2 (sample 8): Recirculated once through the feedback path.
+      // In undamped, peak at sample 8 is exactly 1.0 * 0.8 = 0.8.
+      expect(outUndamped[8], closeTo(0.8, 1e-4));
+      // In damped, 1-pole filter spreads/smooths the sharp impulse energy,
+      // so peak amplitude at sample 8 is significantly reduced compared to undamped.
+      expect(outDamped[8], lessThan(outUndamped[8]));
+
+      // Echo 3 (sample 12): Recirculated twice through the feedback path.
+      expect(outUndamped[12], closeTo(0.64, 1e-4));
+      expect(outDamped[12], lessThan(outUndamped[12]));
     });
   });
 }

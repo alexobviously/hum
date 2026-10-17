@@ -2,21 +2,22 @@ import 'dart:typed_data';
 
 import 'package:dsp/dsp.dart';
 
-// TODO: add damping (onepole filter in feedback path)
-
 typedef DelayParams = ({
   double? time,
   double? feedback,
   double? mix,
+  double? damp,
   double maxDelay,
 });
 
-/// A multi-channel delay effect with feedback and fractional linear interpolation.
+/// A multi-channel delay effect with feedback, 1-pole damping, and fractional
+/// linear interpolation.
 class Delay({
   required final List<Outlet> channels,
   final ControlParam<double> time = const .value(0.5),
   final ControlParam<double> feedback = const .value(0.0),
   final ControlParam<double> mix = const .value(0.0),
+  final ControlParam<double> damp = const .value(0.0),
   final double maxDelay = 10.0,
 }) implements AudioNode<DelayProcessor> {
   this : assert(maxDelay > 0.0, 'maxDelay must be positive');
@@ -26,12 +27,14 @@ class Delay({
     ControlParam<double> time = const .value(0.5),
     ControlParam<double> feedback = const .value(0.0),
     ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> damp = const .value(0.0),
     double maxDelay = 10.0,
   }) => Delay(
     channels: [input],
     time: time,
     feedback: feedback,
     mix: mix,
+    damp: damp,
     maxDelay: maxDelay,
   );
 
@@ -41,12 +44,14 @@ class Delay({
     ControlParam<double> time = const .value(0.5),
     ControlParam<double> feedback = const .value(0.0),
     ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> damp = const .value(0.0),
     double maxDelay = 10.0,
   }) => Delay(
     channels: [leftInput, rightInput],
     time: time,
     feedback: feedback,
     mix: mix,
+    damp: damp,
     maxDelay: maxDelay,
   );
 
@@ -55,13 +60,15 @@ class Delay({
   static const timeInlet = 0;
   static const feedbackInlet = 1;
   static const mixInlet = 2;
-  static const audioInletOffset = 3;
+  static const dampInlet = 3;
+  static const audioInletOffset = 4;
 
   @override
   List<Inlet> get inlets => [
     Inlet(node: this, index: timeInlet, source: time.outletOrNull),
     Inlet(node: this, index: feedbackInlet, source: feedback.outletOrNull),
     Inlet(node: this, index: mixInlet, source: mix.outletOrNull),
+    Inlet(node: this, index: dampInlet, source: damp.outletOrNull),
     ...List.generate(
       numChannels,
       (i) =>
@@ -83,6 +90,7 @@ class Delay({
     time: time.valueOrNull,
     feedback: feedback.valueOrNull,
     mix: mix.valueOrNull,
+    damp: damp.valueOrNull,
     maxDelay: maxDelay,
   );
 
@@ -91,6 +99,7 @@ class Delay({
     time: time.valueOrNull,
     feedback: feedback.valueOrNull,
     mix: mix.valueOrNull,
+    damp: damp.valueOrNull,
     maxDelay: maxDelay,
   );
 }
@@ -100,12 +109,14 @@ class DelayProcessor({
   var double? time,
   var double? feedback,
   var double? mix,
+  var double? damp = 0.0,
   final double maxDelay = 10.0,
 }) implements AudioProcessor {
   int _sampleRate = 0;
   int _bufferMask = 0;
   int _writeIndex = 0;
   List<Float32List>? _buffers;
+  late final Float32List _dampStates = Float32List(numChannels);
 
   void _ensureBuffers(int sampleRate) {
     if (_sampleRate == sampleRate && _buffers != null) return;
@@ -128,6 +139,7 @@ class DelayProcessor({
     time = p.time;
     feedback = p.feedback;
     mix = p.mix;
+    damp = p.damp;
   }
 
   @override
@@ -147,6 +159,7 @@ class DelayProcessor({
     final time = this.time;
     final feedback = this.feedback;
     final mix = this.mix;
+    final damp = this.damp;
 
     final int audioOffset = inputs.length > Delay.audioInletOffset
         ? Delay.audioInletOffset
@@ -161,8 +174,12 @@ class DelayProcessor({
     final Float32List? mixBuf = mix == null && inputs.length > Delay.mixInlet
         ? inputs[Delay.mixInlet]
         : null;
+    final Float32List? dampBuf = damp == null && inputs.length > Delay.dampInlet
+        ? inputs[Delay.dampInlet]
+        : null;
 
     final double constFb = (feedback ?? 0.0).clamp(-0.999, 0.999);
+    final double constDamp = (damp ?? 0.0).clamp(0.0, 1.0);
     final double constDelaySamples = time != null
         ? (time * sampleRate).clamp(1.0, maxDelaySamples)
         : 1.0;
@@ -189,8 +206,11 @@ class DelayProcessor({
       final int read0 = (writeIndex - intPart) & mask;
       final int read1 = (read0 - 1) & mask;
 
-      // Resolve feedback and dry/wet gains
+      // Resolve feedback, damping, and dry/wet gains
       final double fb = fbBuf != null ? fbBuf[i].clamp(-0.999, 0.999) : constFb;
+      final double dampCoef = dampBuf != null
+          ? dampBuf[i].clamp(0.0, 1.0)
+          : constDamp;
       final (double gainDry, double gainWet) = mixBuf != null
           ? equalPowerGains(mixBuf[i])
           : (constDry, constWet);
@@ -204,8 +224,14 @@ class DelayProcessor({
         final s1 = buf[read1];
         final delayedSample = s0 + frac * (s1 - s0);
 
-        // Write input + feedback into ring buffer
-        buf[writeIndex] = inSample + delayedSample * fb;
+        // 1-pole lowpass filter in feedback path:
+        // y[n] = delayedSample + d * (y[n-1] - delayedSample)
+        final prevState = _dampStates[c];
+        final damped = delayedSample + dampCoef * (prevState - delayedSample);
+        _dampStates[c] = damped.abs() < 1e-15 ? 0.0 : damped;
+
+        // Write input + damped feedback into ring buffer
+        buf[writeIndex] = inSample + damped * fb;
 
         // Output equal-power dry/wet blend
         outputs[c][i] = inSample * gainDry + delayedSample * gainWet;
