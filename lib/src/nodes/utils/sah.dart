@@ -129,7 +129,7 @@ class SahProcessor({
 
 extension OutletSahExtension on Outlet {
   /// Samples and holds this outlet using [trigger].
-  Sah sampleAndHold(
+  Sah sah(
     Outlet trigger, {
     double threshold = 0.5,
     TriggerEdge triggerEdge = .rising,

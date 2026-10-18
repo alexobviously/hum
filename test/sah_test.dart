@@ -53,9 +53,27 @@ void main() {
       );
 
       // Trigger: stays 0, rises above 0.5 at index 2, stays high, drops at 5, rises at 6
-      final trigBuf = Float32List.fromList([0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0]);
+      final trigBuf = Float32List.fromList([
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+      ]);
       // Input signal ramp
-      final inBuf = Float32List.fromList([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]);
+      final inBuf = Float32List.fromList([
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        50.0,
+        60.0,
+        70.0,
+        80.0,
+      ]);
       final outBuf = Float32List(8);
 
       processor.process(
@@ -121,7 +139,14 @@ void main() {
 
       // Trigger transitions: 0->1 (rising @ 1), 1->-1 (falling @ 3), -1->1 (rising @ 5)
       final trigBuf = Float32List.fromList([-1.0, 1.0, 1.0, -1.0, -1.0, 1.0]);
-      final inBuf = Float32List.fromList([100.0, 200.0, 300.0, 400.0, 500.0, 600.0]);
+      final inBuf = Float32List.fromList([
+        100.0,
+        200.0,
+        300.0,
+        400.0,
+        500.0,
+        600.0,
+      ]);
       final outBuf = Float32List(6);
 
       processor.process(
@@ -207,7 +232,7 @@ void main() {
     test('sampleAndHold extension syntax creates Sah node', () {
       final osc = SineOscillator(frequency: const .value(440));
       final clock = Clock(frequency: const .value(8));
-      final sah = osc.outlet.sampleAndHold(
+      final sah = osc.outlet.sah(
         clock.outlet,
         threshold: 0.1,
         triggerEdge: TriggerEdge.both,
@@ -220,46 +245,51 @@ void main() {
       expect(sah.params.triggerEdge, equals(TriggerEdge.both));
     });
 
-    test('compiles inside AudioPipeline and responds to live parameter updates', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 128);
-      final clock = Clock(frequency: const .value(1000)); // triggers every ~44 samples
-      final saw = SawtoothOscillator(frequency: const .value(50));
-      final sah = Sah.mono(
-        trigger: clock.outlet,
-        input: saw.outlet,
-        threshold: 0.5,
-        triggerEdge: TriggerEdge.rising,
-      );
+    test(
+      'compiles inside AudioPipeline and responds to live parameter updates',
+      () {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 128);
+        final clock = Clock(
+          frequency: const .value(1000),
+        ); // triggers every ~44 samples
+        final saw = SawtoothOscillator(frequency: const .value(50));
+        final sah = Sah.mono(
+          trigger: clock.outlet,
+          input: saw.outlet,
+          threshold: 0.5,
+          triggerEdge: TriggerEdge.rising,
+        );
 
-      final pipeline = compilePipeline(root: sah, context: context);
-      pipeline.process();
+        final pipeline = compilePipeline(root: sah, context: context);
+        pipeline.process();
 
-      final out1 = pipeline.outputs[0];
-      // Output should have non-zero held values (steps)
-      expect(out1.any((s) => s != 0.0), isTrue);
+        final out1 = pipeline.outputs[0];
+        // Output should have non-zero held values (steps)
+        expect(out1.any((s) => s != 0.0), isTrue);
 
-      // Verify stepping: consecutive identical values exist due to holding
-      int holdCount = 0;
-      for (int i = 1; i < 128; i++) {
-        if (out1[i] == out1[i - 1] && out1[i] != 0.0) {
-          holdCount++;
+        // Verify stepping: consecutive identical values exist due to holding
+        int holdCount = 0;
+        for (int i = 1; i < 128; i++) {
+          if (out1[i] == out1[i - 1] && out1[i] != 0.0) {
+            holdCount++;
+          }
         }
-      }
-      expect(holdCount, greaterThan(10));
+        expect(holdCount, greaterThan(10));
 
-      // Update parameters live
-      final updatedSah = Sah.mono(
-        trigger: clock.outlet,
-        input: saw.outlet,
-        threshold: 0.9,
-        triggerEdge: TriggerEdge.falling,
-      );
-      pipeline.update(sah, updatedSah);
+        // Update parameters live
+        final updatedSah = Sah.mono(
+          trigger: clock.outlet,
+          input: saw.outlet,
+          threshold: 0.9,
+          triggerEdge: TriggerEdge.falling,
+        );
+        pipeline.update(sah, updatedSah);
 
-      // Process again with new threshold and edge
-      pipeline.process();
-      final out2 = pipeline.outputs[0];
-      expect(out2.any((s) => s != 0.0), isTrue);
-    });
+        // Process again with new threshold and edge
+        pipeline.process();
+        final out2 = pipeline.outputs[0];
+        expect(out2.any((s) => s != 0.0), isTrue);
+      },
+    );
   });
 }
