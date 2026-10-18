@@ -26,6 +26,7 @@ export 'src/nodes/sources/karplus_strong.dart';
 export 'src/nodes/sources/noise_generator.dart';
 export 'src/nodes/utils/abs.dart';
 export 'src/nodes/utils/add.dart';
+export 'src/nodes/utils/clamp.dart';
 export 'src/nodes/utils/crossfade.dart';
 export 'src/nodes/utils/invert.dart';
 export 'src/nodes/utils/mult.dart';
