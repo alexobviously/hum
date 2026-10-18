@@ -35,6 +35,7 @@ export 'src/nodes/utils/mult.dart';
 export 'src/nodes/utils/panning_utils.dart';
 export 'src/nodes/utils/sah.dart';
 export 'src/nodes/utils/scale.dart';
+export 'src/nodes/utils/slew.dart';
 export 'src/nodes/utils/stereo_pan.dart';
 export 'src/nodes/utils/stereo_split.dart';
 export 'src/nodes/utils/subtract.dart';

@@ -4,21 +4,24 @@ import 'package:hum/hum.dart';
 
 // Gemini generated this, pretty cool
 
-/// A generative modular synthesizer demo showcasing [Sah] (Sample & Hold).
+/// A generative modular synthesizer demo showcasing [Sah] (Sample & Hold)
+/// paired with a dynamic [Slew] rate limiter (portamento / glide).
 ///
 /// Features:
 /// - **Dual-Channel S&H**: A 16th-note [Clock] triggers [Sah.stereo] on rising edges.
 ///   - Channel 0 latches a slow drifting sine LFO + pink noise for stepped melodic pitch CV.
 ///   - Channel 1 latches a faster modulation + noise signal for stepped filter cutoff CV.
+/// - **Dynamic Slew / Portamento**: A slow unipolar ramp increases slew time from 0.0s to
+///   0.12s across 8 bars, evolving the melody from robotic staccato jumps to rich glides.
 /// - **Sub-Oscillator Voice**: Main [SawtoothOscillator] + sub-octave [SquareOscillator].
 /// - **Tube Saturation & Filtering**: [Saturator.tube] feeding a resonant [SvfFilter] lowpass.
-/// - **Plucked Envelope**: Snappy exponential [Adsr] controlling voice amplitude.
+/// - **Amplitude Envelope**: Exponential [Adsr] with subtle sustain for expressive glides.
 /// - **Stereo Space**: Dotted-eighth [Delay] into wide [Freeverb] diffusion.
 void main() {
   const sr = 44100;
   const vs = 64;
   const tempo = Tempo(132);
-  const double bars = 4.0;
+  const double bars = 8.0;
 
   final totalBlocks = tempo.blocksFor(
     bars: bars,
@@ -28,9 +31,12 @@ void main() {
   final totalDurationSeconds = bars * tempo.bar;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
 
-  print('=== Hum Sample & Hold (Sah) Generative Synth Demo ===');
+  print('=== Hum Sample & Hold (Sah) + Slew Rate Limiter Demo ===');
   print(
     'Tempo: ${tempo.bpm} BPM | Duration: $bars bars (${totalDurationSeconds.toStringAsFixed(1)}s)',
+  );
+  print(
+    'Showcasing transition from stepped staccato S&H to lush portamento glides...',
   );
   print('Rendering $totalBlocks audio blocks at $sr Hz (vector size: $vs)...');
 
@@ -41,13 +47,13 @@ void main() {
   );
 
   // 2. Modulators to be sampled:
-  // - Pitch source: slow 2-bar drifting sine LFO + subtle pink noise jitter
+  // - Pitch source: drifting sine LFO + expressive noise for distinct melodic jumps
   final slowLfo = SineOscillator(
     frequency: .value(1 / (tempo.bar * 2)),
   );
   final noise = NoiseGenerator.pink();
   final noiseJitter = Mult.mono(
-    value: const .value(0.35),
+    value: const .value(0.85),
     input: noise.outlet,
   );
   final pitchCvSource = slowLfo.outlet + noiseJitter.outlet;
@@ -71,21 +77,42 @@ void main() {
     triggerEdge: .rising,
   );
 
-  // 4. CV Scaling:
-  // - Map pitch S&H (-1.35 to 1.35) into musical frequencies: D2 (73.4 Hz) to D4 (293.7 Hz)
-  final pitch = Scale(
+  // 4. Slew / Portamento Modulation:
+  // Ramps slew time from 0.0s (instantaneous staccato steps) to 0.12s (smooth portamento glides)
+  // across the duration of the audio.
+  final slewRamp = SawtoothOscillator(
+    frequency: .value(1.0 / totalDurationSeconds),
+    usePolyBlep: false,
+  );
+  final slewTime = Scale(
+    input: slewRamp.outlet,
+    inLow: const .value(-1.0),
+    inHigh: const .value(1.0),
+    outLow: const .value(0.0),
+    outHigh: const .value(0.6),
+  );
+
+  // Apply slew rate limiting to the stepped pitch CV
+  final slewedPitch = Slew.mono(
     input: sah.outlets[0],
-    inLow: const .value(-1.35),
-    inHigh: const .value(1.35),
+    time: .signal(slewTime.outlet),
+  );
+
+  // 5. CV Scaling:
+  // - Map slewed pitch S&H (-1.85 to 1.85) into musical frequencies: D2 (73.4 Hz) to D4 (293.7 Hz)
+  final pitch = Scale(
+    input: slewedPitch.outlet,
+    inLow: const .value(-1.85),
+    inHigh: const .value(1.85),
     outLow: .value(Note.parse('D2').hz),
     outHigh: .value(Note.parse('D4').hz),
   );
 
   // - Sub-octave pitch: D1 to D3
   final subPitch = Scale(
-    input: sah.outlets[0],
-    inLow: const .value(-1.35),
-    inHigh: const .value(1.35),
+    input: slewedPitch.outlet,
+    inLow: const .value(-1.85),
+    inHigh: const .value(1.85),
     outLow: .value(Note.parse('D1').hz),
     outHigh: .value(Note.parse('D3').hz),
   );
@@ -123,13 +150,13 @@ void main() {
     resonance: const .value(3.2),
   );
 
-  // 7. Plucked Amplitude Envelope (VCA)
+  // 7. Expressive Amplitude Envelope (VCA)
   final env = Adsr(
     gate: clock.outlet,
     attack: const .value(0.004),
-    decay: .value(tempo.sixteenth * 0.7),
-    sustain: const .value(0.0),
-    release: const .value(0.04),
+    decay: .value(tempo.sixteenth * 0.85),
+    sustain: const .value(0.18),
+    release: const .value(0.06),
     curve: .exponential,
   );
   final pluckedVoice = Mult.mono(
@@ -152,13 +179,20 @@ void main() {
     roomSize: const .value(0.78),
     damp: const .value(0.3),
     width: const .value(1.0),
-    mix: const .value(0.28),
+    mix: const .value(0.15),
   );
 
-  // 9. WAV Sink Output
+  // 9. Master Volume (clean headroom staging)
+  final master = Mult.stereo(
+    value: const .value(0.3),
+    leftInput: reverb.left,
+    rightInput: reverb.right,
+  );
+
+  // 10. WAV Sink Output
   const outputPath = 'tmp/sah_demo.wav';
   final wav = WavSink.file(
-    channels: [reverb.left, reverb.right],
+    channels: [master.outlets[0], master.outlets[1]],
     path: outputPath,
   );
 
