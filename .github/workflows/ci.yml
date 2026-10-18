@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests & Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Check code formatting
+        if: github.event_name == 'pull_request'
+        run: ./bin/format
+
+      - name: Register Dart problem matcher
+        run: echo "::add-matcher::.github/dart-problem-matcher.json"
+
+      - name: Analyze project
+        run: dart analyze --fatal-infos
+
+      - name: Run unit tests
+        run: dart test

@@ -282,29 +282,29 @@ class SaturatorProcessor({
     } else {
       // Audio-rate modulated path
       for (int c = 0; c < numChannels; c++) {
-      final inBuf = inputs[audioOffset + c];
-      final outBuf = outputs[c];
+        final inBuf = inputs[audioOffset + c];
+        final outBuf = outputs[c];
 
-      for (int i = 0; i < length; i++) {
-        final d = driveBuf != null ? driveBuf[i] : staticDrive;
-        final b = biasBuf != null ? biasBuf[i] : staticBias;
-        final m = mixBuf != null ? mixBuf[i] : staticMix;
+        for (int i = 0; i < length; i++) {
+          final d = driveBuf != null ? driveBuf[i] : staticDrive;
+          final b = biasBuf != null ? biasBuf[i] : staticBias;
+          final m = mixBuf != null ? mixBuf[i] : staticMix;
 
-        final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
-        final x = inBuf[i];
-        final wet = _shapeSample(x * d + b, mode) - dcOffset;
+          final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
+          final x = inBuf[i];
+          final wet = _shapeSample(x * d + b, mode) - dcOffset;
 
-        if (m >= 1.0) {
-          outBuf[i] = wet;
-        } else {
-          final (dryGain, wetGain) = linearMix(m);
-          outBuf[i] = x * dryGain + wet * wetGain;
+          if (m >= 1.0) {
+            outBuf[i] = wet;
+          } else {
+            final (dryGain, wetGain) = linearMix(m);
+            outBuf[i] = x * dryGain + wet * wetGain;
+          }
         }
       }
     }
-  }
 
-  if (dcBlock) {
+    if (dcBlock) {
       final sr = context.sampleRate.toDouble();
       for (int c = 0; c < numChannels; c++) {
         applyDcBlock(outputs[c], c, length, sampleRate: sr);

@@ -73,7 +73,7 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 256);
       final processor = DCBlockProcessor(numChannels: 2, cutoffHz: 20.0);
 
-      final inL = Float32List(256)..fillRange(0, 256, 1.0);  // +1.0 DC on Left
+      final inL = Float32List(256)..fillRange(0, 256, 1.0); // +1.0 DC on Left
       final inR = Float32List(256)..fillRange(0, 256, -1.0); // -1.0 DC on Right
       final outL = Float32List(256);
       final outR = Float32List(256);

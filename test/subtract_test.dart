@@ -12,7 +12,10 @@ void main() {
       final mono = Subtract.mono(input: oscA.outlet, value: const .value(0.5));
       expect(mono.inlets.length, equals(2));
       expect(mono.inlets[Subtract.valueInlet].source, isNull);
-      expect(mono.inlets[Subtract.audioInletOffset].source, equals(oscA.outlet));
+      expect(
+        mono.inlets[Subtract.audioInletOffset].source,
+        equals(oscA.outlet),
+      );
       expect(mono.outlets.length, equals(1));
 
       final stereo = Subtract.stereo(
@@ -22,8 +25,14 @@ void main() {
       );
       expect(stereo.inlets.length, equals(3));
       expect(stereo.inlets[Subtract.valueInlet].source, equals(oscB.outlet));
-      expect(stereo.inlets[Subtract.audioInletOffset].source, equals(oscA.outlet));
-      expect(stereo.inlets[Subtract.audioInletOffset + 1].source, equals(oscB.outlet));
+      expect(
+        stereo.inlets[Subtract.audioInletOffset].source,
+        equals(oscA.outlet),
+      );
+      expect(
+        stereo.inlets[Subtract.audioInletOffset + 1].source,
+        equals(oscB.outlet),
+      );
       expect(stereo.outlets.length, equals(2));
       expect(stereo.left, equals(stereo.outlets[0]));
       expect(stereo.right, equals(stereo.outlets[1]));
@@ -68,22 +77,28 @@ void main() {
       expect(outBuf[3], closeTo(0.6, 1e-6));
     });
 
-    test('operator - syntax creates Subtract node and cancels identical signals', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final saw = SawtoothOscillator(frequency: const .value(220));
+    test(
+      'operator - syntax creates Subtract node and cancels identical signals',
+      () {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final saw = SawtoothOscillator(frequency: const .value(220));
 
-      // S - S == 0
-      final difference = saw.outlet - saw.outlet;
-      expect(difference.node, isA<Subtract>());
+        // S - S == 0
+        final difference = saw.outlet - saw.outlet;
+        expect(difference.node, isA<Subtract>());
 
-      final pipeline = compilePipeline(root: difference.node, context: context);
-      pipeline.process();
+        final pipeline = compilePipeline(
+          root: difference.node,
+          context: context,
+        );
+        pipeline.process();
 
-      final output = pipeline.outputs[0];
-      for (int i = 0; i < 64; i++) {
-        expect(output[i], closeTo(0.0, 1e-6));
-      }
-    });
+        final output = pipeline.outputs[0];
+        for (int i = 0; i < 64; i++) {
+          expect(output[i], closeTo(0.0, 1e-6));
+        }
+      },
+    );
 
     test('.subtract() extension subtracts scalar offset', () {
       final osc = SineOscillator(frequency: const .value(440));
@@ -106,7 +121,10 @@ void main() {
       expect(out1.any((s) => s != 0.0), isTrue);
 
       // Live update to subtract 10.0
-      final updated = Subtract.mono(input: osc.outlet, value: const .value(10.0));
+      final updated = Subtract.mono(
+        input: osc.outlet,
+        value: const .value(10.0),
+      );
       pipeline.update(sub, updated);
 
       pipeline.process();
