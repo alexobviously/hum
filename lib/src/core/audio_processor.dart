@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/src/core/process_context.dart';
+import 'package:hum/hum.dart';
 
 abstract class AudioProcessor {
   void update(Object params);

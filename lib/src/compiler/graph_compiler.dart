@@ -1,12 +1,7 @@
 import 'dart:collection';
 import 'dart:typed_data';
 
-import 'package:dsp/src/compiler/pipeline.dart';
-import 'package:dsp/src/core/audio_node.dart';
-import 'package:dsp/src/core/audio_port.dart';
-import 'package:dsp/src/core/process_context.dart';
-
-export 'package:dsp/src/compiler/pipeline.dart';
+import 'package:hum/hum.dart';
 
 class GraphCycleException implements Exception {
   final String message;

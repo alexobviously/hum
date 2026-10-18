@@ -1,4 +1,4 @@
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 abstract class OscillatorNode<T extends AudioProcessor>
     implements AudioNode<T> {

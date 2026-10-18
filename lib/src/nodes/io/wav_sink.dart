@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 /// A terminal audio node that captures multi-channel audio blocks and writes
 /// them to a WAV file on disk or accumulates them in memory.

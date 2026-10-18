@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 /// Available non-linear transfer curves for [Saturator].
 enum SaturationMode {

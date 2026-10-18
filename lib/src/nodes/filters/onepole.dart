@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 enum OnePoleType { lowpass, highpass }
 

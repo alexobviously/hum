@@ -1,12 +1,4 @@
-import 'package:dsp/src/compiler/graph_compiler.dart';
-import 'package:dsp/src/core/audio_node.dart';
-import 'package:dsp/src/core/audio_port.dart';
-import 'package:dsp/src/core/audio_processor.dart';
-import 'package:dsp/src/core/process_context.dart';
-import 'package:dsp/src/nodes/io/dac.dart';
-import 'package:dsp/src/nodes/oscillators/sine_oscillator.dart';
-import 'package:dsp/src/nodes/utils/mult.dart';
-import 'package:dsp/src/nodes/utils/stereo_pan.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 class _LoopNode implements AudioNode<AudioProcessor> {

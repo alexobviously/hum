@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 /// The curvature shape used by [Adsr].
 enum AdsrCurve {
@@ -196,7 +196,8 @@ class AdsrProcessor implements AudioProcessor {
             .exponential => expDecayCoeff * (sLevel - currentLevel),
             .linear => -linDecayRate,
           };
-          if (currentLevel <= sLevel || (currentLevel - sLevel).abs() <= 0.0005) {
+          if (currentLevel <= sLevel ||
+              (currentLevel - sLevel).abs() <= 0.0005) {
             currentLevel = sLevel;
             currentState = .sustain;
           }

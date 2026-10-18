@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -10,7 +10,10 @@ void main() {
       final monoVerb = Freeverb.mono(input: osc.outlet);
 
       expect(monoVerb.numInputChannels, equals(1));
-      expect(monoVerb.inlets.length, equals(5)); // roomSize, damp, width, mix, input
+      expect(
+        monoVerb.inlets.length,
+        equals(5),
+      ); // roomSize, damp, width, mix, input
       expect(monoVerb.outlets.length, equals(2));
       expect(monoVerb.left, equals(monoVerb.outlets[0]));
       expect(monoVerb.right, equals(monoVerb.outlets[1]));
@@ -20,7 +23,10 @@ void main() {
       final stereoVerb = Freeverb.stereo(left: oscL.outlet, right: oscR.outlet);
 
       expect(stereoVerb.numInputChannels, equals(2));
-      expect(stereoVerb.inlets.length, equals(6)); // roomSize, damp, width, mix, inL, inR
+      expect(
+        stereoVerb.inlets.length,
+        equals(6),
+      ); // roomSize, damp, width, mix, inL, inR
       expect(stereoVerb.outlets.length, equals(2));
     });
 
@@ -35,7 +41,16 @@ void main() {
       );
       final proc = verb.createProcessor();
 
-      final input = Float32List.fromList([0.2, 0.4, 0.6, 0.8, -0.2, -0.4, -0.6, -0.8]);
+      final input = Float32List.fromList([
+        0.2,
+        0.4,
+        0.6,
+        0.8,
+        -0.2,
+        -0.4,
+        -0.6,
+        -0.8,
+      ]);
       final outL = Float32List(vectorSize);
       final outR = Float32List(vectorSize);
 
@@ -50,7 +65,10 @@ void main() {
     test('generates dense reverberation tail and decays stably over time', () {
       const vectorSize = 64;
       const sampleRate = 44100;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       final proc = FreeverbProcessor(
         isStereoInput: false,
@@ -105,7 +123,10 @@ void main() {
     test('width parameter controls stereo decorrelation vs mono sum', () {
       const vectorSize = 64;
       const sampleRate = 44100;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       // Width = 0.0 (Mono reverb)
       final monoProc = FreeverbProcessor(
@@ -161,7 +182,10 @@ void main() {
     test('compiles inside AudioPipeline and updates live parameters', () {
       const sampleRate = 44100;
       const vectorSize = 64;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       final osc = SineOscillator(frequency: const .value(440));
       final verb = Freeverb.mono(

@@ -1,4 +1,4 @@
-import 'package:dsp/src/core/audio_node.dart';
+import 'package:hum/hum.dart';
 
 class Inlet({
   required final AudioNode node,

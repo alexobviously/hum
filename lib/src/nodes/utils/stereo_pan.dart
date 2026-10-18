@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 typedef StereoPanParams = ({double? pan});
 

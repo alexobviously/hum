@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -28,7 +28,10 @@ void main() {
       );
       expect(stereo.inlets.length, equals(4));
       expect(stereo.inlets[Clamp.audioInletOffset].source, equals(oscA.outlet));
-      expect(stereo.inlets[Clamp.audioInletOffset + 1].source, equals(oscB.outlet));
+      expect(
+        stereo.inlets[Clamp.audioInletOffset + 1].source,
+        equals(oscB.outlet),
+      );
       expect(stereo.outlets.length, equals(2));
     });
 
@@ -56,28 +59,31 @@ void main() {
       expect(outBuf[4], closeTo(0.5, 1e-6));
     });
 
-    test('processor supports floor-only bounding (diode/half-wave rectifier)', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
-      final processor = ClampProcessor(
-        numChannels: 1,
-        min: 0.0,
-        max: null,
-      );
+    test(
+      'processor supports floor-only bounding (diode/half-wave rectifier)',
+      () {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+        final processor = ClampProcessor(
+          numChannels: 1,
+          min: 0.0,
+          max: null,
+        );
 
-      final inBuf = Float32List.fromList([-1.0, -0.2, 0.3, 1.5]);
-      final outBuf = Float32List(4);
+        final inBuf = Float32List.fromList([-1.0, -0.2, 0.3, 1.5]);
+        final outBuf = Float32List(4);
 
-      processor.process(
-        context,
-        [Float32List(4), Float32List(4), inBuf],
-        [outBuf],
-      );
+        processor.process(
+          context,
+          [Float32List(4), Float32List(4), inBuf],
+          [outBuf],
+        );
 
-      expect(outBuf[0], equals(0.0));
-      expect(outBuf[1], equals(0.0));
-      expect(outBuf[2], closeTo(0.3, 1e-6));
-      expect(outBuf[3], closeTo(1.5, 1e-6));
-    });
+        expect(outBuf[0], equals(0.0));
+        expect(outBuf[1], equals(0.0));
+        expect(outBuf[2], closeTo(0.3, 1e-6));
+        expect(outBuf[3], closeTo(1.5, 1e-6));
+      },
+    );
 
     test('processor supports ceiling-only peak limiting', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 4);

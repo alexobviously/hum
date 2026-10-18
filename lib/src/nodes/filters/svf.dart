@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 // https://cytomic.com/files/dsp/SvfLinearTrapOptimised2.pdf
 // https://cytomic.com/technical-papers/

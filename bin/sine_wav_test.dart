@@ -1,9 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/src/core/process_context.dart';
-import 'package:dsp/src/io/wav_writer.dart';
-import 'package:dsp/src/nodes/oscillators/sine_oscillator.dart';
-import 'package:dsp/src/nodes/utils/mult.dart';
+import 'package:hum/hum.dart';
 
 void main() {
   const sr = 44100;

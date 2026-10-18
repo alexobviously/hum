@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 /// An [AudioNode] that inverts the polarity of incoming audio [channels] (`out = -in`).
 ///

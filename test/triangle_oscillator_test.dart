@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
-import 'package:dsp/src/nodes/oscillators/oscillator_utils.dart';
+import 'package:hum/hum.dart';
+import 'package:hum/src/nodes/oscillators/oscillator_utils.dart';
 import 'package:test/test.dart';
 
 void main() {

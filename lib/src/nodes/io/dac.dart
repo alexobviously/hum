@@ -1,9 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/src/core/audio_node.dart';
-import 'package:dsp/src/core/audio_port.dart';
-import 'package:dsp/src/core/audio_processor.dart';
-import 'package:dsp/src/core/process_context.dart';
+import 'package:hum/hum.dart';
 
 class Dac implements AudioNode<DacProcessor> {
   final List<Outlet> channels;

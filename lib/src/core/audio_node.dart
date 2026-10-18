@@ -1,5 +1,4 @@
-import 'package:dsp/src/core/audio_processor.dart';
-import 'package:dsp/src/core/audio_port.dart';
+import 'package:hum/hum.dart';
 
 abstract class AudioNode<T extends AudioProcessor> {
   List<Inlet> get inlets;

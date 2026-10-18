@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 /// The blending law applied by [Crossfade].
 enum CrossfadeMode {
@@ -135,8 +135,9 @@ class CrossfadeProcessor implements AudioProcessor {
   ) {
     final length = context.vectorSize;
     final mix = this.mix;
-    final audioOffset =
-        inputs.length > numChannels * 2 ? Crossfade.audioInletOffset : 0;
+    final audioOffset = inputs.length > numChannels * 2
+        ? Crossfade.audioInletOffset
+        : 0;
 
     if (mix != null) {
       // Constant mix over the entire block

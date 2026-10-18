@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -13,7 +13,10 @@ void main() {
 
       expect(clock.inlets.length, equals(2));
       expect(clock.inlets[Clock.freqInlet].index, equals(Clock.freqInlet));
-      expect(clock.inlets[Clock.pulseWidthInlet].index, equals(Clock.pulseWidthInlet));
+      expect(
+        clock.inlets[Clock.pulseWidthInlet].index,
+        equals(Clock.pulseWidthInlet),
+      );
       expect(clock.outlets.length, equals(1));
       expect(clock.outlet, equals(clock.outlets.first));
     });
@@ -30,11 +33,16 @@ void main() {
       // 10 Hz at 100 Hz sample rate => 10 samples per cycle
       const sampleRate = 100;
       const vectorSize = 10;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       final clock = Clock(
         frequency: const .value(10.0),
-        pulseWidth: const .value(0.4), // 40% high (4 samples high, 6 samples low)
+        pulseWidth: const .value(
+          0.4,
+        ), // 40% high (4 samples high, 6 samples low)
       );
       final processor = clock.createProcessor();
 

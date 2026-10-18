@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -10,7 +10,10 @@ void main() {
       final monoDelay = Delay.mono(input: osc.outlet);
 
       expect(monoDelay.numChannels, equals(1));
-      expect(monoDelay.inlets.length, equals(5)); // time, feedback, mix, damp, input
+      expect(
+        monoDelay.inlets.length,
+        equals(5),
+      ); // time, feedback, mix, damp, input
       expect(monoDelay.outlets.length, equals(1));
       expect(monoDelay.outlet, equals(monoDelay.outlets.first));
 
@@ -22,7 +25,10 @@ void main() {
       );
 
       expect(stereoDelay.numChannels, equals(2));
-      expect(stereoDelay.inlets.length, equals(6)); // time, feedback, mix, damp, inL, inR
+      expect(
+        stereoDelay.inlets.length,
+        equals(6),
+      ); // time, feedback, mix, damp, inL, inR
       expect(stereoDelay.outlets.length, equals(2));
       expect(stereoDelay.left, equals(stereoDelay.outlets[0]));
       expect(stereoDelay.right, equals(stereoDelay.outlets[1]));

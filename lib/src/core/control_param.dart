@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 
 extension ControlParamExtension<T> on ControlParam<T> {
   T? get valueOrNull => switch (this) {

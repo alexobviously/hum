@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -14,13 +14,25 @@ void main() {
       expect(mono.inlets[Saturator.driveInlet].source, isNull);
       expect(mono.inlets[Saturator.biasInlet].source, isNull);
       expect(mono.inlets[Saturator.mixInlet].source, isNull);
-      expect(mono.inlets[Saturator.audioInletOffset].source, equals(oscA.outlet));
+      expect(
+        mono.inlets[Saturator.audioInletOffset].source,
+        equals(oscA.outlet),
+      );
       expect(mono.outlets.length, equals(1));
 
       final stereo = Saturator.stereo(oscA.outlet, oscB.outlet);
-      expect(stereo.inlets.length, equals(5)); // drive, bias, mix, audioL, audioR
-      expect(stereo.inlets[Saturator.audioInletOffset].source, equals(oscA.outlet));
-      expect(stereo.inlets[Saturator.audioInletOffset + 1].source, equals(oscB.outlet));
+      expect(
+        stereo.inlets.length,
+        equals(5),
+      ); // drive, bias, mix, audioL, audioR
+      expect(
+        stereo.inlets[Saturator.audioInletOffset].source,
+        equals(oscA.outlet),
+      );
+      expect(
+        stereo.inlets[Saturator.audioInletOffset + 1].source,
+        equals(oscB.outlet),
+      );
       expect(stereo.outlets.length, equals(2));
       expect(stereo.left, equals(stereo.outlets[0]));
       expect(stereo.right, equals(stereo.outlets[1]));

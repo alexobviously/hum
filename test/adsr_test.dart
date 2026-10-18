@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -43,13 +43,16 @@ void main() {
     test('cycles through Attack -> Decay -> Sustain -> Release in linear mode', () {
       const sampleRate = 1000;
       const vectorSize = 100;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(
         gate: dummyClock.outlet,
         attack: const .value(0.02), // 20 samples
-        decay: const .value(0.03),  // 30 samples
+        decay: const .value(0.03), // 30 samples
         sustain: const .value(0.5), // holds at 0.5
         release: const .value(0.02), // 20 samples
         curve: AdsrCurve.linear,
@@ -84,7 +87,10 @@ void main() {
     test('cycles through Attack -> Decay -> Sustain -> Release in exponential mode', () {
       const sampleRate = 1000;
       const vectorSize = 100;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(
@@ -122,7 +128,10 @@ void main() {
     test('smoothly retriggers from current level without pops or clicks', () {
       const sampleRate = 1000;
       const vectorSize = 50;
-      final context = ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize);
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
 
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(

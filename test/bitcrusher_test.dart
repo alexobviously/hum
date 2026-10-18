@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -11,17 +11,35 @@ void main() {
 
       final mono = Bitcrusher.mono(input: oscA.outlet);
       expect(mono.numChannels, equals(1));
-      expect(mono.inlets.length, equals(4)); // bitDepth, downsample, mix, audio[0]
-      expect(mono.inlets[Bitcrusher.bitDepthInlet].index, equals(Bitcrusher.bitDepthInlet));
-      expect(mono.inlets[Bitcrusher.downsampleInlet].index, equals(Bitcrusher.downsampleInlet));
-      expect(mono.inlets[Bitcrusher.mixInlet].index, equals(Bitcrusher.mixInlet));
-      expect(mono.inlets[Bitcrusher.audioInletOffset].source, equals(oscA.outlet));
+      expect(
+        mono.inlets.length,
+        equals(4),
+      ); // bitDepth, downsample, mix, audio[0]
+      expect(
+        mono.inlets[Bitcrusher.bitDepthInlet].index,
+        equals(Bitcrusher.bitDepthInlet),
+      );
+      expect(
+        mono.inlets[Bitcrusher.downsampleInlet].index,
+        equals(Bitcrusher.downsampleInlet),
+      );
+      expect(
+        mono.inlets[Bitcrusher.mixInlet].index,
+        equals(Bitcrusher.mixInlet),
+      );
+      expect(
+        mono.inlets[Bitcrusher.audioInletOffset].source,
+        equals(oscA.outlet),
+      );
       expect(mono.outlets.length, equals(1));
       expect(mono.outlet, equals(mono.outlets.first));
 
       final stereo = Bitcrusher.stereo(left: oscA.outlet, right: oscB.outlet);
       expect(stereo.numChannels, equals(2));
-      expect(stereo.inlets.length, equals(5)); // bitDepth, downsample, mix, audioL, audioR
+      expect(
+        stereo.inlets.length,
+        equals(5),
+      ); // bitDepth, downsample, mix, audioL, audioR
       expect(stereo.outlets.length, equals(2));
       expect(stereo.left, equals(stereo.outlets[0]));
       expect(stereo.right, equals(stereo.outlets[1]));
@@ -43,7 +61,16 @@ void main() {
       final processor = crusher.createProcessor();
 
       // Linear ramp: 0.0, 0.14, 0.28, 0.42, 0.57, 0.71, 0.85, 1.0
-      final input = Float32List.fromList([0.0, 0.14, 0.28, 0.42, 0.57, 0.71, 0.85, 1.0]);
+      final input = Float32List.fromList([
+        0.0,
+        0.14,
+        0.28,
+        0.42,
+        0.57,
+        0.71,
+        0.85,
+        1.0,
+      ]);
       final output = [Float32List(vectorSize)];
 
       processor.process(context, [input], output);
@@ -80,7 +107,16 @@ void main() {
       );
       final processor = crusher.createProcessor();
 
-      final input = Float32List.fromList([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
+      final input = Float32List.fromList([
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+      ]);
       final output = [Float32List(vectorSize)];
 
       processor.process(context, [input], output);
@@ -149,7 +185,10 @@ void main() {
       expect(pipeline.outputs[0].length, equals(64));
 
       // Live update to 2-bit
-      pipeline.update(crusher, Bitcrusher.mono(input: osc.outlet, bitDepth: const .value(2.0)));
+      pipeline.update(
+        crusher,
+        Bitcrusher.mono(input: osc.outlet, bitDepth: const .value(2.0)),
+      );
       final proc = pipeline.processorOf(crusher);
       expect(proc.bitDepth, equals(2.0));
     });

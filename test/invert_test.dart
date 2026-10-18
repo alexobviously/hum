@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:dsp/dsp.dart';
+import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -44,22 +44,28 @@ void main() {
       expect(inverted.index, equals(0));
     });
 
-    test('summing a signal with its inverted self produces complete silence', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final osc = SawtoothOscillator(frequency: const .value(220));
+    test(
+      'summing a signal with its inverted self produces complete silence',
+      () {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final osc = SawtoothOscillator(frequency: const .value(220));
 
-      // Null test: S + (-S) == 0
-      final cancelled = osc.outlet + (-osc.outlet);
-      final pipeline = compilePipeline(root: cancelled.node, context: context);
+        // Null test: S + (-S) == 0
+        final cancelled = osc.outlet + (-osc.outlet);
+        final pipeline = compilePipeline(
+          root: cancelled.node,
+          context: context,
+        );
 
-      pipeline.process();
-      final output = pipeline.outputs[0];
+        pipeline.process();
+        final output = pipeline.outputs[0];
 
-      expect(output.length, equals(64));
-      for (int i = 0; i < 64; i++) {
-        expect(output[i], closeTo(0.0, 1e-6));
-      }
-    });
+        expect(output.length, equals(64));
+        for (int i = 0; i < 64; i++) {
+          expect(output[i], closeTo(0.0, 1e-6));
+        }
+      },
+    );
 
     test('compiles and renders inside multi-channel AudioPipeline', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
