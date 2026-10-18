@@ -24,7 +24,7 @@ class Freeverb({
   final ControlParam<double> roomSize = const .value(0.5),
   final ControlParam<double> damp = const .value(0.5),
   final ControlParam<double> width = const .value(1.0),
-  final ControlParam<double> mix = const .value(0.0),
+  final ControlParam<double> mix = const .value(0.3),
 }) implements AudioNode<FreeverbProcessor> {
   this
     : assert(
@@ -38,7 +38,7 @@ class Freeverb({
     ControlParam<double> roomSize = const .value(0.5),
     ControlParam<double> damp = const .value(0.5),
     ControlParam<double> width = const .value(1.0),
-    ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> mix = const .value(0.3),
   }) => Freeverb(
     inputs: [input],
     roomSize: roomSize,
@@ -53,7 +53,7 @@ class Freeverb({
     ControlParam<double> roomSize = const .value(0.5),
     ControlParam<double> damp = const .value(0.5),
     ControlParam<double> width = const .value(1.0),
-    ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> mix = const .value(0.3),
   }) => Freeverb(
     inputs: [left, right],
     roomSize: roomSize,
@@ -179,7 +179,7 @@ class FreeverbProcessor implements AudioProcessor {
   /// Stereo width [0.0, 1.0] (0.0 = mono, 1.0 = full stereo decorrelation).
   double? width;
 
-  /// Dry/Wet mix in [-1.0, +1.0] (-1.0 = dry, 0.0 = 50/50, +1.0 = 100% wet).
+  /// Dry/Wet mix in [0.0, 1.0] (0.0 = 100% dry, 0.5 = 50/50, 1.0 = 100% wet).
   double? mix;
 
   int _sampleRate = 0;
@@ -313,7 +313,7 @@ class FreeverbProcessor implements AudioProcessor {
       final double dampCoeff = dVal * _scaleDamp;
       final double invDampCoeff = 1.0 - dampCoeff;
 
-      final (double gainDry, double gainWet) = equalPowerGains(mVal);
+      final (double gainDry, double gainWet) = equalPowerMix(mVal);
       final double wet1 = gainWet * (wVal * 0.5 + 0.5);
       final double wet2 = gainWet * ((1.0 - wVal) * 0.5);
 

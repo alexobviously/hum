@@ -11,8 +11,8 @@ void main() {
       final oscB = SineOscillator(frequency: const .value(880));
 
       final mono = Crossfade.mono(a: oscA.outlet, b: oscB.outlet);
-      expect(mono.inlets.length, equals(3)); // mix, a, b
-      expect(mono.inlets[Crossfade.mixInlet].source, isNull);
+      expect(mono.inlets.length, equals(3)); // position, a, b
+      expect(mono.inlets[Crossfade.positionInlet].source, isNull);
       expect(
         mono.inlets[Crossfade.audioInletOffset].source,
         equals(oscA.outlet),
@@ -34,23 +34,23 @@ void main() {
         bLeft: oscBLeft.outlet,
         bRight: oscBRight.outlet,
       );
-      expect(stereo.inlets.length, equals(5)); // mix, aL, aR, bL, bR
+      expect(stereo.inlets.length, equals(5)); // position, aL, aR, bL, bR
       expect(stereo.outlets.length, equals(2));
       expect(stereo.left, equals(stereo.outlets[0]));
       expect(stereo.right, equals(stereo.outlets[1]));
     });
 
-    test('blends correctly in linear mode at mix -1.0, 0.0, and +1.0', () {
+    test('blends correctly in linear mode at position -1.0, 0.0, and +1.0', () {
       const vectorSize = 8;
       final context = ProcessContext(sampleRate: 44100, vectorSize: vectorSize);
       final inA = Float32List.fromList([10, 10, 10, 10, 10, 10, 10, 10]);
       final inB = Float32List.fromList([20, 20, 20, 20, 20, 20, 20, 20]);
       final out = Float32List(vectorSize);
 
-      // Mix -1.0 -> all A
+      // Position -1.0 -> all A
       final p0 = CrossfadeProcessor(
         numChannels: 1,
-        mix: -1.0,
+        position: -1.0,
         mode: CrossfadeMode.linear,
       );
       p0.process(context, [inA, inB], [out]);
@@ -58,10 +58,10 @@ void main() {
         expect(out[i], closeTo(10.0, 1e-5));
       }
 
-      // Mix +1.0 -> all B
+      // Position +1.0 -> all B
       final p1 = CrossfadeProcessor(
         numChannels: 1,
-        mix: 1.0,
+        position: 1.0,
         mode: CrossfadeMode.linear,
       );
       p1.process(context, [inA, inB], [out]);
@@ -69,10 +69,10 @@ void main() {
         expect(out[i], closeTo(20.0, 1e-5));
       }
 
-      // Mix 0.0 (centre) -> 50% A + 50% B = 15.0
+      // Position 0.0 (centre) -> 50% A + 50% B = 15.0
       final pHalf = CrossfadeProcessor(
         numChannels: 1,
-        mix: 0.0,
+        position: 0.0,
         mode: CrossfadeMode.linear,
       );
       pHalf.process(context, [inA, inB], [out]);
@@ -81,19 +81,19 @@ void main() {
       }
     });
 
-    test('blends correctly in equal-power mode at centre (mix = 0.0)', () {
+    test('blends correctly in equal-power mode at centre (position = 0.0)', () {
       const vectorSize = 4;
       final context = ProcessContext(sampleRate: 44100, vectorSize: vectorSize);
       final inA = Float32List.fromList([1, 1, 1, 1]);
       final inB = Float32List.fromList([1, 1, 1, 1]);
       final out = Float32List(vectorSize);
 
-      // At mix = 0.0 (centre), angle = (0.0 + 1.0) * pi/4 = pi/4
+      // At position = 0.0 (centre), angle = (0.0 + 1.0) * pi/4 = pi/4
       // equal-power gains are cos(pi/4) = sin(pi/4) = 1/sqrt(2) ≈ 0.70710678
       // Sum = 2 * (1 / sqrt(2)) = sqrt(2) ≈ 1.41421356
       final p = CrossfadeProcessor(
         numChannels: 1,
-        mix: 0.0,
+        position: 0.0,
         mode: CrossfadeMode.equalPower,
       );
       p.process(context, [inA, inB], [out]);
@@ -103,20 +103,20 @@ void main() {
       }
     });
 
-    test('supports audio-rate signal modulation of mix', () {
+    test('supports audio-rate signal modulation of position', () {
       const vectorSize = 4;
       final context = ProcessContext(sampleRate: 44100, vectorSize: vectorSize);
       final inA = Float32List.fromList([10, 10, 10, 10]);
       final inB = Float32List.fromList([20, 20, 20, 20]);
-      final mixSig = Float32List.fromList([-1.0, -0.5, 0.5, 1.0]);
+      final posSig = Float32List.fromList([-1.0, -0.5, 0.5, 1.0]);
       final out = Float32List(vectorSize);
 
       final p = CrossfadeProcessor(
         numChannels: 1,
-        mix: null,
+        position: null,
         mode: CrossfadeMode.linear,
       );
-      p.process(context, [mixSig, inA, inB], [out]);
+      p.process(context, [posSig, inA, inB], [out]);
 
       expect(out[0], closeTo(10.0, 1e-5));
       expect(out[1], closeTo(12.5, 1e-5));
@@ -136,7 +136,7 @@ void main() {
 
       final p = CrossfadeProcessor(
         numChannels: 2,
-        mix: 0.0,
+        position: 0.0,
         mode: CrossfadeMode.linear,
       );
       p.process(
@@ -159,7 +159,7 @@ void main() {
       final crossfade = Crossfade.mono(
         a: oscA.outlet,
         b: oscB.outlet,
-        mix: const .value(-1.0),
+        position: const .value(-1.0),
       );
       final sink = WavSink.memory(channels: [crossfade.outlet]);
 
@@ -169,14 +169,14 @@ void main() {
       final updatedCrossfade = Crossfade.mono(
         a: oscA.outlet,
         b: oscB.outlet,
-        mix: const .value(1.0),
+        position: const .value(1.0),
         mode: CrossfadeMode.linear,
       );
       pipeline.update(crossfade, updatedCrossfade);
       pipeline.process();
 
       final crossProcessor = pipeline.processorOf(crossfade);
-      expect(crossProcessor.mix, equals(1.0));
+      expect(crossProcessor.position, equals(1.0));
       expect(crossProcessor.mode, equals(CrossfadeMode.linear));
 
       final wavProcessor = pipeline.processorOf(sink);

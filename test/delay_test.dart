@@ -136,12 +136,12 @@ void main() {
         vectorSize: vectorSize,
       );
 
-      // Mix = -1.0 (100% dry)
+      // Mix = 0.0 (100% dry)
       final procDry = DelayProcessor(
         numChannels: 1,
         time: 0.004,
         feedback: 0.0,
-        mix: -1.0,
+        mix: 0.0,
       );
 
       final inBuf = Float32List(vectorSize);

@@ -141,11 +141,11 @@ void main() {
       final dummyOsc = SineOscillator(frequency: const .value(440));
       final input = Float32List.fromList([0.3, 0.7, -0.4, -0.8]);
 
-      // 100% Dry (mix = -1.0)
+      // 100% Dry (mix = 0.0)
       final dryCrusher = Bitcrusher.mono(
         input: dummyOsc.outlet,
         bitDepth: const .value(2.0),
-        mix: const .value(-1.0),
+        mix: const .value(0.0),
       );
       final dryProc = dryCrusher.createProcessor();
       final dryOut = [Float32List(vectorSize)];
@@ -155,11 +155,11 @@ void main() {
         expect(dryOut[0][i], closeTo(input[i], 1e-5));
       }
 
-      // 50/50 Mix (mix = 0.0)
+      // 50/50 Mix (mix = 0.5)
       final midCrusher = Bitcrusher.mono(
         input: dummyOsc.outlet,
         bitDepth: const .value(2.0),
-        mix: const .value(0.0),
+        mix: const .value(0.5),
       );
       final midProc = midCrusher.createProcessor();
       final midOut = [Float32List(vectorSize)];

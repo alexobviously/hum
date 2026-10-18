@@ -1,4 +1,4 @@
-# Yet-to-be-named DSP/generative audio library
+# Hum
 
 Signal processing library built primarily for creative applications. Why?
 - I need it to make bangers

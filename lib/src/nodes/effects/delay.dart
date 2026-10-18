@@ -16,7 +16,7 @@ class Delay({
   required final List<Outlet> channels,
   final ControlParam<double> time = const .value(0.5),
   final ControlParam<double> feedback = const .value(0.0),
-  final ControlParam<double> mix = const .value(0.0),
+  final ControlParam<double> mix = const .value(0.5),
   final ControlParam<double> damp = const .value(0.0),
   final double maxDelay = 10.0,
 }) implements AudioNode<DelayProcessor> {
@@ -26,7 +26,7 @@ class Delay({
     required Outlet input,
     ControlParam<double> time = const .value(0.5),
     ControlParam<double> feedback = const .value(0.0),
-    ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> mix = const .value(0.5),
     ControlParam<double> damp = const .value(0.0),
     double maxDelay = 10.0,
   }) => Delay(
@@ -43,7 +43,7 @@ class Delay({
     required Outlet rightInput,
     ControlParam<double> time = const .value(0.5),
     ControlParam<double> feedback = const .value(0.0),
-    ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> mix = const .value(0.5),
     ControlParam<double> damp = const .value(0.0),
     double maxDelay = 10.0,
   }) => Delay(
@@ -184,7 +184,7 @@ class DelayProcessor({
         ? (time * sampleRate).clamp(1.0, maxDelaySamples)
         : 1.0;
     final (double constDry, double constWet) = mix != null
-        ? equalPowerGains(mix)
+        ? equalPowerMix(mix)
         : (0.0, 0.0);
 
     int writeIndex = _writeIndex;
@@ -212,7 +212,7 @@ class DelayProcessor({
           ? dampBuf[i].clamp(0.0, 1.0)
           : constDamp;
       final (double gainDry, double gainWet) = mixBuf != null
-          ? equalPowerGains(mixBuf[i])
+          ? equalPowerMix(mixBuf[i])
           : (constDry, constWet);
 
       for (int c = 0; c < numChannels; c++) {

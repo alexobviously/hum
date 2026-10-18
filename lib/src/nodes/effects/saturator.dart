@@ -50,7 +50,7 @@ typedef SaturatorParams = ({
 /// - **Bias**: Asymmetric DC bias operating point (`[-1.0, 1.0]`) to inject musical even
 ///   harmonics (2nd, 4th - tube triode warmth). Crucially, the processor applies DC
 ///   correction so silence remains at 0.0 without DC offset.
-/// - **Mix**: Parallel dry/wet blending (`-1.0` = 100% dry, `0.0` = 50/50, `+1.0` = 100% wet).
+/// - **Mix**: Parallel dry/wet blending (`0.0` = 100% dry, `0.5` = 50/50, `1.0` = 100% wet).
 /// - **Multiple Modes**: [SaturationMode.tanh], [SaturationMode.cubic],
 ///   [SaturationMode.algebraic], [SaturationMode.atan], and [SaturationMode.wavefold].
 /// - Audio-rate modulation for [drive], [bias], and [mix].
@@ -249,7 +249,7 @@ class SaturatorProcessor({
       final d = staticDrive;
       final b = staticBias;
       final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
-      final (dryGain, wetGain) = linearGains(staticMix);
+      final (dryGain, wetGain) = linearMix(staticMix);
       final isFullWet = staticMix >= 1.0;
 
       for (int c = 0; c < numChannels; c++) {
@@ -297,7 +297,7 @@ class SaturatorProcessor({
         if (m >= 1.0) {
           outBuf[i] = wet;
         } else {
-          final (dryGain, wetGain) = linearGains(m);
+          final (dryGain, wetGain) = linearMix(m);
           outBuf[i] = x * dryGain + wet * wetGain;
         }
       }

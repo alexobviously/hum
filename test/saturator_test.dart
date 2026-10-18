@@ -169,11 +169,11 @@ void main() {
       final inBuf = Float32List.fromList([0.5]);
       final outBuf = Float32List(1);
 
-      // 100% dry (mix = -1.0)
+      // 100% dry (mix = 0.0)
       final dryProc = SaturatorProcessor(
         numChannels: 1,
         drive: 5.0,
-        mix: -1.0,
+        mix: 0.0,
         mode: SaturationMode.tanh,
       );
       dryProc.process(context, [inBuf], [outBuf]);
@@ -191,11 +191,11 @@ void main() {
       // tanh(0.5 * 5.0) = tanh(2.5) ≈ 0.9866
       expect(wetVal, closeTo(0.9866, 1e-3));
 
-      // 50/50 mix (mix = 0.0)
+      // 50/50 mix (mix = 0.5)
       final midProc = SaturatorProcessor(
         numChannels: 1,
         drive: 5.0,
-        mix: 0.0,
+        mix: 0.5,
         mode: SaturationMode.tanh,
       );
       midProc.process(context, [inBuf], [outBuf]);

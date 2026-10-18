@@ -6,7 +6,7 @@ import 'package:hum/hum.dart';
 enum CrossfadeMode {
   /// Equal-power (quarter-sine/cosine) crossfading.
   ///
-  /// Maintains constant perceived acoustic energy (+0 dB at center mix 0.0)
+  /// Maintains constant perceived acoustic energy (+0 dB at center position 0.0)
   /// without the -3 dB volume dip characteristic of linear crossfading.
   /// Recommended for audio signals.
   equalPower,
@@ -17,20 +17,20 @@ enum CrossfadeMode {
   linear,
 }
 
-typedef CrossfadeParams = ({double? mix, CrossfadeMode mode});
+typedef CrossfadeParams = ({double? position, CrossfadeMode mode});
 
 /// An [AudioNode] that blends between two signals or multi-channel buses [a] and [b]
-/// according to a bipolar [mix] parameter (`-1.0` = 100% [a], `0.0` = 50/50 center, `+1.0` = 100% [b]).
+/// according to a bipolar [position] parameter (`-1.0` = 100% [a], `0.0` = 50/50 center, `+1.0` = 100% [b]).
 ///
 /// Supports mono, stereo, and multichannel inputs, with both block-constant
-/// values and audio-rate signal modulation for [mix].
+/// values and audio-rate signal modulation for [position].
 class Crossfade implements AudioNode<CrossfadeProcessor> {
   final List<Outlet> a;
   final List<Outlet> b;
 
-  /// Mix position from `-1.0` (all [a]) to `+1.0` (all [b]). `0.0` is centre.
+  /// Bipolar blend position from `-1.0` (all [a]) to `+1.0` (all [b]). `0.0` is centre.
   /// Defaults to `0.0`.
-  final ControlParam<double> mix;
+  final ControlParam<double> position;
 
   /// Blending curve ([CrossfadeMode.equalPower] or [CrossfadeMode.linear]).
   final CrossfadeMode mode;
@@ -38,7 +38,7 @@ class Crossfade implements AudioNode<CrossfadeProcessor> {
   Crossfade({
     required this.a,
     required this.b,
-    this.mix = const .value(0.0),
+    this.position = const .value(0.0),
     this.mode = .equalPower,
   }) : assert(
          a.length == b.length,
@@ -49,9 +49,9 @@ class Crossfade implements AudioNode<CrossfadeProcessor> {
   factory mono({
     required Outlet a,
     required Outlet b,
-    ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> position = const .value(0.0),
     CrossfadeMode mode = .equalPower,
-  }) => Crossfade(a: [a], b: [b], mix: mix, mode: mode);
+  }) => Crossfade(a: [a], b: [b], position: position, mode: mode);
 
   /// Convenience factory for stereo signals.
   factory stereo({
@@ -59,23 +59,23 @@ class Crossfade implements AudioNode<CrossfadeProcessor> {
     required Outlet aRight,
     required Outlet bLeft,
     required Outlet bRight,
-    ControlParam<double> mix = const .value(0.0),
+    ControlParam<double> position = const .value(0.0),
     CrossfadeMode mode = .equalPower,
   }) => Crossfade(
     a: [aLeft, aRight],
     b: [bLeft, bRight],
-    mix: mix,
+    position: position,
     mode: mode,
   );
 
   int get numChannels => a.length;
 
-  static const mixInlet = 0;
+  static const positionInlet = 0;
   static const audioInletOffset = 1;
 
   @override
   List<Inlet> get inlets => [
-    Inlet(node: this, index: mixInlet, source: mix.outletOrNull),
+    Inlet(node: this, index: positionInlet, source: position.outletOrNull),
     ...List.generate(
       numChannels,
       (i) => Inlet(node: this, index: audioInletOffset + i, source: a[i]),
@@ -101,29 +101,29 @@ class Crossfade implements AudioNode<CrossfadeProcessor> {
   @override
   CrossfadeProcessor createProcessor() => CrossfadeProcessor(
     numChannels: numChannels,
-    mix: mix.valueOrNull,
+    position: position.valueOrNull,
     mode: mode,
   );
 
   @override
-  CrossfadeParams get params => (mix: mix.valueOrNull, mode: mode);
+  CrossfadeParams get params => (position: position.valueOrNull, mode: mode);
 }
 
 class CrossfadeProcessor implements AudioProcessor {
   final int numChannels;
-  double? mix;
+  double? position;
   CrossfadeMode mode;
 
   CrossfadeProcessor({
     required this.numChannels,
-    required this.mix,
+    required this.position,
     required this.mode,
   });
 
   @override
   void update(Object params) {
     params = params as CrossfadeParams;
-    mix = params.mix;
+    position = params.position;
     mode = params.mode;
   }
 
@@ -134,16 +134,16 @@ class CrossfadeProcessor implements AudioProcessor {
     List<Float32List> outputs,
   ) {
     final length = context.vectorSize;
-    final mix = this.mix;
+    final position = this.position;
     final audioOffset = inputs.length > numChannels * 2
         ? Crossfade.audioInletOffset
         : 0;
 
-    if (mix != null) {
-      // Constant mix over the entire block
+    if (position != null) {
+      // Constant position over the entire block
       final (gainA, gainB) = switch (mode) {
-        .equalPower => equalPowerGains(mix),
-        .linear => linearGains(mix),
+        .equalPower => equalPowerGains(position),
+        .linear => linearGains(position),
       };
 
       for (int c = 0; c < numChannels; c++) {
@@ -156,8 +156,8 @@ class CrossfadeProcessor implements AudioProcessor {
         }
       }
     } else {
-      // Audio-rate signal modulation for mix
-      final mixBuf = inputs[Crossfade.mixInlet];
+      // Audio-rate signal modulation for position
+      final posBuf = inputs[Crossfade.positionInlet];
 
       switch (mode) {
         case .equalPower:
@@ -167,7 +167,7 @@ class CrossfadeProcessor implements AudioProcessor {
             final out = outputs[c];
 
             for (int i = 0; i < length; i++) {
-              final (gainA, gainB) = equalPowerGains(mixBuf[i]);
+              final (gainA, gainB) = equalPowerGains(posBuf[i]);
               out[i] = inA[i] * gainA + inB[i] * gainB;
             }
           }
@@ -179,7 +179,7 @@ class CrossfadeProcessor implements AudioProcessor {
             final out = outputs[c];
 
             for (int i = 0; i < length; i++) {
-              final (gainA, gainB) = linearGains(mixBuf[i]);
+              final (gainA, gainB) = linearGains(posBuf[i]);
               out[i] = inA[i] * gainA + inB[i] * gainB;
             }
           }

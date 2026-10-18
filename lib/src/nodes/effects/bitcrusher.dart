@@ -27,7 +27,7 @@ class Bitcrusher({
   /// Downsample factor. Values >= 1.0 disable downsampling.
   final ControlParam<double> downsample = const .value(1.0),
 
-  /// Dry/Wet mix in [-1.0, +1.0] (-1.0 = 100% dry, 0.0 = 50/50, +1.0 = 100% wet).
+  /// Dry/Wet mix in [0.0, 1.0] (0.0 = 100% dry, 0.5 = 50/50, 1.0 = 100% wet).
   final ControlParam<double> mix = const .value(1.0),
 }) implements AudioNode<BitcrusherProcessor> {
   factory mono({
@@ -121,7 +121,7 @@ class BitcrusherProcessor implements AudioProcessor {
   /// Downsample factor (>= 1.0). 1.0 = normal rate, 2.0 = half sample rate, etc.
   double? downsample;
 
-  /// Dry/Wet mix in [-1.0, +1.0] (-1.0 = 100% dry, 0.0 = 50/50, +1.0 = 100% wet).
+  /// Dry/Wet mix in [0.0, 1.0] (0.0 = 100% dry, 0.5 = 50/50, 1.0 = 100% wet).
   double? mix;
 
   final Float32List _heldSamples;
@@ -206,7 +206,7 @@ class BitcrusherProcessor implements AudioProcessor {
           ? math.max(1.0, downsampleBuffer[i])
           : currentDownsample;
       final double mixVal = hasSignalMix ? mixBuffer[i] : currentMix;
-      final (dryGain, wetGain) = linearGains(mixVal);
+      final (dryGain, wetGain) = linearMix(mixVal);
 
       if (!initialized || phase >= factor || factor <= 1.0) {
         initialized = true;

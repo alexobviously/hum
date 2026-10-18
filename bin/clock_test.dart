@@ -40,7 +40,7 @@ void main() {
     input: bitcrush.outlet,
     time: .value(tempo.tripletEighth),
     feedback: .value(0.8),
-    mix: .value(-0.7),
+    mix: .value(0.15),
   );
 
   final wav = WavSink.file(

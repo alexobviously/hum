@@ -37,7 +37,7 @@ void main() {
       final dummyOsc = SineOscillator(frequency: const .value(440));
       final verb = Freeverb.mono(
         input: dummyOsc.outlet,
-        mix: const .value(-1.0), // 100% dry
+        mix: const .value(0.0), // 100% dry
       );
       final proc = verb.createProcessor();
 
