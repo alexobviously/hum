@@ -39,6 +39,7 @@ typedef SaturatorParams = ({
   double? bias,
   double? mix,
   SaturationMode mode,
+  bool dcBlock,
 });
 
 /// An [AudioNode] that provides non-linear saturation, waveshaping, and asymmetric
@@ -59,6 +60,7 @@ class const Saturator({
   final ControlParam<double> bias = const .value(0.0),
   final ControlParam<double> mix = const .value(1.0),
   final SaturationMode mode = .tanh,
+  final bool dcBlock = false,
 }) implements AudioNode<SaturatorProcessor> {
   factory mono(
     Outlet input, {
@@ -66,12 +68,14 @@ class const Saturator({
     ControlParam<double> bias = const .value(0.0),
     ControlParam<double> mix = const .value(1.0),
     SaturationMode mode = .tanh,
+    bool dcBlock = false,
   }) => Saturator(
     channels: [input],
     drive: drive,
     bias: bias,
     mix: mix,
     mode: mode,
+    dcBlock: dcBlock,
   );
 
   factory stereo(
@@ -81,12 +85,14 @@ class const Saturator({
     ControlParam<double> bias = const .value(0.0),
     ControlParam<double> mix = const .value(1.0),
     SaturationMode mode = .tanh,
+    bool dcBlock = false,
   }) => Saturator(
     channels: [leftInput, rightInput],
     drive: drive,
     bias: bias,
     mix: mix,
     mode: mode,
+    dcBlock: dcBlock,
   );
 
   /// Something like warm tube triode saturation with asymmetric bias.
@@ -95,12 +101,14 @@ class const Saturator({
     ControlParam<double> drive = const .value(2.0),
     ControlParam<double> bias = const .value(0.3),
     ControlParam<double> mix = const .value(1.0),
+    bool dcBlock = true,
   }) => .mono(
     input,
     drive: drive,
     bias: bias,
     mix: mix,
     mode: .cubic,
+    dcBlock: dcBlock,
   );
 
   /// Something like analog tape saturation using hyperbolic tangent.
@@ -108,12 +116,14 @@ class const Saturator({
     Outlet input, {
     ControlParam<double> drive = const .value(1.5),
     ControlParam<double> mix = const .value(1.0),
+    bool dcBlock = true,
   }) => .mono(
     input,
     drive: drive,
     bias: const .value(0.0),
     mix: mix,
     mode: .tanh,
+    dcBlock: dcBlock,
   );
 
   static const driveInlet = 0;
@@ -147,6 +157,7 @@ class const Saturator({
     bias: bias.valueOrNull ?? 0.0,
     mix: mix.valueOrNull ?? 1.0,
     mode: mode,
+    dcBlock: dcBlock,
     isDriveSignal: drive.outletOrNull != null,
     isBiasSignal: bias.outletOrNull != null,
     isMixSignal: mix.outletOrNull != null,
@@ -158,6 +169,7 @@ class const Saturator({
     bias: bias.valueOrNull,
     mix: mix.valueOrNull,
     mode: mode,
+    dcBlock: dcBlock,
   );
 }
 
@@ -168,10 +180,11 @@ class SaturatorProcessor({
   var double bias = 0.0,
   var double mix = 1.0,
   var SaturationMode mode = SaturationMode.tanh,
+  var bool dcBlock = false,
   final bool isDriveSignal = false,
   final bool isBiasSignal = false,
   final bool isMixSignal = false,
-}) implements AudioProcessor {
+}) with DcBlockMixin implements AudioProcessor {
   static const double _twoOverPi = 0.6366197723675814;
   static const double _halfPi = 1.5707963267948966;
 
@@ -182,6 +195,7 @@ class SaturatorProcessor({
     bias = p.bias ?? bias;
     mix = p.mix ?? mix;
     mode = p.mode;
+    dcBlock = p.dcBlock;
   }
 
   @pragma('vm:prefer-inline')
@@ -265,11 +279,9 @@ class SaturatorProcessor({
           }
         }
       }
-      return;
-    }
-
-    // Audio-rate modulated path
-    for (int c = 0; c < numChannels; c++) {
+    } else {
+      // Audio-rate modulated path
+      for (int c = 0; c < numChannels; c++) {
       final inBuf = inputs[audioOffset + c];
       final outBuf = outputs[c];
 
@@ -291,6 +303,14 @@ class SaturatorProcessor({
       }
     }
   }
+
+  if (dcBlock) {
+      final sr = context.sampleRate.toDouble();
+      for (int c = 0; c < numChannels; c++) {
+        applyDcBlock(outputs[c], c, length, sampleRate: sr);
+      }
+    }
+  }
 }
 
 extension OutletSaturatorExtension on Outlet {
@@ -300,5 +320,13 @@ extension OutletSaturatorExtension on Outlet {
     ControlParam<double> bias = const .value(0.0),
     ControlParam<double> mix = const .value(1.0),
     SaturationMode mode = .tanh,
-  }) => Saturator.mono(this, drive: drive, bias: bias, mix: mix, mode: mode);
+    bool dcBlock = false,
+  }) => Saturator.mono(
+    this,
+    drive: drive,
+    bias: bias,
+    mix: mix,
+    mode: mode,
+    dcBlock: dcBlock,
+  );
 }
