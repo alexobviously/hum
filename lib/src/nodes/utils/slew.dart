@@ -24,6 +24,7 @@ class const Slew({
   required final List<Outlet> channels,
   final ControlParam<double> rise = const .value(0.0),
   final ControlParam<double> fall = const .value(0.0),
+  final double? initialValue,
 }) implements AudioNode<SlewProcessor> {
   static const riseInlet = 0;
   static const fallInlet = 1;
@@ -33,7 +34,13 @@ class const Slew({
   factory symmetric({
     required List<Outlet> channels,
     ControlParam<double> time = const .value(0.0),
-  }) => Slew(channels: channels, rise: time, fall: time);
+    double? initialValue,
+  }) => Slew(
+    channels: channels,
+    rise: time,
+    fall: time,
+    initialValue: initialValue,
+  );
 
   /// Convenience factory for a mono signal with optional symmetric or asymmetric times.
   factory mono({
@@ -41,10 +48,12 @@ class const Slew({
     ControlParam<double> rise = const .value(0.0),
     ControlParam<double> fall = const .value(0.0),
     ControlParam<double>? time,
+    double? initialValue,
   }) => Slew(
     channels: [input],
     rise: time ?? rise,
     fall: time ?? fall,
+    initialValue: initialValue,
   );
 
   /// Convenience factory for stereo signals.
@@ -54,10 +63,12 @@ class const Slew({
     ControlParam<double> rise = const .value(0.0),
     ControlParam<double> fall = const .value(0.0),
     ControlParam<double>? time,
+    double? initialValue,
   }) => Slew(
     channels: [leftInput, rightInput],
     rise: time ?? rise,
     fall: time ?? fall,
+    initialValue: initialValue,
   );
 
   /// Convenience factory configuring slew in exact sample counts for a given [sampleRate].
@@ -98,6 +109,7 @@ class const Slew({
     numChannels: numChannels,
     rise: rise.valueOrNull,
     fall: fall.valueOrNull,
+    initialValue: initialValue,
   );
 
   @override
@@ -108,8 +120,10 @@ class SlewProcessor({
   required final int numChannels,
   var double? rise,
   var double? fall,
+  final double? initialValue,
 }) implements AudioProcessor {
-  final _lastSamples = Float32List(numChannels);
+  late final _lastSamples = Float32List(numChannels)
+    ..fillRange(0, numChannels, initialValue ?? 0.0);
 
   @override
   void update(Object params) {
@@ -190,8 +204,10 @@ class SlewProcessor({
 
 extension OutletSlewExtension on Outlet {
   /// Applies slew rate limiting (portamento / glide) to this outlet.
-  Slew slew([double time = 0.05]) => Slew.mono(input: this, time: .value(time));
+  Slew slew([double time = 0.05, double? initialValue]) =>
+      Slew.mono(input: this, time: .value(time), initialValue: initialValue);
 
   /// Alias for [slew].
-  Slew portamento([double time = 0.05]) => slew(time);
+  Slew portamento([double time = 0.05, double? initialValue]) =>
+      slew(time, initialValue);
 }
