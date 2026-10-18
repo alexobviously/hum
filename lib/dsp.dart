@@ -11,6 +11,7 @@ export 'src/music/tempo.dart';
 export 'src/nodes/effects/bitcrusher.dart';
 export 'src/nodes/effects/delay.dart';
 export 'src/nodes/effects/freeverb.dart';
+export 'src/nodes/effects/saturator.dart';
 export 'src/nodes/filters/onepole.dart';
 export 'src/nodes/filters/svf.dart';
 export 'src/nodes/io/dac.dart';
