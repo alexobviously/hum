@@ -33,6 +33,7 @@ export 'src/nodes/utils/crossfade.dart';
 export 'src/nodes/utils/invert.dart';
 export 'src/nodes/utils/mult.dart';
 export 'src/nodes/utils/panning_utils.dart';
+export 'src/nodes/utils/sah.dart';
 export 'src/nodes/utils/scale.dart';
 export 'src/nodes/utils/stereo_pan.dart';
 export 'src/nodes/utils/stereo_split.dart';

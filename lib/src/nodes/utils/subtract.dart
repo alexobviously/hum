@@ -63,7 +63,7 @@ class const Subtract({
 }
 
 class SubtractProcessor({
-  var double? value,
+  required var double? value,
   required final int numChannels,
 }) implements AudioProcessor {
   @override
