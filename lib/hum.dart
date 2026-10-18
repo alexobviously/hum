@@ -35,4 +35,5 @@ export 'src/nodes/utils/panning_utils.dart';
 export 'src/nodes/utils/scale.dart';
 export 'src/nodes/utils/stereo_pan.dart';
 export 'src/nodes/utils/stereo_split.dart';
+export 'src/nodes/utils/subtract.dart';
 export 'src/nodes/utils/sum.dart';
