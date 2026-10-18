@@ -8,7 +8,7 @@ void main() {
     test('declares expected inlets and outlets', () {
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(
-        gate: dummyClock.outlet,
+        gate: dummyClock.gate,
         attack: const .value(0.02),
         decay: const .value(0.05),
         sustain: const .value(0.6),
@@ -16,14 +16,14 @@ void main() {
       );
 
       expect(adsr.inlets.length, equals(1));
-      expect(adsr.inlets[Adsr.gateInlet].source, equals(dummyClock.outlet));
+      expect(adsr.inlets[Adsr.gateInlet].source, equals(dummyClock.gate));
       expect(adsr.outlets.length, equals(1));
       expect(adsr.outlet, equals(adsr.outlets.first));
     });
 
     test('stays idle at 0.0 when gate is low', () {
       final dummyClock = Clock.bpm(120);
-      final adsr = Adsr(gate: dummyClock.outlet);
+      final adsr = Adsr(gate: dummyClock.gate);
       final processor = adsr.createProcessor();
 
       const vectorSize = 32;
@@ -50,7 +50,7 @@ void main() {
 
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(
-        gate: dummyClock.outlet,
+        gate: dummyClock.gate,
         attack: const .value(0.02), // 20 samples
         decay: const .value(0.03), // 30 samples
         sustain: const .value(0.5), // holds at 0.5
@@ -94,7 +94,7 @@ void main() {
 
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(
-        gate: dummyClock.outlet,
+        gate: dummyClock.gate,
         attack: const .value(0.015),
         decay: const .value(0.03),
         sustain: const .value(0.4),
@@ -135,7 +135,7 @@ void main() {
 
       final dummyClock = Clock.bpm(120);
       final adsr = Adsr(
-        gate: dummyClock.outlet,
+        gate: dummyClock.gate,
         attack: const .value(0.02),
         decay: const .value(0.02),
         sustain: const .value(0.5),
@@ -180,7 +180,7 @@ void main() {
     test('wires together Clock and Adsr in an AudioPipeline', () {
       final clock = Clock.bpm(120, pulseWidth: const .value(0.5));
       final adsr = Adsr(
-        gate: clock.outlet,
+        gate: clock.gate,
         attack: const .value(0.01),
         decay: const .value(0.02),
         sustain: const .value(0.5),

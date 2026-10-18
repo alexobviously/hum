@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
-import 'package:hum/src/nodes/oscillators/oscillator_utils.dart';
 
 typedef ClockParams = ({double? frequency, double? pulseWidth});
 
@@ -29,6 +28,9 @@ class Clock({
   static const freqInlet = 0;
   static const pulseWidthInlet = 1;
 
+  static const gateOutlet = 0;
+  static const triggerOutlet = 1;
+
   @override
   List<Inlet> get inlets => [
     Inlet(node: this, index: freqInlet, source: frequency.outletOrNull),
@@ -36,9 +38,16 @@ class Clock({
   ];
 
   @override
-  List<Outlet> get outlets => [Outlet(node: this, index: 0)];
+  List<Outlet> get outlets => [
+    Outlet(node: this, index: gateOutlet),
+    Outlet(node: this, index: triggerOutlet),
+  ];
 
-  Outlet get outlet => outlets.first;
+  /// Unipolar gate signal (1.0 for the duration of [pulseWidth], 0.0 otherwise).
+  Outlet get gate => outlets[gateOutlet];
+
+  /// A single-sample 1.0 impulse on the exact sample where each cycle begins.
+  Outlet get trigger => outlets[triggerOutlet];
 
   @override
   ClockProcessor createProcessor() => ClockProcessor(
@@ -53,20 +62,18 @@ class Clock({
   );
 }
 
-class ClockProcessor implements AudioProcessor {
-  ClockProcessor({
-    required this.frequency,
-    this.pulseWidth,
-  });
-
+class ClockProcessor({
   /// In hertz. If null, driven by audio inlet.
-  double? frequency;
+  required var double? frequency,
 
   /// Duty cycle (0.0 to 1.0). If null, driven by audio inlet.
-  double? pulseWidth;
-
+  var double? pulseWidth,
+}) implements AudioProcessor {
   /// 0.0 to 1.0 normalised phase.
-  double phase = 0.0;
+  double _phase = 0.0;
+
+  /// Whether the next sample should emit a trigger impulse.
+  bool _willTrigger = true;
 
   @override
   void update(Object params) {
@@ -81,9 +88,11 @@ class ClockProcessor implements AudioProcessor {
     List<Float32List> inputs,
     List<Float32List> outputs,
   ) {
-    final output = outputs[0];
+    final gateOut = outputs[Clock.gateOutlet];
+    final triggerOut = outputs[Clock.triggerOutlet];
     final sampleRate = context.sampleRate;
-    double currentPhase = phase;
+    double phase = _phase;
+    bool willTrigger = _willTrigger;
 
     final bool hasSignalFreq = frequency == null && inputs.isNotEmpty;
     final bool hasSignalWidth =
@@ -94,32 +103,48 @@ class ClockProcessor implements AudioProcessor {
 
     final double staticFreq = frequency ?? 2.0;
     final double staticWidth = (pulseWidth ?? 0.5).clamp(0.0, 1.0);
+    final double fallbackInc = staticFreq / sampleRate;
 
     if (!hasSignalFreq && !hasSignalWidth) {
-      // Scalar fast path: fixed frequency and fixed pulse width
-      final double phaseIncrement = staticFreq / sampleRate;
+      final double phaseIncrement = fallbackInc;
 
-      for (int i = 0; i < output.length; i++) {
-        output[i] = currentPhase < staticWidth ? 1.0 : 0.0;
-        currentPhase = advancePhase(currentPhase, phaseIncrement);
+      for (int i = 0; i < gateOut.length; i++) {
+        gateOut[i] = phase < staticWidth ? 1.0 : 0.0;
+        triggerOut[i] = willTrigger ? 1.0 : 0.0;
+
+        phase += phaseIncrement;
+        // account for floating point precision drift
+        if (phase >= 1.0 - 1e-9) {
+          phase = (phase >= 1.0) ? phase - 1.0 : 0.0;
+          willTrigger = true;
+        } else {
+          willTrigger = false;
+        }
       }
     } else {
-      // Modulated path: frequency or pulse width driven by audio-rate signals
-      final double fallbackInc = staticFreq / sampleRate;
-
-      for (int i = 0; i < output.length; i++) {
+      for (int i = 0; i < gateOut.length; i++) {
         final double threshold = hasSignalWidth
             ? widthBuffer![i].clamp(0.0, 1.0)
             : staticWidth;
-        output[i] = currentPhase < threshold ? 1.0 : 0.0;
-
-        final double phaseIncrement = hasSignalFreq
+        final double inc = hasSignalFreq
             ? (freqBuffer![i] / sampleRate)
             : fallbackInc;
-        currentPhase = advancePhase(currentPhase, phaseIncrement);
+
+        gateOut[i] = phase < threshold ? 1.0 : 0.0;
+        triggerOut[i] = willTrigger ? 1.0 : 0.0;
+
+        phase += inc;
+        // account for floating point precision drift
+        if (phase >= 1.0 - 1e-9) {
+          phase = (phase >= 1.0) ? phase - 1.0 : 0.0;
+          willTrigger = true;
+        } else {
+          willTrigger = false;
+        }
       }
     }
 
-    phase = currentPhase;
+    _phase = phase;
+    _willTrigger = willTrigger;
   }
 }

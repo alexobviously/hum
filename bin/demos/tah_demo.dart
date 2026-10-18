@@ -52,7 +52,7 @@ void main() {
   // - While rhythmicGate is high (40% of the beat), it tracks the smooth sine curve (glide).
   // - While rhythmicGate is low (60% of the beat), it freezes the last sample flat (hold).
   final pitchTah = Tah.mono(
-    gate: rhythmicGate.outlet,
+    gate: rhythmicGate.gate,
     input: pitchLfo.outlet,
     threshold: 0.5,
   );
@@ -82,7 +82,7 @@ void main() {
     pulseWidth: const .value(0.65),
   );
   final shapedAudio = Tah.mono(
-    gate: crushClock.outlet,
+    gate: crushClock.gate,
     input: saw.outlet,
     threshold: 0.5,
   );
@@ -104,7 +104,7 @@ void main() {
 
   // 7. Envelope: Snappy percussive articulation on each 8th note
   final env = Adsr(
-    gate: rhythmicGate.outlet,
+    gate: rhythmicGate.gate,
     attack: const .value(0.005),
     decay: .value(tempo.eighth * 0.8),
     sustain: const .value(0.15),

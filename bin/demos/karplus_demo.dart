@@ -10,7 +10,7 @@ void main() {
   final note = Note.parse('C4');
 
   final node = KarplusStrong(
-    gate: clock.outlet,
+    gate: clock.gate,
     frequency: .value(note.hz),
     feedback: const .value(0.997),
   );

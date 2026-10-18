@@ -8,7 +8,7 @@ void main() {
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
 
   final clock = Clock.bpm(tempo.bpm);
-  final adsr = Adsr(gate: clock.outlet, attack: .value(0.1));
+  final adsr = Adsr(gate: clock.gate, attack: .value(0.1));
 
   final low = Note.parse('A4');
   final high = Note.parse('E5');

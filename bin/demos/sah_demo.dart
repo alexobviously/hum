@@ -70,7 +70,7 @@ void main() {
 
   // 3. Sample & Hold: Latches both signals synchronously on each 16th-note pulse
   final sah = Sah.stereo(
-    trigger: clock.outlet,
+    trigger: clock.trigger,
     leftInput: pitchCvSource,
     rightInput: cutoffCvSource,
     threshold: 0.5,
@@ -152,7 +152,7 @@ void main() {
 
   // 7. Expressive Amplitude Envelope (VCA)
   final env = Adsr(
-    gate: clock.outlet,
+    gate: clock.gate,
     attack: const .value(0.004),
     decay: .value(tempo.sixteenth * 0.85),
     sustain: const .value(0.18),

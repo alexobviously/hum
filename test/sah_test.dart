@@ -233,13 +233,13 @@ void main() {
       final osc = SineOscillator(frequency: const .value(440));
       final clock = Clock(frequency: const .value(8));
       final sah = osc.outlet.sah(
-        clock.outlet,
+        clock.trigger,
         threshold: 0.1,
         triggerEdge: TriggerEdge.both,
       );
 
       expect(sah, isA<Sah>());
-      expect(sah.inlets[Sah.triggerInlet].source, equals(clock.outlet));
+      expect(sah.inlets[Sah.triggerInlet].source, equals(clock.trigger));
       expect(sah.inlets[1].source, equals(osc.outlet));
       expect(sah.params.threshold, equals(0.1));
       expect(sah.params.triggerEdge, equals(TriggerEdge.both));
@@ -254,7 +254,7 @@ void main() {
         ); // triggers every ~44 samples
         final saw = SawtoothOscillator(frequency: const .value(50));
         final sah = Sah.mono(
-          trigger: clock.outlet,
+          trigger: clock.trigger,
           input: saw.outlet,
           threshold: 0.5,
           triggerEdge: TriggerEdge.rising,
@@ -278,7 +278,7 @@ void main() {
 
         // Update parameters live
         final updatedSah = Sah.mono(
-          trigger: clock.outlet,
+          trigger: clock.trigger,
           input: saw.outlet,
           threshold: 0.9,
           triggerEdge: TriggerEdge.falling,

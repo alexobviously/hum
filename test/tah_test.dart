@@ -12,13 +12,13 @@ void main() {
       final oscC = TriangleOscillator(frequency: const .value(220));
 
       final mono = Tah.mono(
-        gate: gate.outlet,
+        gate: gate.gate,
         input: oscA.outlet,
         threshold: 0.2,
         activeHigh: false,
       );
       expect(mono.inlets.length, equals(2));
-      expect(mono.inlets[Tah.gateInlet].source, equals(gate.outlet));
+      expect(mono.inlets[Tah.gateInlet].source, equals(gate.gate));
       expect(mono.inlets[1].source, equals(oscA.outlet));
       expect(mono.outlets.length, equals(1));
       expect(mono.outlet, equals(mono.outlets.first));
@@ -26,18 +26,18 @@ void main() {
       expect(mono.params.activeHigh, isFalse);
 
       final stereo = Tah.stereo(
-        gate: gate.outlet,
+        gate: gate.gate,
         leftInput: oscA.outlet,
         rightInput: oscB.outlet,
       );
       expect(stereo.inlets.length, equals(3));
-      expect(stereo.inlets[Tah.gateInlet].source, equals(gate.outlet));
+      expect(stereo.inlets[Tah.gateInlet].source, equals(gate.gate));
       expect(stereo.inlets[1].source, equals(oscA.outlet));
       expect(stereo.inlets[2].source, equals(oscB.outlet));
       expect(stereo.outlets.length, equals(2));
 
       final multi = Tah(
-        gate: gate.outlet,
+        gate: gate.gate,
         channels: [oscA.outlet, oscB.outlet, oscC.outlet],
       );
       expect(multi.inlets.length, equals(4));
@@ -192,13 +192,13 @@ void main() {
       final osc = SineOscillator(frequency: const .value(440));
       final gate = Clock(frequency: const .value(4));
       final tah = osc.outlet.tah(
-        gate.outlet,
+        gate.gate,
         threshold: 0.25,
         activeHigh: false,
       );
 
       expect(tah, isA<Tah>());
-      expect(tah.inlets[Tah.gateInlet].source, equals(gate.outlet));
+      expect(tah.inlets[Tah.gateInlet].source, equals(gate.gate));
       expect(tah.inlets[1].source, equals(osc.outlet));
       expect(tah.params.threshold, equals(0.25));
       expect(tah.params.activeHigh, isFalse);
@@ -209,7 +209,7 @@ void main() {
       final clock = Clock(frequency: const .value(1000));
       final saw = SawtoothOscillator(frequency: const .value(100));
       final tah = Tah.mono(
-        gate: clock.outlet,
+        gate: clock.gate,
         input: saw.outlet,
         threshold: 0.5,
         activeHigh: true,
@@ -224,7 +224,7 @@ void main() {
 
       // Live update to activeHigh: false
       final updatedTah = Tah.mono(
-        gate: clock.outlet,
+        gate: clock.gate,
         input: saw.outlet,
         threshold: 0.5,
         activeHigh: false,

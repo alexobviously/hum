@@ -17,8 +17,9 @@ void main() {
         clock.inlets[Clock.pulseWidthInlet].index,
         equals(Clock.pulseWidthInlet),
       );
-      expect(clock.outlets.length, equals(1));
-      expect(clock.outlet, equals(clock.outlets.first));
+      expect(clock.outlets.length, equals(2));
+      expect(clock.gate, equals(clock.outlets[Clock.gateOutlet]));
+      expect(clock.trigger, equals(clock.outlets[Clock.triggerOutlet]));
     });
 
     test('Clock.bpm sets frequency correctly', () {
@@ -29,7 +30,7 @@ void main() {
       expect(fastClock.frequency.valueOrNull, equals(4.0));
     });
 
-    test('generates unipolar 0.0 and 1.0 pulses with correct duty cycle', () {
+    test('generates unipolar gate and single-sample trigger impulses', () {
       // 10 Hz at 100 Hz sample rate => 10 samples per cycle
       const sampleRate = 100;
       const vectorSize = 10;
@@ -40,44 +41,62 @@ void main() {
 
       final clock = Clock(
         frequency: const .value(10.0),
-        pulseWidth: const .value(
-          0.4,
-        ), // 40% high (4 samples high, 6 samples low)
+        pulseWidth: const .value(0.4), // 4 samples high, 6 samples low
       );
       final processor = clock.createProcessor();
 
-      final outputs = [Float32List(vectorSize)];
-      processor.process(context, [], outputs);
+      final gateOut = Float32List(vectorSize);
+      final triggerOut = Float32List(vectorSize);
+      processor.process(context, [], [gateOut, triggerOut]);
 
-      // Verify each sample is either 0.0 or 1.0
-      for (final s in outputs[0]) {
-        expect(s == 0.0 || s == 1.0, isTrue);
+      // Gate: First 4 samples should be 1.0 (phase < 0.4), remaining 6 samples 0.0
+      expect(gateOut.sublist(0, 4), equals([1.0, 1.0, 1.0, 1.0]));
+      expect(gateOut.sublist(4, 10), equals([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+
+      // Trigger: ONLY sample 0 should be 1.0, remaining 9 samples 0.0
+      expect(triggerOut[0], equals(1.0));
+      for (int i = 1; i < vectorSize; i++) {
+        expect(
+          triggerOut[i],
+          equals(0.0),
+          reason: 'Trigger at index $i should be 0.0',
+        );
       }
 
-      // First 4 samples should be 1.0 (phase < 0.4), remaining 6 samples 0.0
-      expect(outputs[0][0], equals(1.0));
-      expect(outputs[0][1], equals(1.0));
-      expect(outputs[0][2], equals(1.0));
-      expect(outputs[0][3], equals(1.0));
-      expect(outputs[0][4], equals(0.0));
-      expect(outputs[0][5], equals(0.0));
-      expect(outputs[0][6], equals(0.0));
-      expect(outputs[0][7], equals(0.0));
-      expect(outputs[0][8], equals(0.0));
-      expect(outputs[0][9], equals(0.0));
+      // Process second block (cycle 2)
+      final gateOut2 = Float32List(vectorSize);
+      final triggerOut2 = Float32List(vectorSize);
+      processor.process(context, [], [gateOut2, triggerOut2]);
+
+      // Cycle 2 trigger should fire again on sample 0
+      expect(triggerOut2[0], equals(1.0));
+      for (int i = 1; i < vectorSize; i++) {
+        expect(triggerOut2[i], equals(0.0));
+      }
     });
 
-    test('can be compiled in AudioPipeline', () {
-      final clock = Clock.bpm(120);
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final pipeline = compilePipeline(root: clock, context: context);
+    test(
+      'can be compiled in AudioPipeline targeting both gate and trigger',
+      () {
+        final clock = Clock.bpm(120);
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final pipeline = compilePipeline(
+          targetOutputs: [clock.gate, clock.trigger],
+          context: context,
+        );
 
-      pipeline.process();
-      expect(pipeline.outputs.length, equals(1));
-      expect(pipeline.outputs[0].length, equals(64));
+        pipeline.process();
+        expect(pipeline.outputs.length, equals(2));
+        expect(pipeline.outputs[0].length, equals(64));
+        expect(pipeline.outputs[1].length, equals(64));
 
-      // Output should start high at phase 0
-      expect(pipeline.outputs[0][0], equals(1.0));
-    });
+        // Gate starts high at phase 0
+        expect(pipeline.outputs[0][0], equals(1.0));
+        // Trigger impulse on sample 0
+        expect(pipeline.outputs[1][0], equals(1.0));
+        // Trigger is 0.0 on subsequent samples
+        expect(pipeline.outputs[1][1], equals(0.0));
+      },
+    );
   });
 }

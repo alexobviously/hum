@@ -80,7 +80,7 @@ void main() {
   // 6. Amplitude Envelope:
   // Smooth attack, sustained body, and clean release for articulated notes.
   final env = Adsr(
-    gate: noteClock.outlet,
+    gate: noteClock.gate,
     attack: const .value(0.01),
     decay: const .value(0.15),
     sustain: const .value(0.7),
