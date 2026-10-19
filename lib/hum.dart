@@ -18,6 +18,7 @@ export 'src/nodes/filters/svf.dart';
 export 'src/nodes/io/dac.dart';
 export 'src/nodes/io/wav_sink.dart';
 export 'src/nodes/modulation/adsr.dart';
+export 'src/nodes/modulation/chance.dart';
 export 'src/nodes/modulation/clock.dart';
 export 'src/nodes/modulation/decay.dart';
 export 'src/nodes/modulation/step_sequencer.dart';
