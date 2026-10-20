@@ -31,6 +31,36 @@ class StepSequencer({
     threshold: threshold,
   );
 
+  /// Convenience factory taking an iterable of musical note names (e.g.
+  /// `['C4', 'E4', 'G4', 'B4']`) and converting them to frequencies in Hertz.
+  factory notes({
+    required Outlet clock,
+    Outlet? reset,
+    required Iterable<String> notes,
+    double a4 = 440.0,
+    double threshold = 0.5,
+  }) => StepSequencer.fromList(
+    clock: clock,
+    reset: reset,
+    steps: notes.toHz(a4),
+    threshold: threshold,
+  );
+
+  /// Convenience factory parsing a whitespace-separated sequence of note names
+  /// (e.g. `'C4 E4 G4 B4'`) into frequencies in Hertz.
+  factory sequence({
+    required Outlet clock,
+    Outlet? reset,
+    required String sequence,
+    double a4 = 440.0,
+    double threshold = 0.5,
+  }) => StepSequencer.fromList(
+    clock: clock,
+    reset: reset,
+    steps: sequence.toHz(a4),
+    threshold: threshold,
+  );
+
   static const clockInlet = 0;
   static const resetInlet = 1;
 

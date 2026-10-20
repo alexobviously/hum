@@ -24,30 +24,15 @@ void main() {
     pulseWidth: const .value(0.5),
   );
 
-  // 2. Pentatonic pitch sequence (in Hz)
-  // Notes: D3 (146.83), F3 (174.61), G3 (196.00), A3 (220.00), C4 (261.63), D4 (293.66)
-  final pentatonicNotes = const [
-    146.83,
-    174.61,
-    220.00,
-    261.63,
-    196.00,
-    174.61,
-    146.83,
-    220.00,
-    293.66,
-    261.63,
-    220.00,
-    196.00,
-    174.61,
-    196.00,
-    146.83,
-    110.00,
-  ];
-
-  final pitchSeq = StepSequencer.fromList(
+  // 2. Pentatonic pitch sequence
+  final pitchSeq = StepSequencer.notes(
     clock: clock.trigger,
-    steps: pentatonicNotes,
+    notes: [
+      'D3', 'F3', 'A3', 'C4', // Bar 1
+      'G3', 'F3', 'D3', 'A3', // Bar 2
+      'D4', 'C4', 'A3', 'G3', // Bar 3
+      'F3', 'G3', 'D3', 'A2', // Bar 4
+    ],
   );
 
   // 3. Noise burst exciter (simulating a plectrum pluck / hammer strike)

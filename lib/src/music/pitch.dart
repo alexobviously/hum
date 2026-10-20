@@ -120,6 +120,56 @@ class const Note(
   /// Transposes up by a minor third (3 semitones).
   Note get minorThird => transpose(3);
 
+  /// Parses a whitespace-separated sequence of note names (e.g. `'C4 E4 G4 B4'`)
+  /// into a list of [Note] objects.
+  static List<Note> sequence(String input, [double a4 = 440.0]) {
+    return input
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .map((s) => Note.parse(s, a4))
+        .toList();
+  }
+
+  /// Parses a whitespace-separated sequence of note names into a list of
+  /// frequencies in Hertz.
+  static List<double> sequenceHz(String input, [double a4 = 440.0]) {
+    return input
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .map((s) => noteToHz(s, a4))
+        .toList();
+  }
+
   @override
   String toString() => '$name ($hz Hz)';
+}
+
+/// Convenient musical conversions for string iterables.
+extension NoteStringIterableExtension on Iterable<String> {
+  /// Converts an iterable of note names (e.g. `['C4', 'E4', 'G4']`) into
+  /// a list of frequencies in Hertz.
+  List<double> toHz([double a4 = 440.0]) =>
+      map((s) => noteToHz(s, a4)).toList();
+
+  /// Converts an iterable of note names into a list of [Note] objects.
+  List<Note> toNotes([double a4 = 440.0]) =>
+      map((s) => Note.parse(s, a4)).toList();
+
+  /// Converts an iterable of note names into a list of MIDI note numbers.
+  List<int> toMidi() => map(noteToMidi).toList();
+}
+
+/// Convenient musical conversions for sequence strings.
+extension NoteSequenceStringExtension on String {
+  /// Parses a whitespace-separated note sequence (e.g. `'A3 C4 E4 A4'`) into
+  /// frequencies in Hertz.
+  List<double> toHz([double a4 = 440.0]) => Note.sequenceHz(this, a4);
+
+  /// Parses a whitespace-separated note sequence into [Note] objects.
+  List<Note> toNotes([double a4 = 440.0]) => Note.sequence(this, a4);
+
+  /// Parses a single note string directly to a [Note] object.
+  Note toNote([double a4 = 440.0]) => Note.parse(this, a4);
 }

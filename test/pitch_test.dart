@@ -91,5 +91,34 @@ void main() {
       expect(() => noteToMidi(''), throwsFormatException);
       expect(() => noteToMidi('123'), throwsFormatException);
     });
+
+    test(
+      'parses note sequences from whitespace-separated strings and lists',
+      () {
+        const raw = 'A3 C4 E4 A4';
+        final notes = Note.sequence(raw);
+        expect(notes.length, equals(4));
+        expect(notes.map((n) => n.name), equals(['A3', 'C4', 'E4', 'A4']));
+
+        final hzList = Note.sequenceHz(raw);
+        expect(hzList[0], equals(220.0));
+        expect(hzList[1], closeTo(261.63, 0.01));
+        expect(hzList[3], equals(440.0));
+
+        // String extensions
+        expect(raw.toHz(), equals(hzList));
+        expect(
+          raw.toNotes().map((n) => n.name),
+          equals(['A3', 'C4', 'E4', 'A4']),
+        );
+        expect('A4'.toNote().midi, equals(69));
+
+        // Iterable<String> extensions
+        final list = ['F3', 'A3', 'C4'];
+        expect(list.toMidi(), equals([53, 57, 60]));
+        expect(list.toHz()[1], equals(220.0));
+        expect(list.toNotes().map((n) => n.name), equals(['F3', 'A3', 'C4']));
+      },
+    );
   });
 }

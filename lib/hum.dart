@@ -9,6 +9,7 @@ export 'src/io/wav_writer.dart';
 export 'src/music/pitch.dart';
 export 'src/music/tempo.dart';
 export 'src/nodes/effects/bitcrusher.dart';
+export 'src/nodes/effects/chorus.dart';
 export 'src/nodes/effects/delay.dart';
 export 'src/nodes/effects/freeverb.dart';
 export 'src/nodes/effects/saturator.dart';

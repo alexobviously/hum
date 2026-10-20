@@ -42,6 +42,27 @@ void main() {
     });
 
     test(
+      'StepSequencer.notes and StepSequencer.sequence parse note pitches',
+      () {
+        final clock = Clock(frequency: const .value(4));
+
+        final seqNotes = StepSequencer.notes(
+          clock: clock.trigger,
+          notes: ['A3', 'C4', 'E4', 'A4'],
+        );
+        expect(seqNotes.params.steps[0], equals(220.0));
+        expect(seqNotes.params.steps[1], closeTo(261.63, 0.01));
+        expect(seqNotes.params.steps[3], equals(440.0));
+
+        final seqString = StepSequencer.sequence(
+          clock: clock.trigger,
+          sequence: 'A3 C4 E4 A4',
+        );
+        expect(seqString.params.steps, equals(seqNotes.params.steps));
+      },
+    );
+
+    test(
       'steps sequentially through values on rising clock edges and loops',
       () {
         final processor = StepSequencerProcessor(
