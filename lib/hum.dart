@@ -36,6 +36,8 @@ export 'src/nodes/utils/add.dart';
 export 'src/nodes/utils/clamp.dart';
 export 'src/nodes/utils/crossfade.dart';
 export 'src/nodes/utils/invert.dart';
+export 'src/nodes/utils/max.dart';
+export 'src/nodes/utils/min.dart';
 export 'src/nodes/utils/mult.dart';
 export 'src/nodes/utils/panning_utils.dart';
 export 'src/nodes/utils/sah.dart';

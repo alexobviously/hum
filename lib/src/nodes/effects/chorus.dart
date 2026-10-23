@@ -336,7 +336,7 @@ extension ChorusOutletExtension on Outlet {
     double stereoPhase = math.pi * 0.5,
     bool toStereo = false,
   }) => toStereo
-      ? Chorus.toStereo(
+      ? .toStereo(
           input: this,
           rate: rate,
           depth: depth,
@@ -345,7 +345,7 @@ extension ChorusOutletExtension on Outlet {
           mix: mix,
           stereoPhase: stereoPhase,
         )
-      : Chorus.mono(
+      : .mono(
           input: this,
           rate: rate,
           depth: depth,
