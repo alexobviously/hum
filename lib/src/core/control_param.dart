@@ -12,6 +12,22 @@ extension ControlParamExtension<T> on ControlParam<T> {
     ControlParamSignal(:final outlet) => outlet,
     _ => null,
   };
+
+  /// Whether this parameter is an audio-rate signal.
+  bool get isSignal => this is ControlParamSignal;
+
+  /// Whether this parameter is a control-rate static value or stream.
+  bool get isValue => !isSignal;
+}
+
+extension NullableControlParamExtension on ControlParam? {
+  /// Whether this parameter can update to [other] without altering
+  /// graph inlet routing (both null, or both sharing the same signal/value kind).
+  bool canUpdate(ControlParam? other) {
+    if (this == null && other == null) return true;
+    if (this == null || other == null) return false;
+    return this?.isSignal == other.isSignal;
+  }
 }
 
 sealed class ControlParam<T> {

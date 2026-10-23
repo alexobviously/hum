@@ -75,7 +75,7 @@ class Min({
   @override
   bool canUpdate(covariant Min newNode) =>
       super.canUpdate(newNode) &&
-      (value != null) == (newNode.value != null) &&
+      value.canUpdate(newNode.value) &&
       channels.length == newNode.channels.length;
 }
 

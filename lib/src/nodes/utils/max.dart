@@ -75,7 +75,7 @@ class Max({
   @override
   bool canUpdate(covariant Max newNode) =>
       super.canUpdate(newNode) &&
-      (value != null) == (newNode.value != null) &&
+      value.canUpdate(newNode.value) &&
       channels.length == newNode.channels.length;
 }
 

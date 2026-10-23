@@ -8,6 +8,44 @@ void main() {
   final osc2 = SineOscillator(frequency: const .value(880));
   final clock = Clock();
 
+  group('ControlParam isSignal, isValue, and canUpdate', () {
+    test('isSignal and isValue report expected boolean flags', () {
+      final valParam = ControlParam.value(440.0);
+      final sigParam = ControlParam.signal(osc1.outlet);
+      final streamParam = ControlParam.stream(
+        const Stream<double>.empty(),
+        100.0,
+      );
+
+      expect(valParam.isSignal, isFalse);
+      expect(valParam.isValue, isTrue);
+
+      expect(sigParam.isSignal, isTrue);
+      expect(sigParam.isValue, isFalse);
+
+      expect(streamParam.isSignal, isFalse);
+      expect(streamParam.isValue, isTrue);
+    });
+
+    test('canUpdate handles value, signal, and null matching', () {
+      final val1 = ControlParam.value(1.0);
+      final val2 = ControlParam.value(2.0);
+      final sig1 = ControlParam.signal(osc1.outlet);
+      final sig2 = ControlParam.signal(osc2.outlet);
+      const ControlParam<double>? nullParam = null;
+
+      expect(val1.canUpdate(val2), isTrue);
+      expect(sig1.canUpdate(sig2), isTrue);
+      expect(val1.canUpdate(sig1), isFalse);
+      expect(sig1.canUpdate(val1), isFalse);
+
+      expect(nullParam.canUpdate(nullParam), isTrue);
+      expect(nullParam.canUpdate(val1), isFalse);
+      expect(val1.canUpdate(nullParam), isFalse);
+      expect(nullParam.canUpdate(sig1), isFalse);
+    });
+  });
+
   group('Delay canUpdate and errors', () {
     test('canUpdate succeeds for matching maxDelay and numChannels', () {
       final delay1 = Delay.mono(input: osc1.outlet, maxDelay: 5.0);
