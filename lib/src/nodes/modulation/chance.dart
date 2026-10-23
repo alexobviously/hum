@@ -42,7 +42,7 @@ class Chance({
   required final Outlet input,
   final ControlParam<double> probability = const .value(0.5),
   final int? seed,
-}) implements AudioNode<ChanceProcessor> {
+}) extends AudioNode<ChanceProcessor> {
   static const inputInlet = 0;
 
   @override

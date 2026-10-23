@@ -19,7 +19,7 @@ class Delay({
   final ControlParam<double> mix = const .value(0.5),
   final ControlParam<double> damp = const .value(0.0),
   final double maxDelay = 10.0,
-}) implements AudioNode<DelayProcessor> {
+}) extends AudioNode<DelayProcessor> {
   this : assert(maxDelay > 0.0, 'maxDelay must be positive');
 
   factory mono({
@@ -102,6 +102,19 @@ class Delay({
     damp: damp.valueOrNull,
     maxDelay: maxDelay,
   );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (maxDelay <= 0)
+      const AudioNodeParamError(param: 'maxDelay', error: 'must be positive'),
+  ];
+
+  // Ring buffer size is fixed.
+  @override
+  bool canUpdate(covariant Delay newNode) =>
+      super.canUpdate(newNode) &&
+      maxDelay == newNode.maxDelay &&
+      numChannels == newNode.numChannels;
 }
 
 class DelayProcessor({

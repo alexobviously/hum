@@ -9,7 +9,7 @@ class KarplusStrong({
   required final Outlet gate,
   required final ControlParam<double> frequency,
   required final ControlParam<double> feedback,
-}) implements AudioNode<KarplusStrongProcessor> {
+}) extends AudioNode<KarplusStrongProcessor> {
   static const gateInlet = 0;
   static const frequencyInlet = 1;
   static const feedbackInlet = 2;

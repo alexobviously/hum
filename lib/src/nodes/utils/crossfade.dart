@@ -24,7 +24,7 @@ typedef CrossfadeParams = ({double? position, CrossfadeMode mode});
 ///
 /// Supports mono, stereo, and multichannel inputs, with both block-constant
 /// values and audio-rate signal modulation for [position].
-class Crossfade implements AudioNode<CrossfadeProcessor> {
+class Crossfade extends AudioNode<CrossfadeProcessor> {
   final List<Outlet> a;
   final List<Outlet> b;
 
@@ -107,6 +107,23 @@ class Crossfade implements AudioNode<CrossfadeProcessor> {
 
   @override
   CrossfadeParams get params => (position: position.valueOrNull, mode: mode);
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (a.isEmpty)
+      const AudioNodeParamError(param: 'a', error: 'must not be empty'),
+    if (b.isEmpty)
+      const AudioNodeParamError(param: 'b', error: 'must not be empty'),
+    if (a.length != b.length)
+      AudioNodeParamError(
+        param: 'b',
+        error: 'channel count (${b.length}) must match a (${a.length})',
+      ),
+  ];
+
+  @override
+  bool canUpdate(covariant Crossfade newNode) =>
+      super.canUpdate(newNode) && numChannels == newNode.numChannels;
 }
 
 class CrossfadeProcessor implements AudioProcessor {

@@ -11,7 +11,7 @@ typedef SumParams = ();
 ///
 /// If no inputs are provided, the output buffer is filled with silence (0.0).
 class Sum({required final List<Outlet> inputs})
-    implements AudioNode<SumProcessor> {
+    extends AudioNode<SumProcessor> {
   /// Convenience constructor to sum two outlets.
   factory pair(Outlet a, Outlet b) => Sum(inputs: [a, b]);
 
@@ -34,6 +34,16 @@ class Sum({required final List<Outlet> inputs})
 
   @override
   SumParams get params => ();
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (inputs.isEmpty)
+      const AudioNodeParamError(param: 'inputs', error: 'must not be empty'),
+  ];
+
+  @override
+  bool canUpdate(covariant Sum newNode) =>
+      super.canUpdate(newNode) && inputs.length == newNode.inputs.length;
 }
 
 class SumProcessor implements AudioProcessor {

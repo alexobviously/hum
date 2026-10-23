@@ -13,7 +13,7 @@ typedef ClockParams = ({double? frequency, double? pulseWidth});
 class Clock({
   final ControlParam<double> frequency = const .value(2.0),
   final ControlParam<double> pulseWidth = const .value(0.5),
-}) implements AudioNode<ClockProcessor> {
+}) extends AudioNode<ClockProcessor> {
   /// Convenience factory configuring clock frequency from musical beats-per-minute (BPM).
   ///
   /// For example, 120 BPM corresponds to 2.0 Hz.

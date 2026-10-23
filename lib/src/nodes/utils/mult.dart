@@ -12,7 +12,7 @@ typedef MultParams = ({double? value});
 class const Mult({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
-}) implements AudioNode<MultProcessor> {
+}) extends AudioNode<MultProcessor> {
   factory mono({
     required ControlParam<double> value,
     required Outlet input,

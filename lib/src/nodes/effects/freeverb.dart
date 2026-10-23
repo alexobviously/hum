@@ -25,7 +25,7 @@ class Freeverb({
   final ControlParam<double> damp = const .value(0.5),
   final ControlParam<double> width = const .value(1.0),
   final ControlParam<double> mix = const .value(0.3),
-}) implements AudioNode<FreeverbProcessor> {
+}) extends AudioNode<FreeverbProcessor> {
   this
     : assert(
         inputs.length == 1 || inputs.length == 2,
@@ -105,6 +105,19 @@ class Freeverb({
     width: width.valueOrNull,
     mix: mix.valueOrNull,
   );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (inputs.isEmpty || inputs.length > 2)
+      const AudioNodeParamError(
+        param: 'inputs',
+        error: 'must have 1 (mono) or 2 (stereo) audio inputs',
+      ),
+  ];
+
+  @override
+  bool canUpdate(covariant Freeverb newNode) =>
+      super.canUpdate(newNode) && inputs.length == newNode.inputs.length;
 }
 
 /// Internal Lowpass-Feedback Comb Filter (LBCF) with 1-pole damping.

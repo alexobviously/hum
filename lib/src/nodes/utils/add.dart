@@ -11,7 +11,7 @@ typedef AddParams = ({double? value});
 class const Add({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
-}) implements AudioNode<AddProcessor> {
+}) extends AudioNode<AddProcessor> {
   factory mono({
     required ControlParam<double> value,
     required Outlet input,

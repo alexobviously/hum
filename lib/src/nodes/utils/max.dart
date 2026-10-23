@@ -13,7 +13,7 @@ typedef MaxParams = ({double? value});
 class Max({
   required final List<Outlet> channels,
   final ControlParam<double>? value,
-}) implements AudioNode<MaxProcessor> {
+}) extends AudioNode<MaxProcessor> {
   /// Compares two input outlets sample-by-sample and outputs their maximum.
   factory pair(Outlet a, Outlet b) => Max(channels: [a, b]);
 
@@ -65,6 +65,18 @@ class Max({
 
   @override
   MaxParams get params => (value: value?.valueOrNull);
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (channels.isEmpty)
+      const AudioNodeParamError(param: 'channels', error: 'must not be empty'),
+  ];
+
+  @override
+  bool canUpdate(covariant Max newNode) =>
+      super.canUpdate(newNode) &&
+      (value != null) == (newNode.value != null) &&
+      channels.length == newNode.channels.length;
 }
 
 class MaxProcessor implements AudioProcessor {

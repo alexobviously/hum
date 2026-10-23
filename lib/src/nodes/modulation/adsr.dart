@@ -42,7 +42,7 @@ class Adsr({
   final ControlParam<double> sustain = const .value(0.7),
   final ControlParam<double> release = const .value(0.3),
   final AdsrCurve curve = .exponential,
-}) implements AudioNode<AdsrProcessor> {
+}) extends AudioNode<AdsrProcessor> {
   static const gateInlet = 0;
 
   @override

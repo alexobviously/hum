@@ -5,7 +5,7 @@ import 'package:hum/hum.dart';
 
 /// A terminal audio node that captures multi-channel audio blocks and writes
 /// them to a WAV file on disk or accumulates them in memory.
-class WavSink implements AudioNode<WavSinkProcessor> {
+class WavSink extends AudioNode<WavSinkProcessor> {
   final List<Outlet> channels;
   final String? path;
   final WavFormat format;
@@ -41,6 +41,19 @@ class WavSink implements AudioNode<WavSinkProcessor> {
 
   @override
   Object get params => ();
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (channels.isEmpty)
+      const AudioNodeParamError(param: 'channels', error: 'must not be empty'),
+  ];
+
+  @override
+  bool canUpdate(covariant WavSink newNode) =>
+      super.canUpdate(newNode) &&
+      path == newNode.path &&
+      channels.length == newNode.channels.length &&
+      format == newNode.format;
 }
 
 /// The runtime processor for [WavSink].

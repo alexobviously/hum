@@ -13,7 +13,7 @@ typedef MinParams = ({double? value});
 class Min({
   required final List<Outlet> channels,
   final ControlParam<double>? value,
-}) implements AudioNode<MinProcessor> {
+}) extends AudioNode<MinProcessor> {
   /// Compares two input outlets sample-by-sample and outputs their minimum.
   factory pair(Outlet a, Outlet b) => Min(channels: [a, b]);
 
@@ -65,6 +65,18 @@ class Min({
 
   @override
   MinParams get params => (value: value?.valueOrNull);
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (channels.isEmpty)
+      const AudioNodeParamError(param: 'channels', error: 'must not be empty'),
+  ];
+
+  @override
+  bool canUpdate(covariant Min newNode) =>
+      super.canUpdate(newNode) &&
+      (value != null) == (newNode.value != null) &&
+      channels.length == newNode.channels.length;
 }
 
 class MinProcessor implements AudioProcessor {

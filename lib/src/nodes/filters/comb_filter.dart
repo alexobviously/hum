@@ -33,7 +33,7 @@ class CombFilter({
   final ControlParam<double> damp = const .value(0.0),
   final ControlParam<double> mix = const .value(0.5),
   final double minFrequency = 20.0,
-}) implements AudioNode<CombFilterProcessor> {
+}) extends AudioNode<CombFilterProcessor> {
   this : assert(minFrequency > 0.0, 'minFrequency must be positive');
 
   factory mono({
@@ -116,6 +116,21 @@ class CombFilter({
     mix: mix.valueOrNull,
     minFrequency: minFrequency,
   );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (minFrequency <= 0.0)
+      const AudioNodeParamError(
+        param: 'minFrequency',
+        error: 'must be positive',
+      ),
+  ];
+
+  @override
+  bool canUpdate(covariant CombFilter newNode) =>
+      super.canUpdate(newNode) &&
+      minFrequency == newNode.minFrequency &&
+      numChannels == newNode.numChannels;
 }
 
 class CombFilterProcessor({

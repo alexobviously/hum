@@ -17,7 +17,7 @@ typedef SvfFilterParams = ({double? cutoff, double? resonance});
 ///
 /// Features simultaneous lowpass, bandpass, highpass, notch, and unit-gain bandpass
 /// outputs with 12 dB/octave slopes and robust audio-rate modulation stability.
-class SvfFilter implements AudioNode<SvfFilterProcessor> {
+class SvfFilter extends AudioNode<SvfFilterProcessor> {
   final Outlet input;
   final ControlParam<double> cutoff;
   final ControlParam<double> resonance;

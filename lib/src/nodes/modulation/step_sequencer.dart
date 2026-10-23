@@ -17,7 +17,7 @@ class StepSequencer({
   final Outlet? reset,
   required final ControlParam<List<double>> steps,
   final double threshold = 0.5,
-}) implements AudioNode<StepSequencerProcessor> {
+}) extends AudioNode<StepSequencerProcessor> {
   /// Convenience factory taking a plain [List<double>].
   factory fromList({
     required Outlet clock,
@@ -94,6 +94,16 @@ class StepSequencer({
     threshold: threshold,
     hasReset: reset != null,
   );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (steps.valueOrNull?.isEmpty ?? true)
+      const AudioNodeParamError(param: 'steps', error: 'must not be empty'),
+  ];
+
+  @override
+  bool canUpdate(covariant StepSequencer newNode) =>
+      super.canUpdate(newNode) && (reset != null) == (newNode.reset != null);
 }
 
 class StepSequencerProcessor({

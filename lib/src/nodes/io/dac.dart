@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
-class Dac implements AudioNode<DacProcessor> {
+class Dac extends AudioNode<DacProcessor> {
   final List<Outlet> channels;
   const Dac({required this.channels});
 

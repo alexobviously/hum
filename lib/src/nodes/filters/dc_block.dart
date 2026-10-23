@@ -112,7 +112,7 @@ typedef DCBlockParams = ({double? cutoffHz});
 class const DCBlock({
   required final List<Outlet> channels,
   final double cutoffHz = 5.0,
-}) implements AudioNode<DCBlockProcessor> {
+}) extends AudioNode<DCBlockProcessor> {
   factory mono(Outlet input, {double cutoffHz = 5.0}) =>
       DCBlock(channels: [input], cutoffHz: cutoffHz);
 

@@ -5,7 +5,7 @@ import 'package:hum/hum.dart';
 
 typedef SineOscillatorParams = ({double? frequency});
 
-class SineOscillator implements OscillatorNode<SineOscillatorProcessor> {
+class SineOscillator extends OscillatorNode<SineOscillatorProcessor> {
   @override
   final ControlParam<double> frequency;
   const SineOscillator({required this.frequency});

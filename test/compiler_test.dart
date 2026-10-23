@@ -1,7 +1,7 @@
 import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
-class _LoopNode implements AudioNode<AudioProcessor> {
+class _LoopNode extends AudioNode<AudioProcessor> {
   @override
   List<Inlet> inlets = [];
 

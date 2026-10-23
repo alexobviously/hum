@@ -53,7 +53,7 @@ class Decay({
   final ControlParam<double> decay = const .value(0.1),
   final ControlParam<double> attack = const .value(0.0),
   final DecayCurve curve = .exponential,
-}) implements AudioNode<DecayProcessor> {
+}) extends AudioNode<DecayProcessor> {
   static const triggerInlet = 0;
 
   /// Creates a pure one-shot decay envelope with instant (0s) attack.

@@ -9,7 +9,7 @@ typedef ScaleParams = ({
   double outHigh,
 });
 
-class Scale implements AudioNode<ScaleProcessor> {
+class Scale extends AudioNode<ScaleProcessor> {
   final Outlet input;
   final ControlParamValue<double> inLow;
   final ControlParamValue<double> inHigh;

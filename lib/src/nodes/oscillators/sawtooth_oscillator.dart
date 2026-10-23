@@ -6,8 +6,7 @@ import 'oscillator_utils.dart';
 
 typedef SawtoothOscillatorParams = ({double? frequency, bool usePolyBlep});
 
-class SawtoothOscillator
-    implements OscillatorNode<SawtoothOscillatorProcessor> {
+class SawtoothOscillator extends OscillatorNode<SawtoothOscillatorProcessor> {
   @override
   final ControlParam<double> frequency;
   final bool usePolyBlep;

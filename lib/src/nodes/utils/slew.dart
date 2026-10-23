@@ -25,7 +25,7 @@ class const Slew({
   final ControlParam<double> rise = const .value(0.0),
   final ControlParam<double> fall = const .value(0.0),
   final double? initialValue,
-}) implements AudioNode<SlewProcessor> {
+}) extends AudioNode<SlewProcessor> {
   static const riseInlet = 0;
   static const fallInlet = 1;
   static const audioInletOffset = 2;

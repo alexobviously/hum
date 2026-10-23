@@ -17,7 +17,7 @@ typedef SubtractParams = ({double? value});
 class const Subtract({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
-}) implements AudioNode<SubtractProcessor> {
+}) extends AudioNode<SubtractProcessor> {
   factory mono({
     required ControlParam<double> value,
     required Outlet input,

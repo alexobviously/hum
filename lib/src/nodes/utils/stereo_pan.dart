@@ -4,7 +4,7 @@ import 'package:hum/hum.dart';
 
 typedef StereoPanParams = ({double? pan});
 
-class StereoPan implements AudioNode<StereoPanProcessor> {
+class StereoPan extends AudioNode<StereoPanProcessor> {
   final Outlet input;
 
   /// Pan position from -1.0 (hard left) to +1.0 (hard right). 0.0 is centre.

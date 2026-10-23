@@ -24,7 +24,7 @@ class const Sah({
   required final List<Outlet> channels,
   final double threshold = 0.5,
   final TriggerEdge triggerEdge = .rising,
-}) implements AudioNode<SahProcessor> {
+}) extends AudioNode<SahProcessor> {
   static const triggerInlet = 0;
 
   factory mono({

@@ -15,7 +15,7 @@ class const Clamp({
   required final List<Outlet> channels,
   final ControlParam<double>? min,
   final ControlParam<double>? max,
-}) implements AudioNode<ClampProcessor> {
+}) extends AudioNode<ClampProcessor> {
   factory mono(
     Outlet input, {
     ControlParam<double>? min,

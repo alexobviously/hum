@@ -6,7 +6,7 @@ import 'oscillator_utils.dart';
 
 typedef SquareOscillatorParams = ({double? frequency, bool usePolyBlep});
 
-class SquareOscillator implements OscillatorNode<SquareOscillatorProcessor> {
+class SquareOscillator extends OscillatorNode<SquareOscillatorProcessor> {
   @override
   final ControlParam<double> frequency;
   final bool usePolyBlep;

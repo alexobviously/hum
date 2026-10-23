@@ -6,8 +6,7 @@ import 'oscillator_utils.dart';
 
 typedef TriangleOscillatorParams = ({double? frequency, bool usePolyBlep});
 
-class TriangleOscillator
-    implements OscillatorNode<TriangleOscillatorProcessor> {
+class TriangleOscillator extends OscillatorNode<TriangleOscillatorProcessor> {
   @override
   final ControlParam<double> frequency;
   final bool usePolyBlep;

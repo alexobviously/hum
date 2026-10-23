@@ -41,7 +41,7 @@ class Chorus({
   final ControlParam<double> mix = const .value(0.5),
   final double stereoPhase = math.pi * 0.5,
   final double maxDelay = 0.05,
-}) implements AudioNode<ChorusProcessor> {
+}) extends AudioNode<ChorusProcessor> {
   this : assert(maxDelay > 0.0, 'maxDelay must be positive');
 
   int get numOutputs => outputsCount ?? channels.length;
@@ -164,6 +164,20 @@ class Chorus({
     stereoPhase: stereoPhase,
     maxDelay: maxDelay,
   );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (maxDelay <= 0.0)
+      const AudioNodeParamError(param: 'maxDelay', error: 'must be positive'),
+  ];
+
+  @override
+  bool canUpdate(covariant Chorus newNode) =>
+      super.canUpdate(newNode) &&
+      maxDelay == newNode.maxDelay &&
+      stereoPhase == newNode.stereoPhase &&
+      numChannels == newNode.numChannels &&
+      numOutputs == newNode.numOutputs;
 }
 
 class ChorusProcessor({

@@ -29,7 +29,7 @@ class Bitcrusher({
 
   /// Dry/Wet mix in [0.0, 1.0] (0.0 = 100% dry, 0.5 = 50/50, 1.0 = 100% wet).
   final ControlParam<double> mix = const .value(1.0),
-}) implements AudioNode<BitcrusherProcessor> {
+}) extends AudioNode<BitcrusherProcessor> {
   factory mono({
     required Outlet input,
     ControlParam<double> bitDepth = const .value(8.0),
@@ -81,8 +81,9 @@ class Bitcrusher({
   Outlet get left => outlets[0];
   Outlet get right => outlets[1];
 
-  bool canUpdate(covariant Bitcrusher other) =>
-      runtimeType == other.runtimeType && numChannels == other.numChannels;
+  @override
+  bool canUpdate(covariant Bitcrusher newNode) =>
+      super.canUpdate(newNode) && numChannels == newNode.numChannels;
 
   @override
   BitcrusherProcessor createProcessor() => BitcrusherProcessor(

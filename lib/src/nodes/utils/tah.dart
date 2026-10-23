@@ -21,7 +21,7 @@ class const Tah({
   required final List<Outlet> channels,
   final double threshold = 0.5,
   final bool activeHigh = true,
-}) implements AudioNode<TahProcessor> {
+}) extends AudioNode<TahProcessor> {
   static const gateInlet = 0;
 
   factory mono({

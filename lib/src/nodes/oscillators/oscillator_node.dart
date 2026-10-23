@@ -1,7 +1,9 @@
 import 'package:hum/hum.dart';
 
-abstract class OscillatorNode<T extends AudioProcessor>
-    implements AudioNode<T> {
+// TODO: make this more useful? i.e. extract boilerplate to here?
+abstract class OscillatorNode<T extends AudioProcessor> extends AudioNode<T> {
+  const OscillatorNode();
+
   ControlParam<double> get frequency;
   Outlet get outlet;
 }

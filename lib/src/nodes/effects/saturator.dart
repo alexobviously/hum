@@ -61,7 +61,7 @@ class const Saturator({
   final ControlParam<double> mix = const .value(1.0),
   final SaturationMode mode = .tanh,
   final bool dcBlock = false,
-}) implements AudioNode<SaturatorProcessor> {
+}) extends AudioNode<SaturatorProcessor> {
   factory mono(
     Outlet input, {
     ControlParam<double> drive = const .value(1.0),

@@ -7,7 +7,7 @@ enum OnePoleType { lowpass, highpass }
 
 typedef OnePoleParams = ({double? cutoff, OnePoleType type});
 
-class OnePoleFilter implements AudioNode<OnePoleProcessor> {
+class OnePoleFilter extends AudioNode<OnePoleProcessor> {
   final ControlParam<double> cutoff;
   final OnePoleType type;
   final Outlet input;
