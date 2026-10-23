@@ -165,7 +165,7 @@ void main() {
       );
       final sink = WavSink.memory(channels: [delay.outlet]);
 
-      final pipeline = compilePipeline(root: sink, context: context);
+      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
       pipeline.process();
 
       final updatedDelay = Delay.mono(

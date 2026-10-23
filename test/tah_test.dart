@@ -215,7 +215,7 @@ void main() {
         activeHigh: true,
       );
 
-      final pipeline = compilePipeline(root: tah, context: context);
+      final pipeline = compilePipeline(root: tah, context: context).pipeline!;
       pipeline.process();
 
       final out1 = pipeline.outputs[0];

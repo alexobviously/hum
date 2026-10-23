@@ -32,9 +32,7 @@ void main() {
   );
 
   // 3. Raw mono sawtooth oscillator
-  final saw = SawtoothOscillator(
-    frequency: .signal(pitchSeq.outlet),
-  );
+  final saw = SawtoothOscillator(frequency: .signal(pitchSeq.outlet));
 
   // 4. Amplitude envelope with snappy attack and musical decay
   final env = Adsr(
@@ -54,10 +52,7 @@ void main() {
   );
 
   // VCA: Voice = Filtered Saw * Envelope
-  final voice = Mult.mono(
-    input: filter.lowpass,
-    value: .signal(env.outlet),
-  );
+  final voice = Mult.mono(input: filter.lowpass, value: .signal(env.outlet));
 
   // 6. Chorus (Mono to Stereo Spread):
   // 1.4 Hz LFO rate, 3.5ms modulation depth, 16ms base delay, 90-deg quadrature spread.
@@ -70,10 +65,7 @@ void main() {
   );
 
   // 7. Master Gain scaling (keep resonant peaks within clean headroom)
-  final master = Mult(
-    channels: chorus.outlets,
-    value: const .value(0.55),
-  );
+  final master = Mult(channels: chorus.outlets, value: const .value(0.55));
 
   // 8. WAV Sink
   final wav = WavSink.file(
@@ -81,11 +73,10 @@ void main() {
     path: 'tmp/chorus_demo.wav',
   );
 
-  final pipeline = compilePipeline(
+  final (:pipeline!, :diagnostics) = compilePipeline(
     root: wav,
     context: context,
   );
-
   print('Rendering 4 bars of 80s chorus synth demo at 120 BPM...');
   for (int i = 0; i < blocks; i++) {
     pipeline.process();

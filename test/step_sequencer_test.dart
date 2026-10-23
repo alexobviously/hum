@@ -182,7 +182,7 @@ void main() {
         );
         final saw = SawtoothOscillator(frequency: .signal(seq.cv));
 
-        final pipeline = compilePipeline(root: saw, context: context);
+        final pipeline = compilePipeline(root: saw, context: context).pipeline!;
         pipeline.process();
         expect(pipeline.outputs.first.length, equals(64));
 

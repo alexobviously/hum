@@ -91,7 +91,7 @@ void main() {
       final sum = osc1.outlet + osc2.outlet;
       final sink = WavSink.memory(channels: [sum]);
 
-      final pipeline = compilePipeline(root: sink, context: context);
+      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
       pipeline.process();
 
       final wavProcessor = pipeline.processorOf(sink);

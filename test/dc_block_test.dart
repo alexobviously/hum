@@ -103,8 +103,10 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final saw = SawtoothOscillator(frequency: const .value(100));
       final dcBlock = DCBlock.mono(saw.outlet);
-      final pipeline = compilePipeline(root: dcBlock, context: context);
-
+      final pipeline = compilePipeline(
+        root: dcBlock,
+        context: context,
+      ).pipeline!;
       pipeline.process();
       final out = pipeline.outputs[0];
       expect(out.any((s) => s != 0.0), isTrue);

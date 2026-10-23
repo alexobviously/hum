@@ -163,7 +163,7 @@ void main() {
       );
       final sink = WavSink.memory(channels: [crossfade.outlet]);
 
-      final pipeline = compilePipeline(root: sink, context: context);
+      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
       pipeline.process();
 
       final updatedCrossfade = Crossfade.mono(

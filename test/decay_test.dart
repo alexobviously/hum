@@ -250,8 +250,10 @@ void main() {
         final decay = Decay(trigger: clock.trigger, decay: const .value(0.1));
 
         final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-        final pipeline = compilePipeline(root: decay, context: context);
-
+        final pipeline = compilePipeline(
+          root: decay,
+          context: context,
+        ).pipeline!;
         pipeline.process();
         expect(pipeline.outputs.length, equals(1));
         expect(pipeline.outputs[0].length, equals(64));

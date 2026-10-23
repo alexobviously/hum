@@ -221,8 +221,7 @@ void main() {
       final pipeline = compilePipeline(
         root: slew,
         context: ProcessContext(sampleRate: 44100, vectorSize: 64),
-      );
-
+      ).pipeline!;
       pipeline.process();
       expect(pipeline.outputs[0].length, equals(64));
       expect(pipeline.outputs[0].any((s) => s != 0.0), isTrue);
@@ -234,8 +233,7 @@ void main() {
       final pipeline = compilePipeline(
         root: slew,
         context: ProcessContext(sampleRate: 44100, vectorSize: 64),
-      );
-
+      ).pipeline!;
       pipeline.process();
       expect(pipeline.outputs[0].length, equals(64));
 

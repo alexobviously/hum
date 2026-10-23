@@ -86,8 +86,7 @@ void main() {
     path: outPath,
   );
 
-  final pipeline = compilePipeline(root: wav, context: context);
-
+  final pipeline = compilePipeline(root: wav, context: context).pipeline!;
   print('Rendering 4 bars of Chance (Bernoulli Gate) demo at 130 BPM...');
   for (int b = 0; b < totalBlocks; b++) {
     pipeline.process();

@@ -62,8 +62,7 @@ void main() {
     test('processes constant frequency in compiled pipeline', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final osc = TriangleOscillator(frequency: .value(440));
-      final pipeline = compilePipeline(root: osc, context: context);
-
+      final pipeline = compilePipeline(root: osc, context: context).pipeline!;
       pipeline.process();
       final output = pipeline.outputs[0];
 
@@ -75,8 +74,7 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final lfo = SineOscillator(frequency: .value(2)).scale(200.0, 400.0);
       final osc = TriangleOscillator(frequency: .signal(lfo.outlet));
-      final pipeline = compilePipeline(root: osc, context: context);
-
+      final pipeline = compilePipeline(root: osc, context: context).pipeline!;
       pipeline.process();
       final output = pipeline.outputs[0];
 

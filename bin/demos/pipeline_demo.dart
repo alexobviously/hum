@@ -37,8 +37,7 @@ void main() {
     channels: pan.outlets,
     path: 'tmp/pipeline_test14.wav',
   );
-  final pipeline = compilePipeline(root: wav, context: context);
-
+  final pipeline = compilePipeline(root: wav, context: context).pipeline!;
   for (int i = 0; i < blocks; i++) {
     pipeline.process();
   }

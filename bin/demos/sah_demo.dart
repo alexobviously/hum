@@ -196,8 +196,7 @@ void main() {
     path: outputPath,
   );
 
-  final pipeline = compilePipeline(root: wav, context: context);
-
+  final pipeline = compilePipeline(root: wav, context: context).pipeline!;
   final stopwatch = Stopwatch()..start();
   for (int i = 0; i < totalBlocks; i++) {
     pipeline.process();

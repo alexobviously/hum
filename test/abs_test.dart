@@ -48,8 +48,10 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 128);
       final osc = SineOscillator(frequency: const .value(100));
       final rectified = osc.outlet.abs;
-      final pipeline = compilePipeline(root: rectified.node, context: context);
-
+      final pipeline = compilePipeline(
+        root: rectified.node,
+        context: context,
+      ).pipeline!;
       pipeline.process();
       final output = pipeline.outputs[0];
 
@@ -66,8 +68,7 @@ void main() {
 
       final stereo = Abs.stereo(oscL.outlet, oscR.outlet);
       final dac = Dac(channels: stereo.outlets);
-      final pipeline = compilePipeline(root: dac, context: context);
-
+      final pipeline = compilePipeline(root: dac, context: context).pipeline!;
       pipeline.process();
       expect(pipeline.outputs.length, equals(2));
       expect(pipeline.outputs[0].every((s) => s >= 0.0), isTrue);

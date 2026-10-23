@@ -260,7 +260,7 @@ void main() {
           triggerEdge: TriggerEdge.rising,
         );
 
-        final pipeline = compilePipeline(root: sah, context: context);
+        final pipeline = compilePipeline(root: sah, context: context).pipeline!;
         pipeline.process();
 
         final out1 = pipeline.outputs[0];

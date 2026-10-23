@@ -197,7 +197,7 @@ void main() {
       );
       final sink = WavSink.memory(channels: [verb.left, verb.right]);
 
-      final pipeline = compilePipeline(root: sink, context: context);
+      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
       pipeline.process();
 
       // Update parameters live

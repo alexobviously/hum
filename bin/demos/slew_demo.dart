@@ -113,7 +113,7 @@ void main() {
     path: outputPath,
   );
 
-  final pipeline = compilePipeline(root: wav, context: context);
+  final pipeline = compilePipeline(root: wav, context: context).pipeline!;
   final stopwatch = Stopwatch()..start();
 
   final stages = [

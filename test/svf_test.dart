@@ -229,8 +229,7 @@ void main() {
         roots: [svf],
         targetOutputs: [svf.lowpass, svf.bandpass],
         context: context,
-      );
-
+      ).pipeline!;
       expect(pipeline.outputs.length, equals(2));
       pipeline.process();
 

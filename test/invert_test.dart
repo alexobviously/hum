@@ -55,8 +55,7 @@ void main() {
         final pipeline = compilePipeline(
           root: cancelled.node,
           context: context,
-        );
-
+        ).pipeline!;
         pipeline.process();
         final output = pipeline.outputs[0];
 
@@ -74,8 +73,7 @@ void main() {
 
       final stereoInvert = Invert.stereo(left.outlet, right.outlet);
       final dac = Dac(channels: stereoInvert.outlets);
-      final pipeline = compilePipeline(root: dac, context: context);
-
+      final pipeline = compilePipeline(root: dac, context: context).pipeline!;
       pipeline.process();
       expect(pipeline.outputs.length, equals(2));
       expect(pipeline.outputs[0].length, equals(64));

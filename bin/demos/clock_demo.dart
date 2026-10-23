@@ -47,8 +47,7 @@ void main() {
     channels: [delay.outlet],
     path: 'tmp/clock_test3.wav',
   );
-  final pipeline = compilePipeline(root: wav, context: context);
-
+  final pipeline = compilePipeline(root: wav, context: context).pipeline!;
   for (int i = 0; i < blocks; i++) {
     pipeline.process();
   }

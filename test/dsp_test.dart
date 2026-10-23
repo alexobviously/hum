@@ -8,8 +8,7 @@ void main() {
     final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
     final sine = SineOscillator(frequency: .value(440));
     final mult = Mult.mono(value: .value(0.8), input: sine.outlet);
-    final pipeline = compilePipeline(root: mult, context: context);
-
+    final pipeline = compilePipeline(root: mult, context: context).pipeline!;
     expect(pipeline.numChannels, equals(1));
     pipeline.process();
     expect(pipeline.outputs[0].length, equals(64));

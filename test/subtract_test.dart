@@ -90,7 +90,7 @@ void main() {
         final pipeline = compilePipeline(
           root: difference.node,
           context: context,
-        );
+        ).pipeline!;
         pipeline.process();
 
         final output = pipeline.outputs[0];
@@ -114,7 +114,7 @@ void main() {
       final osc = SineOscillator(frequency: const .value(440));
       final sub = Subtract.mono(input: osc.outlet, value: const .value(0.5));
 
-      final pipeline = compilePipeline(root: sub, context: context);
+      final pipeline = compilePipeline(root: sub, context: context).pipeline!;
       pipeline.process();
 
       final out1 = pipeline.outputs[0];

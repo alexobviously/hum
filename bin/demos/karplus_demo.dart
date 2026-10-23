@@ -36,8 +36,7 @@ void main() {
     channels: verb.outlets,
     path: 'tmp/karplus_test_fv.wav',
   );
-  final pipeline = compilePipeline(root: wav, context: context);
-
+  final pipeline = compilePipeline(root: wav, context: context).pipeline!;
   for (int i = 0; i < blocks; i++) {
     pipeline.process();
   }

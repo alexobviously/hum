@@ -233,8 +233,7 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final saw = SawtoothOscillator(frequency: const .value(100));
       final sat = Saturator.mono(saw.outlet, drive: const .value(1.0));
-      final pipeline = compilePipeline(root: sat, context: context);
-
+      final pipeline = compilePipeline(root: sat, context: context).pipeline!;
       pipeline.process();
       final out1 = pipeline.outputs[0];
       expect(out1.any((s) => s != 0.0), isTrue);

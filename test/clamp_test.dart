@@ -137,8 +137,7 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final saw = SawtoothOscillator(frequency: const .value(100));
       final clamp = Clamp.bipolar(saw.outlet, threshold: 0.5);
-      final pipeline = compilePipeline(root: clamp, context: context);
-
+      final pipeline = compilePipeline(root: clamp, context: context).pipeline!;
       pipeline.process();
       final out = pipeline.outputs[0];
       expect(out.every((s) => s >= -0.501 && s <= 0.501), isTrue);
@@ -162,8 +161,7 @@ void main() {
         min: const .value(-0.5),
         max: ControlParam.signal(mod.outlet),
       );
-      final pipeline = compilePipeline(root: clamp, context: context);
-
+      final pipeline = compilePipeline(root: clamp, context: context).pipeline!;
       pipeline.process();
       final out = pipeline.outputs[0];
       expect(out.every((s) => s >= -0.501 && s <= 0.801), isTrue);

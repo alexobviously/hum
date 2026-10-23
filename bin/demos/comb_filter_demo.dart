@@ -90,8 +90,7 @@ void main() {
   final pipeline = compilePipeline(
     root: wav,
     context: context,
-  );
-
+  ).pipeline!;
   print('Rendering 4 bars of physical modeling string sequence at 120 BPM...');
   for (int i = 0; i < blocks; i++) {
     pipeline.process();

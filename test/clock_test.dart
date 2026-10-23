@@ -83,8 +83,7 @@ void main() {
         final pipeline = compilePipeline(
           targetOutputs: [clock.gate, clock.trigger],
           context: context,
-        );
-
+        ).pipeline!;
         pipeline.process();
         expect(pipeline.outputs.length, equals(2));
         expect(pipeline.outputs[0].length, equals(64));

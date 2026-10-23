@@ -82,8 +82,39 @@ List<AudioNode> topologicalSort(Set<AudioNode> nodes) {
   return sorted;
 }
 
+/// The result of compiling an audio graph.
+typedef CompileResult = ({
+  AudioPipeline? pipeline,
+  List<NodeDiagnostic> diagnostics,
+});
+
+extension CompileResultExtension on CompileResult {
+  /// Whether compilation succeeded and produced an [AudioPipeline].
+  bool get isSuccess => switch (pipeline) {
+    null => false,
+    _ => true,
+  };
+
+  /// Whether compilation failed due to node validation errors.
+  bool get isFailure => !isSuccess;
+
+  /// Whether any diagnostics were reported.
+  bool get hasErrors => diagnostics.isNotEmpty;
+}
+
+/// Validates reachable nodes starting from [roots], returning a diagnostic for
+/// each node that has errors.
+List<NodeDiagnostic> validateGraph(Iterable<AudioNode> roots) {
+  final discovered = discoverNodes(roots);
+  return [
+    for (final node in discovered)
+      if (node.errors.isNotEmpty)
+        NodeDiagnostic(node: node, errors: node.errors),
+  ];
+}
+
 /// Compiles a declarative audio graph into an executable [AudioPipeline].
-AudioPipeline compilePipeline({
+CompileResult compilePipeline({
   AudioNode? root,
   List<AudioNode>? roots,
   List<Outlet>? targetOutputs,
@@ -104,10 +135,21 @@ AudioPipeline compilePipeline({
   // 1. Discover all reachable nodes
   final discovered = discoverNodes(resolvedRoots);
 
-  // 2. Linearize execution order via Kahn's algorithm
+  // 2. Validate all reachable nodes
+  final diagnostics = [
+    for (final node in discovered)
+      if (node.errors.isNotEmpty)
+        NodeDiagnostic(node: node, errors: node.errors),
+  ];
+
+  if (diagnostics.isNotEmpty) {
+    return (pipeline: null, diagnostics: diagnostics);
+  }
+
+  // 3. Linearize execution order via Kahn's algorithm
   final sortedNodes = topologicalSort(discovered);
 
-  // 3. Buffer allocation & mapping
+  // 4. Buffer allocation & mapping
   // Map every unique Outlet to a pre-allocated Float32List
   final outletBuffers = <Outlet, Float32List>{};
 
@@ -127,7 +169,7 @@ AudioPipeline compilePipeline({
 
   final emptyBuffer = Float32List(context.vectorSize);
 
-  // 4. Create RenderSteps
+  // 5. Create RenderSteps
   final steps = <RenderStep>[];
   for (final node in sortedNodes) {
     final processor = node.createProcessor();
@@ -147,7 +189,7 @@ AudioPipeline compilePipeline({
     );
   }
 
-  // 5. Determine pipeline outputs
+  // 6. Determine pipeline outputs
   List<Outlet> finalOutputPorts;
   if (targetOutputs != null) {
     finalOutputPorts = targetOutputs;
@@ -168,9 +210,11 @@ AudioPipeline compilePipeline({
     for (final outlet in finalOutputPorts) getBuffer(outlet),
   ];
 
-  return AudioPipeline(
+  final pipeline = AudioPipeline(
     context: context,
     steps: steps,
     outputs: pipelineOutputs,
   );
+
+  return (pipeline: pipeline, diagnostics: const []);
 }

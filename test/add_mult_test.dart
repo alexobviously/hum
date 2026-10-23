@@ -50,8 +50,7 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final osc = SineOscillator(frequency: const .value(440));
       final add = Add.mono(value: const .value(0.5), input: osc.outlet);
-      final pipeline = compilePipeline(root: add, context: context);
-
+      final pipeline = compilePipeline(root: add, context: context).pipeline!;
       pipeline.process();
       final out = pipeline.outputs[0];
       expect(out.length, equals(64));
@@ -112,8 +111,10 @@ void main() {
         input: carrier.outlet,
       );
       final scaled = Mult.mono(value: const .value(0.5), input: ringMod.outlet);
-      final pipeline = compilePipeline(root: scaled, context: context);
-
+      final pipeline = compilePipeline(
+        root: scaled,
+        context: context,
+      ).pipeline!;
       pipeline.process();
       final out = pipeline.outputs[0];
       expect(out.length, equals(64));

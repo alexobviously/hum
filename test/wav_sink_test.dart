@@ -15,8 +15,7 @@ void main() {
         format: WavFormat.pcm16,
       );
 
-      final pipeline = compilePipeline(root: sink, context: context);
-
+      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
       // Process 5 blocks
       for (int i = 0; i < 5; i++) {
         pipeline.process();
@@ -61,8 +60,7 @@ void main() {
         format: WavFormat.float32,
       );
 
-      final pipeline = compilePipeline(root: sink, context: context);
-
+      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
       // Process 10 blocks
       for (int i = 0; i < 10; i++) {
         pipeline.process();

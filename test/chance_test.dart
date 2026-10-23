@@ -218,8 +218,10 @@ void main() {
         );
 
         final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-        final pipeline = compilePipeline(root: chance, context: context);
-
+        final pipeline = compilePipeline(
+          root: chance,
+          context: context,
+        ).pipeline!;
         pipeline.process();
         expect(pipeline.outputs.length, equals(2));
         expect(pipeline.outputs[0].length, equals(64));

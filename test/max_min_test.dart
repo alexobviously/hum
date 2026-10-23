@@ -227,8 +227,7 @@ void main() {
       final pipeline = compilePipeline(
         roots: [maxNode.node],
         context: const ProcessContext(sampleRate: 44100, vectorSize: 64),
-      );
-
+      ).pipeline!;
       pipeline.process();
       expect(pipeline.outputs.length, equals(1));
       expect(pipeline.outputs[0].length, equals(64));

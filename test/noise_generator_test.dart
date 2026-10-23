@@ -60,8 +60,7 @@ void main() {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 128);
       final noise = NoiseGenerator.pink(seed: 999);
       final mult = Mult.mono(value: .value(0.5), input: noise.outlet);
-      final pipeline = compilePipeline(root: mult, context: context);
-
+      final pipeline = compilePipeline(root: mult, context: context).pipeline!;
       pipeline.process();
       final output = pipeline.outputs[0];
 
