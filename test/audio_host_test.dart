@@ -197,22 +197,25 @@ void main() {
       await host.dispose();
     });
 
-    test('startPlayback without AudioOutput runs real-time engine loop', () async {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final host = AudioHost.sync(context: context);
+    test(
+      'startPlayback without AudioOutput runs real-time engine loop',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context);
 
-      final osc = SineOscillator(frequency: const .value(440));
-      host.setGraph(root: osc.out);
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
 
-      expect(host.isPlaying, isFalse);
-      await host.startPlayback();
-      expect(host.isPlaying, isTrue);
+        expect(host.isPlaying, isFalse);
+        await host.startPlayback();
+        expect(host.isPlaying, isTrue);
 
-      await Future.delayed(const Duration(milliseconds: 30));
-      await host.stopPlayback();
-      expect(host.isPlaying, isFalse);
-      await host.dispose();
-    });
+        await Future.delayed(const Duration(milliseconds: 30));
+        await host.stopPlayback();
+        expect(host.isPlaying, isFalse);
+        await host.dispose();
+      },
+    );
 
     test('exportWav bounces audio graph offline at max CPU speed', () async {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);

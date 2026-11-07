@@ -165,6 +165,7 @@ CompileGraphResult compileGraph({
         NodeDiagnostic(node: node, errors: node.errors),
   ];
 
+  // Right now, all diagnostics are errors, we could consider adding warnings too.
   if (diagnostics.isNotEmpty) {
     return (snapshot: null, diagnostics: diagnostics);
   }
@@ -187,50 +188,33 @@ CompileGraphResult compileGraph({
   }
 
   // 5. Create SnapshotSteps
-  final steps = <SnapshotStep>[];
-  for (final node in sortedNodes) {
-    final inputSlots = [
-      for (final inlet in node.inlets)
-        inlet.source != null ? getSlot(inlet.source!) : -1,
-    ];
-    final outputSlots = [
-      for (final outlet in node.outlets) getSlot(outlet),
-    ];
-
-    steps.add(
+  final steps = [
+    for (final node in sortedNodes)
       SnapshotStep(
         node: node,
-        inputSlots: inputSlots,
-        outputSlots: outputSlots,
+        inputSlots: [
+          for (final inlet in node.inlets)
+            inlet.source != null ? getSlot(inlet.source!) : -1,
+        ],
+        outputSlots: [
+          for (final outlet in node.outlets) getSlot(outlet),
+        ],
       ),
-    );
-  }
+  ];
 
   // 6. Determine graph output slots
-  List<Outlet> finalOutputPorts;
-  if (targetOutputs != null) {
-    finalOutputPorts = targetOutputs;
-  } else if (root case final Out out) {
-    finalOutputPorts = out.channels;
-  } else if (root case final TerminalNode terminal) {
-    finalOutputPorts = [for (final inlet in terminal.inlets) ?inlet.source];
-  } else if (root != null) {
-    finalOutputPorts = root.outlets.isNotEmpty
-        ? root.outlets
-        : [for (final inlet in root.inlets) ?inlet.source];
-  } else {
-    finalOutputPorts = [
-      for (final r in resolvedRoots)
-        if (r case final Out out)
-          ...out.channels
-        else if (r case final TerminalNode terminal) ...[
-          for (final inlet in terminal.inlets) ?inlet.source,
-        ] else
-          ...(r.outlets.isNotEmpty
-              ? r.outlets
-              : [for (final inlet in r.inlets) ?inlet.source]),
-    ];
-  }
+  List<Outlet> extractOutputs(AudioNode node) => switch (node) {
+    Out(:final channels) => channels,
+    TerminalNode(:final inlets) => [for (final i in inlets) ?i.source],
+    AudioNode(:final outlets) when outlets.isNotEmpty => outlets,
+    AudioNode(:final inlets) => [for (final i in inlets) ?i.source],
+  };
+
+  final finalOutputPorts = switch ((targetOutputs, root)) {
+    (final targets?, _) => targets,
+    (_, final root?) => extractOutputs(root),
+    _ => [for (final r in resolvedRoots) ...extractOutputs(r)],
+  };
 
   final graphOutputSlots = [
     for (final outlet in finalOutputPorts) getSlot(outlet),
