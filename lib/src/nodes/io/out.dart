@@ -10,10 +10,10 @@ class Out({
   required final List<Outlet> channels,
 }) extends TerminalNode<OutProcessor> {
   /// Creates a single-channel mono master output terminal node.
-  Out.mono(Outlet channel) : this(channels: [channel]);
+  new mono(Outlet channel) : this(channels: [channel]);
 
   /// Creates a two-channel stereo master output terminal node.
-  Out.stereo({required Outlet left, required Outlet right})
+  new stereo({required Outlet left, required Outlet right})
     : this(channels: [left, right]);
 
   @override

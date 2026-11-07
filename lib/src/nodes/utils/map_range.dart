@@ -13,24 +13,16 @@ typedef MapRangeParams = ({
 /// output range `[outLow, outHigh]`.
 ///
 /// Formula: `out = (in - inLow) * ((outHigh - outLow) / (inHigh - inLow)) + outLow`.
-class MapRange extends AudioNode<MapRangeProcessor> {
-  final Outlet input;
-  final ControlParamValue<double> inLow;
-  final ControlParamValue<double> inHigh;
-  final ControlParamValue<double> outLow;
-  final ControlParamValue<double> outHigh;
-
-  MapRange({
-    required this.input,
-    required this.inLow,
-    required this.inHigh,
-    required this.outLow,
-    required this.outHigh,
-  });
-
+class MapRange({
+  required final Outlet input,
+  required final ControlParamValue<double> inLow,
+  required final ControlParamValue<double> inHigh,
+  required final ControlParamValue<double> outLow,
+  required final ControlParamValue<double> outHigh,
+}) extends AudioNode<MapRangeProcessor> {
   /// Convenience constructor for remapping a standard bipolar signal `[-1.0, +1.0]`
   /// (e.g. from an oscillator or LFO) to `[outLow, outHigh]`.
-  factory MapRange.bipolar({
+  factory bipolar({
     required Outlet input,
     required double outLow,
     required double outHigh,
@@ -44,7 +36,7 @@ class MapRange extends AudioNode<MapRangeProcessor> {
 
   /// Convenience constructor for remapping a unipolar signal `[0.0, 1.0]`
   /// (e.g. from an envelope or gate) to `[outLow, outHigh]`.
-  factory MapRange.unipolar({
+  factory unipolar({
     required Outlet input,
     required double outLow,
     required double outHigh,
@@ -85,19 +77,12 @@ class MapRange extends AudioNode<MapRangeProcessor> {
   );
 }
 
-class MapRangeProcessor implements AudioProcessor {
-  MapRangeProcessor({
-    required this.inLow,
-    required this.inHigh,
-    required this.outLow,
-    required this.outHigh,
-  });
-
-  double inLow;
-  double inHigh;
-  double outLow;
-  double outHigh;
-
+class MapRangeProcessor({
+  required var double inLow,
+  required var double inHigh,
+  required var double outLow,
+  required var double outHigh,
+}) implements AudioProcessor {
   @override
   void update(Object params) {
     params = params as MapRangeParams;

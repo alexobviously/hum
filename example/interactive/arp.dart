@@ -5,25 +5,24 @@ import 'package:hum/hum.dart';
 
 // You need ffmpeg installed with `ffplay` in path.
 
-final allNotes = [
-  'A3',
-  'B3',
-  'C4',
-  'D4',
-  'E4',
-  'F4',
-  'G4',
-  'A4',
-  'B4',
-  'C5',
-].map(Note.parse).toList();
+final availableScales = <Scale>[
+  .minor(.parse('A3')),
+  .dorian(.parse('A3')),
+  .phrygian(.parse('A3')),
+  .minorPentatonic(.parse('A3')),
+  .blues(.parse('A3')),
+  .harmonicMinor(.parse('A3')),
+  .major(.parse('C4')),
+  .majorPentatonic(.parse('C4')),
+];
 
 void main() async {
   final sr = 44100, vs = 64;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await AudioHost.spawn(context: context);
+  var currentScaleIndex = 0;
   Synth synth = Synth(
-    scale: [...allNotes],
+    scale: availableScales[currentScaleIndex].take(10),
     activeSteps: {for (int i = 0; i < 10; i++) i: true},
   );
 
@@ -54,6 +53,9 @@ void main() async {
 
     line('♫♫♫♫♫ ARPEGGIATOR');
     line('');
+    line(
+      '(m)   Scale\t\t${availableScales[currentScaleIndex].root.name} ${availableScales[currentScaleIndex].pattern.name}',
+    );
     line('(+/-) BPM\t\t${synth.bpm.toStringAsFixed(0)}');
     line('(←/→) Cutoff\t\t${synth.cutoff.toStringAsFixed(0)} Hz');
     line('(↑/↓) Reso\t\t${synth.reso.toStringAsFixed(2)}');
@@ -117,6 +119,9 @@ void main() async {
         synth.delayMix = (synth.delayMix - 0.05).clamp(0, 1);
       case [62]: // >: delay mix: +0.05
         synth.delayMix = (synth.delayMix + 0.05).clamp(0, 1);
+      case [109]: // m: cycle scale mode
+        currentScaleIndex = (currentScaleIndex + 1) % availableScales.length;
+        synth.scale = availableScales[currentScaleIndex].take(10);
     }
     render();
     updateGraph();
