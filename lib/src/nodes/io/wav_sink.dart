@@ -75,8 +75,7 @@ class WavSinkProcessor implements AudioProcessor {
   bool _isClosed = false;
   Uint8List? _bytes;
 
-  Float32List? _interleavedFloats;
-  Int16List? _interleavedPcm16;
+  BufferInterleaver? _interleaver;
 
   /// Whether this sink has been closed.
   bool get isClosed => _isClosed;
@@ -103,7 +102,6 @@ class WavSinkProcessor implements AudioProcessor {
 
     _sampleRate = context.sampleRate;
     final vectorSize = context.vectorSize;
-    final totalSamples = vectorSize * numChannels;
 
     // Lazily open file if writing to disk
     if (path != null && _raf == null) {
@@ -117,52 +115,25 @@ class WavSinkProcessor implements AudioProcessor {
       _builder = BytesBuilder(copy: true);
     }
 
-    switch (format) {
-      case WavFormat.float32:
-        Float32List? floats = _interleavedFloats;
-        if (floats == null || floats.length != totalSamples) {
-          floats = Float32List(totalSamples);
-          _interleavedFloats = floats;
-        }
-
-        int writeIdx = 0;
-        for (int s = 0; s < vectorSize; s++) {
-          for (int c = 0; c < numChannels; c++) {
-            floats[writeIdx++] = inputs[c][s];
-          }
-        }
-
-        final byteView = floats.buffer.asUint8List(0, totalSamples * 4);
-        if (_raf != null) {
-          _raf!.writeFromSync(byteView);
-        } else if (_builder != null) {
-          _builder!.add(byteView);
-        }
-        _totalDataBytes += byteView.length;
-
-      case WavFormat.pcm16:
-        Int16List? pcm16 = _interleavedPcm16;
-        if (pcm16 == null || pcm16.length != totalSamples) {
-          pcm16 = Int16List(totalSamples);
-          _interleavedPcm16 = pcm16;
-        }
-
-        int writeIdx = 0;
-        for (int s = 0; s < vectorSize; s++) {
-          for (int c = 0; c < numChannels; c++) {
-            final sample = inputs[c][s].clamp(-1.0, 1.0);
-            pcm16[writeIdx++] = (sample * 32767.0).round();
-          }
-        }
-
-        final byteView = pcm16.buffer.asUint8List(0, totalSamples * 2);
-        if (_raf != null) {
-          _raf!.writeFromSync(byteView);
-        } else if (_builder != null) {
-          _builder!.add(byteView);
-        }
-        _totalDataBytes += byteView.length;
+    BufferInterleaver? interleaver = _interleaver;
+    if (interleaver == null || interleaver.vectorSize != vectorSize) {
+      interleaver = _interleaver = BufferInterleaver(
+        numChannels: numChannels,
+        vectorSize: vectorSize,
+      );
     }
+
+    final byteView = switch (format) {
+      WavFormat.float32 => interleaver.interleaveFloat32Bytes(inputs),
+      WavFormat.pcm16 => interleaver.interleavePcm16Bytes(inputs),
+    };
+
+    if (_raf != null) {
+      _raf!.writeFromSync(byteView);
+    } else if (_builder != null) {
+      _builder!.add(byteView);
+    }
+    _totalDataBytes += byteView.length;
   }
 
   /// Finalizes the WAV header, closes file handles, and returns the complete

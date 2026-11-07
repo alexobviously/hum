@@ -11,6 +11,7 @@ export 'src/engine/audio_engine.dart';
 export 'src/engine/audio_host.dart';
 export 'src/engine/isolate_audio_host.dart';
 export 'src/engine/sync_audio_host.dart';
+export 'src/io/buffer_interleave.dart';
 export 'src/io/wav_writer.dart';
 export 'src/music/pitch.dart';
 export 'src/music/tempo.dart';
