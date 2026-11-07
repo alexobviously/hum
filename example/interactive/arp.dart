@@ -31,7 +31,7 @@ void main() async {
   updateGraph();
 
   final output = await PipedAudioOutput.ffplay(
-    numChannels: 1,
+    numChannels: 2,
     vectorSize: vs,
     sampleRate: sr,
   );
@@ -57,11 +57,14 @@ void main() async {
     line('(+/-) BPM\t\t${synth.bpm.toStringAsFixed(0)}');
     line('(←/→) Cutoff\t\t${synth.cutoff.toStringAsFixed(0)} Hz');
     line('(↑/↓) Reso\t\t${synth.reso.toStringAsFixed(2)}');
+    line('(,/.) Delay Feedback\t${synth.delayFeedback.toStringAsFixed(2)}');
+    line('(</>) Delay Mix\t${synth.delayMix.toStringAsFixed(2)}');
     line('(a/z) Sine\t\t${_levelToBar(synth.sineLevel)}');
     line('(s/x) Square\t\t${_levelToBar(synth.squareLevel)}');
     line('(d/c) Saw\t\t${_levelToBar(synth.sawLevel)}');
 
     line('');
+    line('Press number keys to toggle steps');
     line('Notes: [ ${_equalSpaceList([1, 2, 3, 4, 5, 6, 7, 8, 9, 0])} ]');
     line(
       'State: [ ${_equalSpaceList([
@@ -78,7 +81,7 @@ void main() async {
     switch (codeUnits) {
       case [113]: // q: exit
         completer.complete();
-      case [61]: // plus: tempo +5
+      case [61]: // plus: tempo +5 (actually equals)
         synth.bpm = (synth.bpm + 5).clamp(10, 300);
       case [45]: // minus: tempo -5
         synth.bpm = (synth.bpm - 5).clamp(10, 300);
@@ -106,6 +109,14 @@ void main() async {
         synth.sawLevel = (synth.sawLevel + 0.05).clamp(0, 1);
       case [99]: // c: saw level -0.05
         synth.sawLevel = (synth.sawLevel - 0.05).clamp(0, 1);
+      case [44]: // ,: delay feedback -0.05
+        synth.delayFeedback = (synth.delayFeedback - 0.05).clamp(0, 1);
+      case [46]: // .: delay feedback +0.05
+        synth.delayFeedback = (synth.delayFeedback + 0.05).clamp(0, 1);
+      case [60]: // <: delay mix: -0.05
+        synth.delayMix = (synth.delayMix - 0.05).clamp(0, 1);
+      case [62]: // >: delay mix: +0.05
+        synth.delayMix = (synth.delayMix + 0.05).clamp(0, 1);
     }
     render();
     updateGraph();
@@ -134,6 +145,8 @@ class Synth({
   var double sineLevel = 0.5,
   var double squareLevel = 0.2,
   var double sawLevel = 0.3,
+  var double delayFeedback = 0.4,
+  var double delayMix = 0.1,
 }) {
   bool isStepActive(int index) => activeSteps[index] ?? false;
 
@@ -205,7 +218,16 @@ class Synth({
       input: filter.lowpass,
     );
 
-    return Out(channels: [voiced.outlet]);
+    final delay = Delay.mono(
+      input: voiced.outlet,
+      time: .value(tempo.dottedSixteenth),
+      feedback: .value(delayFeedback),
+      mix: .value(delayMix),
+    );
+
+    final reverb = Freeverb.mono(input: delay.outlet);
+
+    return Out(channels: reverb.outlets);
   }
 }
 
