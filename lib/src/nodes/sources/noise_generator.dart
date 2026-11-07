@@ -30,13 +30,12 @@ class const NoiseGenerator({final NoiseType type = .white, final int? seed})
   NoiseGeneratorParams get params => (type: type);
 }
 
-extension NoiseGeneratorScale on NoiseGenerator {
-  Scale scale(double outLow, double outHigh) => Scale(
+extension NoiseGeneratorMapRange on NoiseGenerator {
+  /// Linearly remaps this bipolar noise signal `[-1.0, 1.0]` to `[outLow, outHigh]`.
+  MapRange mapRange(double outLow, double outHigh) => MapRange.bipolar(
     input: outlet,
-    inLow: const .value(-1.0),
-    inHigh: const .value(1.0),
-    outLow: .value(outLow),
-    outHigh: .value(outHigh),
+    outLow: outLow,
+    outHigh: outHigh,
   );
 }
 

@@ -52,11 +52,11 @@ void main() {
       expect(processor.usePolyBlep, isTrue);
     });
 
-    test('supports scale extension from OscillatorNode', () {
+    test('supports mapRange extension from OscillatorNode', () {
       final osc = TriangleOscillator(frequency: .value(440));
-      final scaled = osc.scale(0.0, 1.0);
+      final mapped = osc.mapRange(0.0, 1.0);
 
-      expect(scaled.inlets.first.source, equals(osc.outlet));
+      expect(mapped.inlets.first.source, equals(osc.outlet));
     });
 
     test('processes constant frequency in compiled pipeline', () {
@@ -72,7 +72,7 @@ void main() {
 
     test('processes signal frequency modulation inlet', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final lfo = SineOscillator(frequency: .value(2)).scale(200.0, 400.0);
+      final lfo = SineOscillator(frequency: .value(2)).mapRange(200.0, 400.0);
       final osc = TriangleOscillator(frequency: .signal(lfo.outlet));
       final pipeline = compilePipeline(root: osc, context: context).pipeline!;
       pipeline.process();

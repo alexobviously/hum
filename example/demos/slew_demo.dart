@@ -40,12 +40,10 @@ void main() {
     frequency: const .value(1.0),
     usePolyBlep: false,
   );
-  final cv = Scale(
+  final cv = MapRange.bipolar(
     input: pitchLfo.outlet,
-    inLow: const .value(-1.0),
-    inHigh: const .value(1.0),
-    outLow: const .value(0.0),
-    outHigh: const .value(1.0),
+    outLow: 0.0,
+    outHigh: 1.0,
   );
 
   // 3. Slew Node:
@@ -58,12 +56,10 @@ void main() {
 
   // 4. Pitch Scaling:
   // Maps 0.0 -> A2 (110 Hz) and 1.0 -> A4 (440 Hz)
-  final pitch = Scale(
+  final pitch = MapRange.unipolar(
     input: slew.outlet,
-    inLow: const .value(0.0),
-    inHigh: const .value(1.0),
-    outLow: .value(Note.parse('A2').hz),
-    outHigh: .value(Note.parse('A4').hz),
+    outLow: Note.parse('A2').hz,
+    outHigh: Note.parse('A4').hz,
   );
 
   // 5. Synth Voice:

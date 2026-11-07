@@ -19,11 +19,11 @@ void main() {
       expect(brown.params.type, equals(NoiseType.brown));
     });
 
-    test('supports scale extension', () {
+    test('supports mapRange extension', () {
       final noise = NoiseGenerator.pink();
-      final scaled = noise.scale(-0.5, 0.5);
+      final mapped = noise.mapRange(-0.5, 0.5);
 
-      expect(scaled.inlets.first.source, equals(noise.outlet));
+      expect(mapped.inlets.first.source, equals(noise.outlet));
     });
 
     test('reproducible with explicit seed', () {

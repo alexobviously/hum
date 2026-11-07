@@ -84,12 +84,10 @@ void main() {
     frequency: .value(1.0 / totalDurationSeconds),
     usePolyBlep: false,
   );
-  final slewTime = Scale(
+  final slewTime = MapRange.bipolar(
     input: slewRamp.outlet,
-    inLow: const .value(-1.0),
-    inHigh: const .value(1.0),
-    outLow: const .value(0.0),
-    outHigh: const .value(0.6),
+    outLow: 0.0,
+    outHigh: 0.6,
   );
 
   // Apply slew rate limiting to the stepped pitch CV
@@ -100,7 +98,7 @@ void main() {
 
   // 5. CV Scaling:
   // - Map slewed pitch S&H (-1.85 to 1.85) into musical frequencies: D2 (73.4 Hz) to D4 (293.7 Hz)
-  final pitch = Scale(
+  final pitch = MapRange(
     input: slewedPitch.outlet,
     inLow: const .value(-1.85),
     inHigh: const .value(1.85),
@@ -109,7 +107,7 @@ void main() {
   );
 
   // - Sub-octave pitch: D1 to D3
-  final subPitch = Scale(
+  final subPitch = MapRange(
     input: slewedPitch.outlet,
     inLow: const .value(-1.85),
     inHigh: const .value(1.85),
@@ -118,7 +116,7 @@ void main() {
   );
 
   // - Map cutoff S&H (-1.45 to 1.45) into resonant filter cutoff range: 380 Hz to 4200 Hz
-  final filterCutoff = Scale(
+  final filterCutoff = MapRange(
     input: sah.outlets[1],
     inLow: const .value(-1.45),
     inHigh: const .value(1.45),

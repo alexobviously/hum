@@ -162,7 +162,7 @@ class Synth({
   }
 
   List<Note> get activeNotes => [
-    for (var i = 0; i < scale.length; i++)
+    for (int i = 0; i < scale.length; i++)
       if (activeSteps[i] ?? false) scale[i],
   ];
 

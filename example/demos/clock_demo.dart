@@ -19,10 +19,10 @@ void main() {
   );
 
   final sine = SineOscillator(
-    frequency: .signal(ramp.scale(low.hz, high.hz).outlet),
+    frequency: .signal(ramp.mapRange(low.hz, high.hz).outlet),
   );
   final saw = SawtoothOscillator(
-    frequency: .signal(ramp.scale(low.hz / 2, high.hz / 2).outlet),
+    frequency: .signal(ramp.mapRange(low.hz / 2, high.hz / 2).outlet),
   );
   final noise = NoiseGenerator.pink();
   final sawScaled = Mult.mono(value: const .value(0.1), input: saw.outlet);

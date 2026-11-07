@@ -8,12 +8,11 @@ abstract class OscillatorNode<T extends AudioProcessor> extends AudioNode<T> {
   Outlet get outlet;
 }
 
-extension OscillatorScale on OscillatorNode {
-  Scale scale(double outLow, double outHigh) => Scale(
+extension OscillatorMapRange on OscillatorNode {
+  /// Linearly remaps this bipolar oscillator signal `[-1.0, 1.0]` to `[outLow, outHigh]`.
+  MapRange mapRange(double outLow, double outHigh) => MapRange.bipolar(
     input: outlet,
-    inLow: const .value(-1.0),
-    inHigh: const .value(1.0),
-    outLow: .value(outLow),
-    outHigh: .value(outHigh),
+    outLow: outLow,
+    outHigh: outHigh,
   );
 }

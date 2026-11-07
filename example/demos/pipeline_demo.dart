@@ -5,7 +5,8 @@ void main() {
   const vs = 64;
   const blocks = sr * 5 ~/ vs; // 5 seconds
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
-  final noisePitchLfo = SineOscillator(frequency: .value(0.8)).scale(200, 2000);
+  final noisePitchLfo = SineOscillator(frequency: .value(0.8))
+      .mapRange(200, 2000);
   final noisePitchLfo2 = Add(
     value: .value(200),
     channels: [noisePitchLfo.outlet],

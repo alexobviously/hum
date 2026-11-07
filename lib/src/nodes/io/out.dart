@@ -60,10 +60,6 @@ class const OutProcessor() implements AudioProcessor {
 @Deprecated('Use Out instead of Dac')
 typedef Dac = Out;
 
-/// Backwards compatibility alias for [OutProcessor].
-@Deprecated('Use OutProcessor instead of DacProcessor')
-typedef DacProcessor = OutProcessor;
-
 /// Ergonomic extension shorthands for creating [Out] terminal nodes.
 extension AudioNodeOutExtension on AudioNode {
   /// Wraps this node's outlets in an [Out] terminal node.

@@ -57,15 +57,13 @@ void main() {
     threshold: 0.5,
   );
 
-  // Scale the glide-and-hold CV to musical notes: A2 (110 Hz) to A4 (440 Hz)
+  // Map the glide-and-hold CV to musical notes: A2 (110 Hz) to A4 (440 Hz)
   final noteLow = Note.parse('A2').hz;
   final noteHigh = Note.parse('A4').hz;
-  final pitchCv = Scale(
+  final pitchCv = MapRange.bipolar(
     input: pitchTah.outlet,
-    inLow: const .value(-1.0),
-    inHigh: const .value(1.0),
-    outLow: .value(noteLow),
-    outHigh: .value(noteHigh),
+    outLow: noteLow,
+    outHigh: noteHigh,
   );
 
   // 4. Synth Voice: Sawtooth driven by the glide-and-hold pitch

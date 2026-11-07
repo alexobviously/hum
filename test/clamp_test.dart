@@ -154,7 +154,8 @@ void main() {
     test('handles dynamic audio-rate threshold modulation', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final saw = SawtoothOscillator(frequency: const .value(100));
-      final mod = SineOscillator(frequency: const .value(10)).scale(0.1, 0.8);
+      final mod = SineOscillator(frequency: const .value(10))
+          .mapRange(0.1, 0.8);
 
       final clamp = Clamp.mono(
         saw.outlet,

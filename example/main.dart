@@ -13,7 +13,8 @@ void main() async {
 
   // 1. Oscillators & Modulation
   final saw = SawtoothOscillator(frequency: const .value(110.0));
-  final lfo = SineOscillator(frequency: const .value(0.5)).scale(200.0, 2000.0);
+  final lfo = SineOscillator(frequency: const .value(0.5))
+      .mapRange(200.0, 2000.0);
 
   // 2. Filter: cutoff modulated by LFO
   final filter = SvfFilter(
