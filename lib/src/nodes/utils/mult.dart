@@ -94,3 +94,12 @@ class MultProcessor implements AudioProcessor {
     }
   }
 }
+
+extension OutletMultExtension on Outlet {
+  /// Multiplies [other] signal from this outlet: `this * other`.
+  Outlet operator *(Outlet other) =>
+      Mult.mono(input: this, value: .signal(other)).outlet;
+
+  /// Multiplies a constant scalar [value] from this outlet.
+  Mult mult(double value) => Mult.mono(input: this, value: .value(value));
+}
