@@ -58,7 +58,7 @@ void main() async {
     line('(←/→) Cutoff\t\t${synth.cutoff.toStringAsFixed(0)} Hz');
     line('(↑/↓) Reso\t\t${synth.reso.toStringAsFixed(2)}');
     line('(,/.) Delay Feedback\t${synth.delayFeedback.toStringAsFixed(2)}');
-    line('(</>) Delay Mix\t${synth.delayMix.toStringAsFixed(2)}');
+    line('(</>) Delay Mix\t\t${synth.delayMix.toStringAsFixed(2)}');
     line('(a/z) Sine\t\t${_levelToBar(synth.sineLevel)}');
     line('(s/x) Square\t\t${_levelToBar(synth.squareLevel)}');
     line('(d/c) Saw\t\t${_levelToBar(synth.sawLevel)}');
