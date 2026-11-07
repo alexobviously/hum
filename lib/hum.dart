@@ -1,4 +1,6 @@
 export 'src/compiler/graph_compiler.dart';
+export 'src/compiler/graph_diff.dart';
+export 'src/compiler/graph_snapshot.dart';
 export 'src/compiler/pipeline.dart';
 export 'src/core/audio_node.dart';
 export 'src/core/audio_port.dart';

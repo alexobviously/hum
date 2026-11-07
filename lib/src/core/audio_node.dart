@@ -2,6 +2,8 @@ import 'package:hum/hum.dart';
 
 part 'audio_node_error.dart';
 
+// TODO: do we need something like `bool needsUpdate()` or equality? for non equatable params (e.g. list in record)
+
 abstract class AudioNode<T extends AudioProcessor> {
   const AudioNode();
 

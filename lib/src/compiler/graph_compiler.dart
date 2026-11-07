@@ -1,8 +1,8 @@
 import 'dart:collection';
-import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
+// TODO: consider structured error/diagnostic not cycle?
 class GraphCycleException implements Exception {
   final String message;
   GraphCycleException([this.message = 'Audio graph contains a cycle.']);
@@ -82,7 +82,27 @@ List<AudioNode> topologicalSort(Set<AudioNode> nodes) {
   return sorted;
 }
 
-/// The result of compiling an audio graph.
+/// The result of compiling an audio graph into a [GraphSnapshot].
+typedef CompileGraphResult = ({
+  GraphSnapshot? snapshot,
+  List<NodeDiagnostic> diagnostics,
+});
+
+extension CompileGraphResultExtension on CompileGraphResult {
+  /// Whether compilation succeeded and produced a [GraphSnapshot].
+  bool get isSuccess => switch (snapshot) {
+    null => false,
+    _ => true,
+  };
+
+  /// Whether compilation failed due to node validation errors.
+  bool get isFailure => !isSuccess;
+
+  /// Whether any diagnostics were reported.
+  bool get hasErrors => diagnostics.isNotEmpty;
+}
+
+/// The result of compiling an audio graph into an [AudioPipeline].
 typedef CompileResult = ({
   AudioPipeline? pipeline,
   List<NodeDiagnostic> diagnostics,
@@ -113,12 +133,15 @@ List<NodeDiagnostic> validateGraph(Iterable<AudioNode> roots) {
   ];
 }
 
-/// Compiles a declarative audio graph into an executable [AudioPipeline].
-CompileResult compilePipeline({
+/// Compiles a declarative audio graph into a statically validated [GraphSnapshot].
+///
+/// Discovers reachable nodes, validates parameter constraints, sorts topologically
+/// via Kahn's algorithm, and assigns virtual buffer slots. Does not allocate physical
+/// sample buffers or instantiate [AudioProcessor]s.
+CompileGraphResult compileGraph({
   AudioNode? root,
   List<AudioNode>? roots,
   List<Outlet>? targetOutputs,
-  required ProcessContext context,
 }) {
   final resolvedRoots = <AudioNode>{
     ?root,
@@ -143,53 +166,47 @@ CompileResult compilePipeline({
   ];
 
   if (diagnostics.isNotEmpty) {
-    return (pipeline: null, diagnostics: diagnostics);
+    return (snapshot: null, diagnostics: diagnostics);
   }
 
   // 3. Linearize execution order via Kahn's algorithm
   final sortedNodes = topologicalSort(discovered);
 
-  // 4. Buffer allocation & mapping
-  // Map every unique Outlet to a pre-allocated Float32List
-  final outletBuffers = <Outlet, Float32List>{};
+  // 4. Virtual buffer slot allocation
+  final outletSlots = <Outlet, int>{};
+  int nextSlot = 0;
 
-  Float32List getBuffer(Outlet outlet) {
-    return outletBuffers.putIfAbsent(
-      outlet,
-      () => Float32List(context.vectorSize),
-    );
+  int getSlot(Outlet outlet) {
+    return outletSlots.putIfAbsent(outlet, () => nextSlot++);
   }
 
-  // Pre-allocate for all declared outlets of active nodes
   for (final node in sortedNodes) {
     for (final outlet in node.outlets) {
-      getBuffer(outlet);
+      getSlot(outlet);
     }
   }
 
-  final emptyBuffer = Float32List(context.vectorSize);
-
-  // 5. Create RenderSteps
-  final steps = <RenderStep>[];
+  // 5. Create SnapshotSteps
+  final steps = <SnapshotStep>[];
   for (final node in sortedNodes) {
-    final processor = node.createProcessor();
-    final stepInputs = [
+    final inputSlots = [
       for (final inlet in node.inlets)
-        inlet.source != null ? getBuffer(inlet.source!) : emptyBuffer,
+        inlet.source != null ? getSlot(inlet.source!) : -1,
     ];
-    final stepOutputs = [for (final outlet in node.outlets) getBuffer(outlet)];
+    final outputSlots = [
+      for (final outlet in node.outlets) getSlot(outlet),
+    ];
 
     steps.add(
-      RenderStep(
+      SnapshotStep(
         node: node,
-        processor: processor,
-        inputs: stepInputs,
-        outputs: stepOutputs,
+        inputSlots: inputSlots,
+        outputSlots: outputSlots,
       ),
     );
   }
 
-  // 6. Determine pipeline outputs
+  // 6. Determine graph output slots
   List<Outlet> finalOutputPorts;
   if (targetOutputs != null) {
     finalOutputPorts = targetOutputs;
@@ -206,15 +223,45 @@ CompileResult compilePipeline({
     ];
   }
 
-  final pipelineOutputs = [
-    for (final outlet in finalOutputPorts) getBuffer(outlet),
+  final graphOutputSlots = [
+    for (final outlet in finalOutputPorts) getSlot(outlet),
   ];
 
-  final pipeline = AudioPipeline(
-    context: context,
+  final snapshot = GraphSnapshot(
+    nodes: sortedNodes,
     steps: steps,
-    outputs: pipelineOutputs,
+    totalSlots: nextSlot,
+    outputSlots: graphOutputSlots,
   );
 
-  return (pipeline: pipeline, diagnostics: const []);
+  return (snapshot: snapshot, diagnostics: const []);
+}
+
+/// Compiles a declarative audio graph into an executable [AudioPipeline].
+CompileResult compilePipeline({
+  AudioNode? root,
+  List<AudioNode>? roots,
+  List<Outlet>? targetOutputs,
+  required ProcessContext context,
+}) {
+  final graphResult = compileGraph(
+    root: root,
+    roots: roots,
+    targetOutputs: targetOutputs,
+  );
+
+  if (graphResult.isFailure) {
+    return (
+      pipeline: null,
+      diagnostics: graphResult.diagnostics,
+    );
+  }
+
+  final snapshot = graphResult.snapshot!;
+  final pipeline = snapshot.toPipeline(context);
+
+  return (
+    pipeline: pipeline,
+    diagnostics: const [],
+  );
 }
