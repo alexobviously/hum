@@ -37,6 +37,21 @@ abstract class const AudioHost() {
   /// Renders [count] blocks of audio and returns the resulting channel buffers.
   Future<List<Float32List>> renderBlocks(int count);
 
+  /// Whether real-time playback is currently active.
+  bool get isPlaying;
+
+  /// Starts continuous real-time audio playback streaming graph outputs to [output].
+  ///
+  /// Paced to real-time deadlines with backpressure to prevent buffer bloat.
+  ///
+  /// Throws [StateError] if playback is already active or if no graph is loaded.
+  /// Throws [ArgumentError] if [output] channel count or vector size does not match
+  /// the active graph context.
+  Future<void> startPlayback(AudioOutput output);
+
+  /// Stops continuous real-time audio playback.
+  Future<void> stopPlayback();
+
   /// Disposes resources and terminates the background isolate worker if active.
   Future<void> dispose();
 

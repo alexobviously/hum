@@ -60,20 +60,15 @@ class PipedAudioOutput({
     final process = await Process.start(
       executable,
       [
-        '-f',
-        formatFlag,
-        '-ar',
-        '$sampleRate',
-        '-ch_layout',
-        layout,
+        //
+        '-f', formatFlag,
+        '-ar', '$sampleRate',
+        '-ch_layout', layout,
         '-nodisp',
         '-autoexit',
-        '-probesize',
-        '32',
-        '-analyzeduration',
-        '0',
-        '-sync',
-        'audio',
+        '-probesize', '32',
+        '-analyzeduration', '0',
+        '-sync', 'audio',
         '-',
       ],
       mode: ProcessStartMode.normal,
@@ -108,16 +103,12 @@ class PipedAudioOutput({
     final process = await Process.start(
       executable,
       [
-        '-t',
-        'raw',
-        '-r',
-        '$sampleRate',
-        '-e',
-        encoding,
-        '-b',
-        bitDepth,
-        '-c',
-        '$numChannels',
+        //
+        '-t', 'raw',
+        '-r', '$sampleRate',
+        '-e', encoding,
+        '-b', bitDepth,
+        '-c', '$numChannels',
         '-q',
         '-',
       ],
@@ -140,18 +131,23 @@ class PipedAudioOutput({
       .float32 => _interleaver.interleaveFloat32Bytes(channels),
       .pcm16 => _interleaver.interleavePcm16Bytes(channels),
     };
-    sink.add(byteView);
+    // Copy bytes so asynchronous IOSink queue does not read mutated buffer memory.
+    sink.add(Uint8List.fromList(byteView));
   }
 
   @override
-  Future<void> close() async {
+  Future<void> close({bool waitForExit = true}) async {
     if (_isClosed) return;
     _isClosed = true;
     try {
       await sink.flush();
       await sink.close();
     } catch (_) {}
-    process?.kill();
+    if (waitForExit && process != null) {
+      await process!.exitCode;
+    } else {
+      process?.kill();
+    }
   }
 }
 

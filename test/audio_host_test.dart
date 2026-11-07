@@ -66,6 +66,92 @@ void main() {
         expect(block.length, equals(64));
       }
     });
+
+    test('startPlayback and stopPlayback stream blocks with pacing', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = AudioHost.sync(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final dac = Dac.mono(osc.outlet);
+      host.setGraph(root: dac);
+
+      final output = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
+      expect(host.isPlaying, isFalse);
+
+      await host.startPlayback(output);
+      expect(host.isPlaying, isTrue);
+
+      // Play for 40ms to allow blocks to accumulate
+      await Future.delayed(const Duration(milliseconds: 40));
+
+      await host.stopPlayback();
+      expect(host.isPlaying, isFalse);
+      expect(output.length, greaterThan(0));
+
+      await output.close();
+      await host.dispose();
+    });
+
+    test('startPlayback validates channel count and vector size', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = AudioHost.sync(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final dac = Dac.mono(osc.outlet);
+
+      // Calling startPlayback before setGraph throws StateError
+      final output1 = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
+      expect(() => host.startPlayback(output1), throwsStateError);
+
+      host.setGraph(root: dac);
+
+      // Channel mismatch throws ArgumentError
+      final mismatchChannels = MemoryAudioOutput(
+        numChannels: 2,
+        vectorSize: 64,
+      );
+      expect(() => host.startPlayback(mismatchChannels), throwsArgumentError);
+
+      // Vector size mismatch throws ArgumentError
+      final mismatchVector = MemoryAudioOutput(numChannels: 1, vectorSize: 128);
+      expect(() => host.startPlayback(mismatchVector), throwsArgumentError);
+    });
+
+    test('dispose automatically closes all sink nodes in graph', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = SyncAudioHost(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final wavSink = WavSink.memory(channels: [osc.outlet]);
+      host.setGraph(root: wavSink);
+
+      final proc = host.processorOf<WavSinkProcessor>(wavSink)!;
+      expect(proc.isClosed, isFalse);
+
+      await host.renderBlocks(2);
+      expect(proc.isClosed, isFalse);
+
+      await host.dispose();
+      expect(proc.isClosed, isTrue);
+    });
+
+    test('replacing graph disposes removed sink processors', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = SyncAudioHost(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final wavSink = WavSink.memory(channels: [osc.outlet]);
+      host.setGraph(root: wavSink);
+
+      final proc = host.processorOf<WavSinkProcessor>(wavSink)!;
+      expect(proc.isClosed, isFalse);
+
+      // Replace graph without wavSink
+      host.setGraph(root: osc);
+      expect(proc.isClosed, isTrue);
+
+      await host.dispose();
+    });
   });
 
   group('AudioHost.spawn (isolate mode)', () {
@@ -119,6 +205,34 @@ void main() {
         expect(identical(diagnostics.first.node, invalidSum), isTrue);
         expect(host.currentSnapshot.isEmpty, isTrue);
 
+        await host.dispose();
+      },
+    );
+
+    test(
+      'startPlayback and stopPlayback stream blocks across isolate boundary',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await AudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        final dac = Dac.mono(osc.outlet);
+        host.setGraph(root: dac);
+
+        final output = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
+        expect(host.isPlaying, isFalse);
+
+        await host.startPlayback(output);
+        expect(host.isPlaying, isTrue);
+
+        // Play for 50ms to allow blocks to stream across isolate
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        await host.stopPlayback();
+        expect(host.isPlaying, isFalse);
+        expect(output.length, greaterThan(0));
+
+        await output.close();
         await host.dispose();
       },
     );

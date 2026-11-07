@@ -62,9 +62,11 @@ class AudioEngine({required final ProcessContext context}) {
       _processors[id]?.update(params);
     }
 
-    // 3. Drop removed processors
+    // 3. Drop and dispose removed processors
     for (final id in diff.removedNodeIds) {
-      _processors.remove(id);
+      if (_processors.remove(id) case final DisposableAudioProcessor p) {
+        p.dispose();
+      }
     }
 
     // 4. Rebuild schedule and buffer pool if topology changed
@@ -106,5 +108,18 @@ class AudioEngine({required final ProcessContext context}) {
     for (int i = 0; i < _steps.length; i++) {
       _steps[i].process(context);
     }
+  }
+
+  /// Disposes all active processors and releases engine resources.
+  Future<void> dispose() async {
+    for (final processor in _processors.values) {
+      if (processor case final DisposableAudioProcessor p) {
+        await p.dispose();
+      }
+    }
+    _processors.clear();
+    _steps.clear();
+    _bufferPool.clear();
+    _outputs = [];
   }
 }

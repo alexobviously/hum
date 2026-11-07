@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
@@ -10,6 +11,11 @@ abstract class AudioProcessor {
     List<Float32List> inputs,
     List<Float32List> outputs,
   );
+}
 
-  // probably like some init & dispose stuff etc
+/// An interface for [AudioProcessor]s that hold external resources
+/// (such as file handles or child subprocesses) requiring explicit cleanup
+/// upon node removal or host disposal.
+abstract interface class DisposableAudioProcessor extends AudioProcessor {
+  FutureOr<void> dispose();
 }

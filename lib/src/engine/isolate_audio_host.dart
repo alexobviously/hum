@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -14,7 +15,14 @@ class const UpdateParamMessage(final int nodeId, final Object params)
 class const RenderBlocksMessage(final int count, final SendPort replyPort)
     extends HostToEngineMessage;
 
-class const DisposeMessage() extends HostToEngineMessage;
+class const StartPlaybackMessage(final SendPort audioDataPort)
+    extends HostToEngineMessage;
+
+class const StopPlaybackMessage(final SendPort replyPort)
+    extends HostToEngineMessage;
+
+class const DisposeMessage([final SendPort? replyPort])
+    extends HostToEngineMessage;
 
 /// Top-level entrypoint for the background audio worker isolate.
 void _audioWorkerEntry(
@@ -24,8 +32,57 @@ void _audioWorkerEntry(
   args.hostSendPort.send(workerReceivePort.sendPort);
 
   final engine = AudioEngine(context: args.context);
+  final context = args.context;
 
-  workerReceivePort.listen((message) {
+  bool isPlaying = false;
+  SendPort? activeAudioPort;
+  SendPort? pendingStopReplyPort;
+
+  void runPlaybackLoop() async {
+    final sampleRate = context.sampleRate;
+    final vectorSize = context.vectorSize;
+    final blockDurationUs = (vectorSize * 1000000) ~/ sampleRate;
+    final targetLeadUs = blockDurationUs * 2 > 25000
+        ? blockDurationUs * 2
+        : 25000;
+
+    final stopwatch = Stopwatch()..start();
+    int renderedSamples = 0;
+
+    while (isPlaying) {
+      final renderedTimeUs = (renderedSamples * 1000000) ~/ sampleRate;
+      final elapsedUs = stopwatch.elapsedMicroseconds;
+
+      if (elapsedUs - renderedTimeUs > 100000) {
+        renderedSamples = (elapsedUs * sampleRate) ~/ 1000000;
+      }
+
+      final leadUs = ((renderedSamples * 1000000) ~/ sampleRate) - elapsedUs;
+      if (leadUs > targetLeadUs) {
+        final sleepUs = leadUs - targetLeadUs;
+        if (sleepUs >= 1000) {
+          await Future.delayed(Duration(microseconds: sleepUs));
+        } else {
+          await Future.delayed(Duration.zero);
+        }
+        if (!isPlaying) break;
+      }
+
+      engine.process();
+      final numChannels = engine.numChannels;
+      final channelCopies = <Float32List>[
+        for (int ch = 0; ch < numChannels; ch++) .fromList(engine.outputs[ch]),
+      ];
+      activeAudioPort?.send(channelCopies);
+      renderedSamples += vectorSize;
+    }
+
+    stopwatch.stop();
+    pendingStopReplyPort?.send(null);
+    pendingStopReplyPort = null;
+  }
+
+  workerReceivePort.listen((message) async {
     switch (message) {
       case ApplyDiffMessage(:final diff):
         engine.applyDiff(diff);
@@ -41,7 +98,23 @@ void _audioWorkerEntry(
           }
         }
         replyPort.send(totalBlocks);
-      case DisposeMessage():
+      case StartPlaybackMessage(:final audioDataPort):
+        if (!isPlaying) {
+          isPlaying = true;
+          activeAudioPort = audioDataPort;
+          runPlaybackLoop();
+        }
+      case StopPlaybackMessage(:final replyPort):
+        if (isPlaying) {
+          isPlaying = false;
+          pendingStopReplyPort = replyPort;
+        } else {
+          replyPort.send(null);
+        }
+      case DisposeMessage(:final replyPort):
+        isPlaying = false;
+        await engine.dispose();
+        replyPort?.send(null);
         workerReceivePort.close();
     }
   });
@@ -56,6 +129,8 @@ class IsolateAudioHost extends AudioHost {
   final SendPort _engineSendPort;
   GraphSnapshot _currentSnapshot = .empty;
   bool _isDisposed = false;
+  bool _isPlaying = false;
+  ReceivePort? _audioReceivePort;
 
   IsolateAudioHost._({
     required this.context,
@@ -143,10 +218,64 @@ class IsolateAudioHost extends AudioHost {
   }
 
   @override
+  bool get isPlaying => _isPlaying;
+
+  @override
+  Future<void> startPlayback(AudioOutput output) async {
+    if (_isDisposed) {
+      throw StateError('Cannot startPlayback on a disposed AudioHost.');
+    }
+    if (_isPlaying) {
+      throw StateError('Playback is already active.');
+    }
+    if (numChannels == 0) {
+      throw StateError('No active audio graph to play. Call setGraph() first.');
+    }
+    if (output.numChannels != numChannels) {
+      throw ArgumentError(
+        'Output numChannels (${output.numChannels}) does not match graph channels ($numChannels).',
+      );
+    }
+    if (output.vectorSize != context.vectorSize) {
+      throw ArgumentError(
+        'Output vectorSize (${output.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
+      );
+    }
+
+    _isPlaying = true;
+    final audioReceivePort = _audioReceivePort = ReceivePort();
+    audioReceivePort.listen((message) {
+      if (message is List<Float32List>) {
+        output.write(message);
+      }
+    });
+
+    _engineSendPort.send(StartPlaybackMessage(audioReceivePort.sendPort));
+  }
+
+  @override
+  Future<void> stopPlayback() async {
+    if (!_isPlaying) return;
+    _isPlaying = false;
+    final stopReplyPort = ReceivePort();
+    _engineSendPort.send(StopPlaybackMessage(stopReplyPort.sendPort));
+    await stopReplyPort.first;
+    stopReplyPort.close();
+    _audioReceivePort?.close();
+    _audioReceivePort = null;
+  }
+
+  @override
   Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
-    _engineSendPort.send(const DisposeMessage());
+    if (_isPlaying) {
+      await stopPlayback();
+    }
+    final replyPort = ReceivePort();
+    _engineSendPort.send(DisposeMessage(replyPort.sendPort));
+    await replyPort.first;
+    replyPort.close();
     _isolate.kill(priority: Isolate.immediate);
   }
 }

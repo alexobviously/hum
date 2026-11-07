@@ -1,17 +1,16 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
 /// Synchronous single-threaded implementation of [AudioHost].
-class SyncAudioHost extends AudioHost {
-  @override
-  final ProcessContext context;
-
-  final AudioEngine _engine;
-  GraphSnapshot _currentSnapshot = GraphSnapshot.empty;
-
-  SyncAudioHost({required this.context})
-    : _engine = AudioEngine(context: context);
+class SyncAudioHost({
+  @override required final ProcessContext context,
+}) extends AudioHost {
+  final AudioEngine _engine = AudioEngine(context: context);
+  GraphSnapshot _currentSnapshot = .empty;
+  bool _isPlaying = false;
+  Completer<void>? _playbackCompleter;
 
   /// The underlying [AudioEngine] instance.
   AudioEngine get engine => _engine;
@@ -25,6 +24,9 @@ class SyncAudioHost extends AudioHost {
 
   /// The active output buffers of the engine.
   List<Float32List> get outputs => _engine.outputs;
+
+  @override
+  bool get isPlaying => _isPlaying;
 
   @override
   List<NodeDiagnostic> setGraph({
@@ -84,6 +86,94 @@ class SyncAudioHost extends AudioHost {
     return totalBlocks;
   }
 
+  @override
+  Future<void> startPlayback(AudioOutput output) async {
+    if (_isPlaying) {
+      throw StateError('Playback is already active.');
+    }
+    if (numChannels == 0) {
+      throw StateError('No active audio graph to play. Call setGraph() first.');
+    }
+    if (output.numChannels != numChannels) {
+      throw ArgumentError(
+        'Output numChannels (${output.numChannels}) does not match graph channels ($numChannels).',
+      );
+    }
+    if (output.vectorSize != context.vectorSize) {
+      throw ArgumentError(
+        'Output vectorSize (${output.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
+      );
+    }
+
+    _isPlaying = true;
+    final completer = _playbackCompleter = Completer<void>();
+    _runPlaybackLoop(output, completer);
+  }
+
+  void _runPlaybackLoop(
+    AudioOutput output,
+    Completer<void> completer,
+  ) async {
+    final sampleRate = context.sampleRate;
+    final vectorSize = context.vectorSize;
+    final blockDurationUs = (vectorSize * 1000000) ~/ sampleRate;
+    final targetLeadUs = blockDurationUs * 2 > 25000
+        ? blockDurationUs * 2
+        : 25000;
+
+    final stopwatch = Stopwatch()..start();
+    int renderedSamples = 0;
+
+    try {
+      while (_isPlaying) {
+        final renderedTimeUs = (renderedSamples * 1000000) ~/ sampleRate;
+        final elapsedUs = stopwatch.elapsedMicroseconds;
+
+        // Prevent burst rendering if clock desynchronizes (e.g. system sleep)
+        if (elapsedUs - renderedTimeUs > 100000) {
+          renderedSamples = (elapsedUs * sampleRate) ~/ 1000000;
+        }
+
+        final leadUs = ((renderedSamples * 1000000) ~/ sampleRate) - elapsedUs;
+        if (leadUs > targetLeadUs) {
+          final sleepUs = leadUs - targetLeadUs;
+          if (sleepUs >= 1000) {
+            await Future.delayed(Duration(microseconds: sleepUs));
+          } else {
+            await Future.delayed(Duration.zero);
+          }
+          if (!_isPlaying) break;
+        }
+
+        _engine.process();
+        output.write(_engine.outputs);
+        renderedSamples += vectorSize;
+      }
+    } catch (e, st) {
+      _isPlaying = false;
+      if (!completer.isCompleted) {
+        completer.completeError(e, st);
+      }
+      return;
+    } finally {
+      stopwatch.stop();
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+  }
+
+  @override
+  Future<void> stopPlayback() async {
+    if (!_isPlaying) return;
+    _isPlaying = false;
+    final completer = _playbackCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+    _playbackCompleter = null;
+  }
+
   /// Retrieves the active processor for [node], or null if not registered.
   T? processorOf<T extends AudioProcessor>(AudioNode node) {
     final id = _currentSnapshot.nodeIds[node];
@@ -92,6 +182,7 @@ class SyncAudioHost extends AudioHost {
 
   @override
   Future<void> dispose() async {
-    // No background threads to terminate.
+    await stopPlayback();
+    await _engine.dispose();
   }
 }

@@ -25,21 +25,16 @@ class SubprocessSink({
          channels: channels,
          executable: executable,
          arguments: [
-           '-f',
-           format == .float32 ? 'f32le' : 's16le',
-           '-ar',
-           '$sampleRate',
-           '-ch_layout',
-           channels.length == 1 ? 'mono' : 'stereo',
+           //
+           '-f', format == .float32 ? 'f32le' : 's16le',
+           '-ar', '$sampleRate',
+           '-ch_layout', channels.length == 1 ? 'mono' : 'stereo',
            '-nodisp',
            '-autoexit',
-           '-probesize',
-           '32',
-           '-analyzeduration',
-           '0',
-           '-sync',
-           'audio',
-           '-',
+           '-probesize', '32',
+           '-analyzeduration', '0',
+           '-sync', 'audio',
+           '-', // this means read from stdin instead of a file
          ],
          format: format,
        );
@@ -54,16 +49,12 @@ class SubprocessSink({
          channels: channels,
          executable: executable,
          arguments: [
-           '-t',
-           'raw',
-           '-r',
-           '$sampleRate',
-           '-e',
-           format == .float32 ? 'float' : 'signed-integer',
-           '-b',
-           format == .float32 ? '32' : '16',
-           '-c',
-           '${channels.length}',
+           //
+           '-t', 'raw',
+           '-r', '$sampleRate',
+           '-e', format == .float32 ? 'float' : 'signed-integer',
+           '-b', format == .float32 ? '32' : '16',
+           '-c', '${channels.length}',
            '-q',
            '-',
          ],
@@ -125,10 +116,11 @@ class SubprocessSinkProcessor({
   required final List<String> arguments,
   required final int numChannels,
   final WavFormat format = .float32,
-}) implements AudioProcessor {
+}) implements DisposableAudioProcessor {
   Process? _process;
   IOSink? _stdin;
   BufferInterleaver? _interleaver;
+  final List<Uint8List> _pendingBuffer = [];
   bool _isSpawning = false;
   bool _isClosed = false;
 
@@ -150,10 +142,24 @@ class SubprocessSinkProcessor({
           _process = p;
           _stdin = p.stdin;
           _isSpawning = false;
+          for (final pending in _pendingBuffer) {
+            _stdin!.add(pending);
+          }
+          _pendingBuffer.clear();
         })
         .catchError((_) {
           _isSpawning = false;
+          _pendingBuffer.clear();
         });
+  }
+
+  /// Ensures the child process has spawned and is ready to receive audio blocks.
+  Future<void> ensureStarted() async {
+    if (_stdin != null) return;
+    _ensureStarted();
+    while (_stdin == null && !_isClosed && _isSpawning) {
+      await Future.delayed(const Duration(milliseconds: 2));
+    }
   }
 
   @override
@@ -166,11 +172,6 @@ class SubprocessSinkProcessor({
     List<Float32List> outputs,
   ) {
     if (_isClosed) return;
-
-    if (_stdin == null) {
-      _ensureStarted();
-      return;
-    }
 
     BufferInterleaver? interleaver = _interleaver;
     if (interleaver == null || interleaver.vectorSize != context.vectorSize) {
@@ -185,21 +186,44 @@ class SubprocessSinkProcessor({
       .pcm16 => interleaver.interleavePcm16Bytes(inputs),
     };
 
-    _stdin!.add(byteView);
+    // Dart IOSink.add queues references to the list rather than copying.
+    // We must pass a copy so subsequent audio blocks do not mutate queued bytes
+    // before the OS pipe writes them.
+    final copiedBytes = Uint8List.fromList(byteView);
+
+    if (_stdin != null) {
+      _stdin!.add(copiedBytes);
+    } else {
+      _pendingBuffer.add(copiedBytes);
+      _ensureStarted();
+    }
   }
 
-  /// Flushes standard input and terminates the subprocess.
-  Future<void> close() async {
+  /// Flushes standard input and waits for the subprocess to finish playing before exiting.
+  Future<void> close({bool waitForExit = true}) async {
     if (_isClosed) return;
     _isClosed = true;
+    while (_isSpawning) {
+      await Future.delayed(const Duration(milliseconds: 5));
+    }
     if (_stdin != null) {
       try {
         await _stdin!.flush();
         await _stdin!.close();
       } catch (_) {}
     }
-    _process?.kill();
+    if (waitForExit && _process != null) {
+      await _process!.exitCode;
+    } else {
+      _process?.kill();
+    }
     _process = null;
     _stdin = null;
+    _pendingBuffer.clear();
+  }
+
+  @override
+  Future<void> dispose() async {
+    await close(waitForExit: false);
   }
 }

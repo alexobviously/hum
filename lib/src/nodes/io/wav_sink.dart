@@ -57,7 +57,7 @@ class WavSink extends AudioNode<WavSinkProcessor> {
 }
 
 /// The runtime processor for [WavSink].
-class WavSinkProcessor implements AudioProcessor {
+class WavSinkProcessor implements DisposableAudioProcessor {
   final String? path;
   final int numChannels;
   final WavFormat format;
@@ -167,5 +167,10 @@ class WavSinkProcessor implements AudioProcessor {
 
     _bytes = header.buffer.asUint8List(0, 44);
     return _bytes;
+  }
+
+  @override
+  void dispose() {
+    close();
   }
 }

@@ -68,4 +68,13 @@ class AudioPipeline {
     final processor = processorOf(target);
     processor.update(newSpec.params);
   }
+
+  /// Disposes all active processors in the pipeline.
+  Future<void> dispose() async {
+    for (final step in steps) {
+      if (step.processor case final DisposableAudioProcessor p) {
+        await p.dispose();
+      }
+    }
+  }
 }
