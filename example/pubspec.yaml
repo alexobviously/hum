@@ -1,0 +1,15 @@
+name: hum_example
+description: Demonstrations, audio examples, and CLI tools for the hum audio DSP library.
+publish_to: none
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  args: ^2.6.0
+  hum:
+    path: ../
+
+dev_dependencies:
+  lints: ^6.0.0
+

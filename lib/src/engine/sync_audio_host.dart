@@ -95,4 +95,3 @@ class SyncAudioHost extends AudioHost {
     // No background threads to terminate.
   }
 }
-
