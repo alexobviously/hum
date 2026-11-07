@@ -20,7 +20,7 @@ void main() async {
   final sr = 44100, vs = 64;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await AudioHost.spawn(context: context);
-  var currentScaleIndex = 0;
+  int currentScaleIndex = 0;
   Synth synth = Synth(
     scale: availableScales[currentScaleIndex].take(10),
     activeSteps: {for (int i = 0; i < 10; i++) i: true},

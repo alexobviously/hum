@@ -162,15 +162,15 @@ class const Scale(
     final numPerOctave = intervals.length;
     final offset = startDegree - 1;
 
+    Note transpose(int degree) {
+      final totalDegree = offset + degree;
+      final octave = totalDegree ~/ numPerOctave;
+      final step = totalDegree % numPerOctave;
+      return root.transpose(octave * 12 + intervals[step]);
+    }
+
     return [
-      for (int i = 0; i < count; i++) ...[
-        () {
-          final totalDegree = offset + i;
-          final octave = totalDegree ~/ numPerOctave;
-          final step = totalDegree % numPerOctave;
-          return root.transpose(octave * 12 + intervals[step]);
-        }(),
-      ],
+      for (int i = 0; i < count; i++) transpose(i),
     ];
   }
 
@@ -207,7 +207,7 @@ class const Scale(
 
     final zeroBased = degree > 0 ? degree - 1 : degree;
     final octave = zeroBased ~/ numPerOctave;
-    var step = zeroBased % numPerOctave;
+    int step = zeroBased % numPerOctave;
     if (step < 0) step += numPerOctave;
 
     return root.transpose(octave * 12 + intervals[step]);

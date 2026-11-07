@@ -131,10 +131,11 @@ class const Chord(
   /// Transposes the entire chord by [semitones].
   Chord transpose(int semitones) {
     if (customNotes != null) {
-      return Chord.fromNotes([
+      return .fromNotes([
         for (final n in customNotes!) n.transpose(semitones),
       ]);
     }
+
     return Chord(root.transpose(semitones), pattern, inversion: inversion);
   }
 
