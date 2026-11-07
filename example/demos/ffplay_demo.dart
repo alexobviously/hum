@@ -21,12 +21,11 @@ void main() async {
   final host = await AudioHost.spawn(context: context);
 
   void setGraph(double frequency) {
-    final diagnostics = host.setGraph(root: _graph(440));
+    final diagnostics = host.setGraph(root: _graph(frequency));
     if (diagnostics.isNotEmpty) {
       stderr.writeln('Graph compilation failed: $diagnostics');
       return;
     }
-    // DOESN'T WORK YET, DEBUGGING, NEED TO COMMIT FIRST
   }
 
   setGraph(440);
@@ -45,10 +44,11 @@ void main() async {
   await host.startPlayback(output);
 
   // Stream for 3 seconds
-  await Future.delayed(const Duration(seconds: 3));
+  await Future.delayed(const Duration(seconds: 1));
 
   for (final note in const ['C4', 'G4', 'C5', 'E5']) {
     final hz = Note.parse(note).hz;
+    print('Updating graph to note: $note (${hz.toStringAsFixed(1)} Hz)...');
     setGraph(hz);
     await Future.delayed(const Duration(seconds: 1));
   }
