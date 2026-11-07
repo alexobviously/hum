@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
@@ -217,11 +218,68 @@ class IsolateAudioHost extends AudioHost {
     return blocks;
   }
 
+  // TODO: DRY THIS, maybe rethink
+  @override
+  Future<Uint8List> exportWav({
+    String? path,
+    required Duration duration,
+    WavFormat format = .float32,
+  }) async {
+    if (numChannels == 0) {
+      throw StateError(
+        'No active audio graph to export. Call setGraph() first.',
+      );
+    }
+    final sampleRate = context.sampleRate;
+    final vectorSize = context.vectorSize;
+    final totalSamples = (sampleRate * duration.inMicroseconds) ~/ 1000000;
+    final totalBlocks = (totalSamples + vectorSize - 1) ~/ vectorSize;
+
+    final renderedBlocks = await renderBlocks(totalBlocks);
+    final interleaver = BufferInterleaver(
+      numChannels: numChannels,
+      vectorSize: vectorSize,
+    );
+    final builder = BytesBuilder(copy: false);
+
+    for (int i = 0; i < totalBlocks; i++) {
+      final blockChannels = <Float32List>[
+        for (int ch = 0; ch < numChannels; ch++)
+          renderedBlocks[i * numChannels + ch],
+      ];
+      final byteView = switch (format) {
+        .float32 => interleaver.interleaveFloat32Bytes(blockChannels),
+        .pcm16 => interleaver.interleavePcm16Bytes(blockChannels),
+      };
+      builder.add(byteView);
+    }
+
+    final dataBytes = builder.takeBytes();
+    final header = buildWavHeader(
+      dataSize: dataBytes.length,
+      sampleRate: sampleRate,
+      numChannels: numChannels,
+      format: format,
+    );
+
+    final wavFileBytes = BytesBuilder(copy: false);
+    wavFileBytes.add(header.buffer.asUint8List(0, 44));
+    wavFileBytes.add(dataBytes);
+    final completeWav = wavFileBytes.takeBytes();
+
+    if (path != null) {
+      final file = File(path);
+      await file.writeAsBytes(completeWav, flush: true);
+    }
+
+    return completeWav;
+  }
+
   @override
   bool get isPlaying => _isPlaying;
 
   @override
-  Future<void> startPlayback(AudioOutput output) async {
+  Future<void> startPlayback([AudioOutput? output]) async {
     if (_isDisposed) {
       throw StateError('Cannot startPlayback on a disposed AudioHost.');
     }
@@ -231,22 +289,24 @@ class IsolateAudioHost extends AudioHost {
     if (numChannels == 0) {
       throw StateError('No active audio graph to play. Call setGraph() first.');
     }
-    if (output.numChannels != numChannels) {
-      throw ArgumentError(
-        'Output numChannels (${output.numChannels}) does not match graph channels ($numChannels).',
-      );
-    }
-    if (output.vectorSize != context.vectorSize) {
-      throw ArgumentError(
-        'Output vectorSize (${output.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
-      );
+    if (output != null) {
+      if (output.numChannels != numChannels) {
+        throw ArgumentError(
+          'Output numChannels (${output.numChannels}) does not match graph channels ($numChannels).',
+        );
+      }
+      if (output.vectorSize != context.vectorSize) {
+        throw ArgumentError(
+          'Output vectorSize (${output.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
+        );
+      }
     }
 
     _isPlaying = true;
     final audioReceivePort = _audioReceivePort = ReceivePort();
     audioReceivePort.listen((message) {
       if (message is List<Float32List>) {
-        output.write(message);
+        output?.write(message);
       }
     });
 

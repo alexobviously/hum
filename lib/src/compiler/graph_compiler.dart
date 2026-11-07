@@ -210,6 +210,10 @@ CompileGraphResult compileGraph({
   List<Outlet> finalOutputPorts;
   if (targetOutputs != null) {
     finalOutputPorts = targetOutputs;
+  } else if (root case final Out out) {
+    finalOutputPorts = out.channels;
+  } else if (root case final TerminalNode terminal) {
+    finalOutputPorts = [for (final inlet in terminal.inlets) ?inlet.source];
   } else if (root != null) {
     finalOutputPorts = root.outlets.isNotEmpty
         ? root.outlets
@@ -217,9 +221,14 @@ CompileGraphResult compileGraph({
   } else {
     finalOutputPorts = [
       for (final r in resolvedRoots)
-        ...(r.outlets.isNotEmpty
-            ? r.outlets
-            : [for (final inlet in r.inlets) ?inlet.source]),
+        if (r case final Out out)
+          ...out.channels
+        else if (r case final TerminalNode terminal) ...[
+          for (final inlet in terminal.inlets) ?inlet.source,
+        ] else
+          ...(r.outlets.isNotEmpty
+              ? r.outlets
+              : [for (final inlet in r.inlets) ?inlet.source]),
     ];
   }
 

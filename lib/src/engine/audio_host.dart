@@ -37,17 +37,27 @@ abstract class const AudioHost() {
   /// Renders [count] blocks of audio and returns the resulting channel buffers.
   Future<List<Float32List>> renderBlocks(int count);
 
+  /// Renders [duration] of audio offline at maximum CPU speed and writes to [path]
+  /// or returns the complete WAV byte buffer if [path] is null.
+  Future<Uint8List> exportWav({
+    String? path,
+    required Duration duration,
+    WavFormat format = .float32,
+  });
+
   /// Whether real-time playback is currently active.
   bool get isPlaying;
 
   /// Starts continuous real-time audio playback streaming graph outputs to [output].
   ///
   /// Paced to real-time deadlines with backpressure to prevent buffer bloat.
+  /// If [output] is omitted, the engine runs continuously in real-time without
+  /// writing to physical output devices (driving in-graph sinks and tap nodes).
   ///
   /// Throws [StateError] if playback is already active or if no graph is loaded.
   /// Throws [ArgumentError] if [output] channel count or vector size does not match
   /// the active graph context.
-  Future<void> startPlayback(AudioOutput output);
+  Future<void> startPlayback([AudioOutput? output]);
 
   /// Stops continuous real-time audio playback.
   Future<void> stopPlayback();

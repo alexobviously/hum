@@ -152,6 +152,91 @@ void main() {
 
       await host.dispose();
     });
+
+    test(
+      'startPlayback without AudioOutput runs real-time engine loop',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        expect(host.isPlaying, isFalse);
+        await host.startPlayback();
+        expect(host.isPlaying, isTrue);
+
+        await Future.delayed(const Duration(milliseconds: 30));
+        await host.stopPlayback();
+        expect(host.isPlaying, isFalse);
+        await host.dispose();
+      },
+    );
+
+    test('exportWav bounces audio graph offline at max CPU speed', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = AudioHost.sync(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final out = Out.stereo(left: osc.outlet, right: osc.outlet);
+      host.setGraph(root: out);
+
+      // Bounce 100ms of stereo float32 audio
+      final wavBytes = await host.exportWav(
+        duration: const Duration(milliseconds: 100),
+        format: .float32,
+      );
+
+      // 44-byte header + data
+      expect(wavBytes.length, greaterThan(44));
+      // First 4 bytes are 'RIFF'
+      expect(String.fromCharCodes(wavBytes.sublist(0, 4)), equals('RIFF'));
+      // Bytes 8-12 are 'WAVE'
+      expect(String.fromCharCodes(wavBytes.sublist(8, 12)), equals('WAVE'));
+
+      await host.dispose();
+    });
+
+    test('startPlayback without AudioOutput runs real-time engine loop', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = AudioHost.sync(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      host.setGraph(root: osc.out);
+
+      expect(host.isPlaying, isFalse);
+      await host.startPlayback();
+      expect(host.isPlaying, isTrue);
+
+      await Future.delayed(const Duration(milliseconds: 30));
+      await host.stopPlayback();
+      expect(host.isPlaying, isFalse);
+      await host.dispose();
+    });
+
+    test('exportWav bounces audio graph offline at max CPU speed', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = AudioHost.sync(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final out = Out.stereo(left: osc.outlet, right: osc.outlet);
+      host.setGraph(root: out);
+
+      // Bounce 100ms of stereo float32 audio
+      final wavBytes = await host.exportWav(
+        duration: const Duration(milliseconds: 100),
+        format: .float32,
+      );
+
+      // 44-byte header + data
+      expect(wavBytes.length, greaterThan(44));
+      // First 4 bytes are 'RIFF'
+      expect(String.fromCharCodes(wavBytes.sublist(0, 4)), equals('RIFF'));
+      // Bytes 8-12 are 'WAVE'
+      expect(String.fromCharCodes(wavBytes.sublist(8, 12)), equals('WAVE'));
+
+      await host.dispose();
+    });
   });
 
   group('AudioHost.spawn (isolate mode)', () {
@@ -236,5 +321,25 @@ void main() {
         await host.dispose();
       },
     );
+
+    test('exportWav bounces audio graph across isolate boundary', () async {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final host = await AudioHost.spawn(context: context);
+
+      final osc = SineOscillator(frequency: const .value(440));
+      final out = Out.stereo(left: osc.outlet, right: osc.outlet);
+      host.setGraph(root: out);
+
+      final wavBytes = await host.exportWav(
+        duration: const Duration(milliseconds: 100),
+        format: .pcm16,
+      );
+
+      expect(wavBytes.length, greaterThan(44));
+      expect(String.fromCharCodes(wavBytes.sublist(0, 4)), equals('RIFF'));
+      expect(String.fromCharCodes(wavBytes.sublist(8, 12)), equals('WAVE'));
+
+      await host.dispose();
+    });
   });
 }

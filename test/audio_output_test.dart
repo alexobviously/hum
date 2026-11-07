@@ -65,17 +65,17 @@ void main() {
       expect(floats, equals([1.0, 2.0, 3.0, 4.0]));
     });
 
-    test('Dac.stereo routes graph outputs to AudioOutput at engine level', () {
+    test('Out.stereo routes graph outputs to AudioOutput at engine level', () {
       final memoryOutput = MemoryAudioOutput(numChannels: 2, vectorSize: 4);
       final osc1 = SineOscillator(frequency: .value(440));
       final osc2 = SineOscillator(frequency: .value(880));
 
-      final dac = Dac.stereo(left: osc1.outlet, right: osc2.outlet);
+      final out = Out.stereo(left: osc1.outlet, right: osc2.outlet);
 
       final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
-      final pipeline = compilePipeline(root: dac, context: context).pipeline!;
+      final pipeline = compilePipeline(root: out, context: context).pipeline!;
 
-      // Verify Kahn sort identified Dac's 2 inlets as the final graph outputs
+      // Verify Kahn sort identified Out's 2 inlets as the final graph outputs
       expect(pipeline.outputs.length, equals(2));
 
       pipeline.process();
@@ -85,21 +85,64 @@ void main() {
       expect(memoryOutput.length, equals(32));
     });
 
-    test('Dac.mono acts as single-channel DAG terminal', () {
+    test('Out.mono and .out extension act as single-channel DAG terminal', () {
       final osc = SineOscillator(frequency: .value(440));
-      final dac = Dac.mono(osc.outlet);
+      final out = Out.mono(osc.outlet);
 
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final pipeline = compilePipeline(root: dac, context: context).pipeline!;
+      final pipeline = compilePipeline(root: out, context: context).pipeline!;
 
       expect(pipeline.outputs.length, equals(1));
-      expect(dac.errors, isEmpty);
+      expect(out.errors, isEmpty);
+
+      // Test extension syntax
+      final outViaExtension = osc.outlet.out;
+      expect(outViaExtension.channels.length, equals(1));
+      expect(outViaExtension.channels.first, equals(osc.outlet));
     });
 
-    test('Dac declares validation errors when channels are empty', () {
-      final emptyDac = Dac(channels: const []);
-      expect(emptyDac.errors, isNotEmpty);
-      expect(emptyDac.errors.first.message, contains('[channels]'));
+    test('Out declares validation errors when channels are empty', () {
+      final emptyOut = Out(channels: const []);
+      expect(emptyOut.errors, isNotEmpty);
+      expect(emptyOut.errors.first.message, contains('[channels]'));
+    });
+
+    test(
+      'AudioOutput.combine broadcasts blocks to all child outputs',
+      () async {
+        final out1 = MemoryAudioOutput(numChannels: 2, vectorSize: 4);
+        final out2 = MemoryAudioOutput(numChannels: 2, vectorSize: 4);
+        final combined = AudioOutput.combine([out1, out2]);
+
+        expect(combined.numChannels, equals(2));
+        expect(combined.vectorSize, equals(4));
+
+        final channels = [
+          Float32List.fromList([1.0, 2.0, 3.0, 4.0]),
+          Float32List.fromList([5.0, 6.0, 7.0, 8.0]),
+        ];
+        combined.write(channels);
+
+        expect(out1.length, equals(32));
+        expect(out2.length, equals(32));
+
+        await combined.close();
+        expect(out1.isClosed, isTrue);
+        expect(out2.isClosed, isTrue);
+      },
+    );
+
+    test('AudioOutput.none safely drops all blocks', () async {
+      final nullOutput = AudioOutput.none(numChannels: 2, vectorSize: 4);
+      expect(nullOutput.numChannels, equals(2));
+      expect(nullOutput.vectorSize, equals(4));
+
+      nullOutput.write([
+        Float32List.fromList([1.0, 2.0, 3.0, 4.0]),
+        Float32List.fromList([5.0, 6.0, 7.0, 8.0]),
+      ]);
+
+      await nullOutput.close();
     });
 
     test(

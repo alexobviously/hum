@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
@@ -87,22 +88,76 @@ class SyncAudioHost({
   }
 
   @override
-  Future<void> startPlayback(AudioOutput output) async {
+  Future<Uint8List> exportWav({
+    String? path,
+    required Duration duration,
+    WavFormat format = .float32,
+  }) async {
+    if (numChannels == 0) {
+      throw StateError(
+        'No active audio graph to export. Call setGraph() first.',
+      );
+    }
+    final sampleRate = context.sampleRate;
+    final vectorSize = context.vectorSize;
+    final totalSamples = (sampleRate * duration.inMicroseconds) ~/ 1000000;
+    final totalBlocks = (totalSamples + vectorSize - 1) ~/ vectorSize;
+
+    final interleaver = BufferInterleaver(
+      numChannels: numChannels,
+      vectorSize: vectorSize,
+    );
+    final builder = BytesBuilder(copy: false);
+
+    for (int i = 0; i < totalBlocks; i++) {
+      _engine.process();
+      final byteView = switch (format) {
+        .float32 => interleaver.interleaveFloat32Bytes(_engine.outputs),
+        .pcm16 => interleaver.interleavePcm16Bytes(_engine.outputs),
+      };
+      builder.add(byteView);
+    }
+
+    final dataBytes = builder.takeBytes();
+    final header = buildWavHeader(
+      dataSize: dataBytes.length,
+      sampleRate: sampleRate,
+      numChannels: numChannels,
+      format: format,
+    );
+
+    final wavFileBytes = BytesBuilder(copy: false);
+    wavFileBytes.add(header.buffer.asUint8List(0, 44));
+    wavFileBytes.add(dataBytes);
+    final completeWav = wavFileBytes.takeBytes();
+
+    if (path != null) {
+      final file = File(path);
+      await file.writeAsBytes(completeWav, flush: true);
+    }
+
+    return completeWav;
+  }
+
+  @override
+  Future<void> startPlayback([AudioOutput? output]) async {
     if (_isPlaying) {
       throw StateError('Playback is already active.');
     }
     if (numChannels == 0) {
       throw StateError('No active audio graph to play. Call setGraph() first.');
     }
-    if (output.numChannels != numChannels) {
-      throw ArgumentError(
-        'Output numChannels (${output.numChannels}) does not match graph channels ($numChannels).',
-      );
-    }
-    if (output.vectorSize != context.vectorSize) {
-      throw ArgumentError(
-        'Output vectorSize (${output.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
-      );
+    if (output != null) {
+      if (output.numChannels != numChannels) {
+        throw ArgumentError(
+          'Output numChannels (${output.numChannels}) does not match graph channels ($numChannels).',
+        );
+      }
+      if (output.vectorSize != context.vectorSize) {
+        throw ArgumentError(
+          'Output vectorSize (${output.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
+        );
+      }
     }
 
     _isPlaying = true;
@@ -111,7 +166,7 @@ class SyncAudioHost({
   }
 
   void _runPlaybackLoop(
-    AudioOutput output,
+    AudioOutput? output,
     Completer<void> completer,
   ) async {
     final sampleRate = context.sampleRate;
@@ -146,7 +201,7 @@ class SyncAudioHost({
         }
 
         _engine.process();
-        output.write(_engine.outputs);
+        output?.write(_engine.outputs);
         renderedSamples += vectorSize;
       }
     } catch (e, st) {

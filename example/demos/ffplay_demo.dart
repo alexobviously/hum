@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:hum/hum.dart';
 
-AudioNode _graph(double frequency) {
+TerminalNode _graph(double frequency) {
   final osc = SineOscillator(frequency: .value(frequency));
   final gain = Mult.mono(input: osc.outlet, value: const .value(0.2));
 
-  return Dac.stereo(left: gain.outlet, right: gain.outlet);
+  return Out.stereo(left: gain.outlet, right: gain.outlet);
 }
 
 void main() async {

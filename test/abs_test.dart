@@ -49,7 +49,7 @@ void main() {
       final osc = SineOscillator(frequency: const .value(100));
       final rectified = osc.outlet.abs;
       final pipeline = compilePipeline(
-        root: rectified.node,
+        root: rectified.out,
         context: context,
       ).pipeline!;
       pipeline.process();

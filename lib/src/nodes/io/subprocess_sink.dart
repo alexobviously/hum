@@ -14,7 +14,7 @@ class SubprocessSink({
   required final String executable,
   final List<String> arguments = const [],
   final WavFormat format = .float32,
-}) extends AudioNode<SubprocessSinkProcessor> {
+}) extends TerminalNode<SubprocessSinkProcessor> {
   /// Creates a sink configured to pipe audio into `ffplay`.
   SubprocessSink.ffplay({
     required List<Outlet> channels,
@@ -66,9 +66,6 @@ class SubprocessSink({
     channels.length,
     (i) => Inlet(node: this, index: i, source: channels[i]),
   );
-
-  @override
-  List<Outlet> get outlets => const [];
 
   @override
   SubprocessSinkProcessor createProcessor() => SubprocessSinkProcessor(

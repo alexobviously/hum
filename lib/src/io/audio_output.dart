@@ -18,6 +18,14 @@ abstract interface class AudioOutput {
 
   /// Closes the output destination and releases any associated resources.
   Future<void> close();
+
+  /// Combines multiple [AudioOutput] destinations into a single broadcasting output.
+  static AudioOutput combine(List<AudioOutput> outputs) =>
+      CombinedAudioOutput(outputs: outputs);
+
+  /// A no-op audio output that silently drops all written blocks.
+  static AudioOutput none({int numChannels = 2, int vectorSize = 64}) =>
+      NullAudioOutput(numChannels: numChannels, vectorSize: vectorSize);
 }
 
 /// An [AudioOutput] that interleaves multi-channel audio and writes raw bytes to an [IOSink].
@@ -189,4 +197,41 @@ class MemoryAudioOutput({
   Future<void> close() async {
     _isClosed = true;
   }
+}
+
+/// An [AudioOutput] that broadcasts written audio blocks to multiple destinations.
+class CombinedAudioOutput({
+  required final List<AudioOutput> outputs,
+}) implements AudioOutput {
+  @override
+  int get numChannels => outputs.isNotEmpty ? outputs.first.numChannels : 0;
+
+  @override
+  int get vectorSize => outputs.isNotEmpty ? outputs.first.vectorSize : 0;
+
+  @override
+  void write(List<Float32List> channels) {
+    for (int i = 0; i < outputs.length; i++) {
+      outputs[i].write(channels);
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    for (int i = 0; i < outputs.length; i++) {
+      await outputs[i].close();
+    }
+  }
+}
+
+/// A no-op [AudioOutput] that safely drops all blocks without processing.
+class NullAudioOutput({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+}) implements AudioOutput {
+  @override
+  void write(List<Float32List> channels) {}
+
+  @override
+  Future<void> close() async {}
 }
