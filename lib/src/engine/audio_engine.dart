@@ -20,17 +20,13 @@ class const EngineStep({
 /// Owns the active [AudioProcessor] instances, pre-allocated memory buffer pool,
 /// and linear execution schedule. Receives transactional [GraphDiff] updates at
 /// block boundaries with zero allocations during the real-time [process] loop.
-class AudioEngine {
-  final ProcessContext context;
-
+class AudioEngine({required final ProcessContext context}) {
   final Map<int, AudioProcessor> _processors = {};
   final List<Float32List> _bufferPool = [];
   late final Float32List _emptyBuffer = Float32List(context.vectorSize);
 
   List<EngineStep> _steps = [];
   List<Float32List> _outputs = [];
-
-  AudioEngine({required this.context});
 
   /// The active output buffers of the engine (one [Float32List] per output channel).
   List<Float32List> get outputs => _outputs;
@@ -112,4 +108,3 @@ class AudioEngine {
     }
   }
 }
-
