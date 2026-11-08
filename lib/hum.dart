@@ -29,6 +29,7 @@ export 'src/nodes/effects/saturator.dart';
 export 'src/nodes/filters/comb_filter.dart';
 export 'src/nodes/filters/dc_block.dart';
 export 'src/nodes/filters/onepole.dart';
+export 'src/nodes/filters/resonator_bank.dart';
 export 'src/nodes/filters/svf.dart';
 export 'src/nodes/io/out.dart';
 export 'src/nodes/io/subprocess_sink.dart';
