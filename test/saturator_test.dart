@@ -3,6 +3,13 @@ import 'dart:typed_data';
 import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
+List<Float32List> _inlets(Float32List inBuf) => [
+  Float32List(0), // drive
+  Float32List(0), // bias
+  Float32List(0), // mix
+  inBuf, // audio
+];
+
 void main() {
   group('Saturator node', () {
     test('declares expected inlets and outlets for mono and stereo', () {
@@ -51,7 +58,7 @@ void main() {
       final inBuf = Float32List.fromList([0.0, 1.0, -1.0, 10.0]);
       final outBuf = Float32List(4);
 
-      processor.process(context, [inBuf], [outBuf]);
+      processor.process(context, _inlets(inBuf), [outBuf]);
 
       expect(outBuf[0], closeTo(0.0, 1e-5));
       // tanh(1.0) ≈ 0.761594
@@ -75,7 +82,7 @@ void main() {
       final inBuf = Float32List.fromList([0.0, 0.5, 1.0, 2.0, -2.0]);
       final outBuf = Float32List(5);
 
-      processor.process(context, [inBuf], [outBuf]);
+      processor.process(context, _inlets(inBuf), [outBuf]);
 
       expect(outBuf[0], closeTo(0.0, 1e-5));
       // cubic(0.5) = 0.5 * (1.5 - 0.5 * 0.25) = 0.5 * 1.375 = 0.6875
@@ -103,8 +110,8 @@ void main() {
       final outAlg = Float32List(3);
       final outAtan = Float32List(3);
 
-      algProc.process(context, [inBuf], [outAlg]);
-      atanProc.process(context, [inBuf], [outAtan]);
+      algProc.process(context, _inlets(inBuf), [outAlg]);
+      atanProc.process(context, _inlets(inBuf), [outAtan]);
 
       // 0 in -> 0 out
       expect(outAlg[0], closeTo(0.0, 1e-5));
@@ -133,7 +140,7 @@ void main() {
       final inBuf = Float32List.fromList([0.0, 1.0, 2.0, 3.0]);
       final outBuf = Float32List(4);
 
-      processor.process(context, [inBuf], [outBuf]);
+      processor.process(context, _inlets(inBuf), [outBuf]);
 
       expect(outBuf[0], closeTo(0.0, 1e-5));
       expect(outBuf[1], closeTo(1.0, 1e-4));
@@ -153,7 +160,7 @@ void main() {
       final inBuf = Float32List.fromList([0.0, 0.5, -0.5]);
       final outBuf = Float32List(3);
 
-      processor.process(context, [inBuf], [outBuf]);
+      processor.process(context, _inlets(inBuf), [outBuf]);
 
       // Zero input MUST produce zero output (DC correction)
       expect(outBuf[0], closeTo(0.0, 1e-6));
@@ -176,7 +183,7 @@ void main() {
         mix: 0.0,
         mode: SaturationMode.tanh,
       );
-      dryProc.process(context, [inBuf], [outBuf]);
+      dryProc.process(context, _inlets(inBuf), [outBuf]);
       expect(outBuf[0], closeTo(0.5, 1e-5));
 
       // 100% wet (mix = 1.0)
@@ -186,7 +193,7 @@ void main() {
         mix: 1.0,
         mode: SaturationMode.tanh,
       );
-      wetProc.process(context, [inBuf], [outBuf]);
+      wetProc.process(context, _inlets(inBuf), [outBuf]);
       final wetVal = outBuf[0];
       // tanh(0.5 * 5.0) = tanh(2.5) ≈ 0.9866
       expect(wetVal, closeTo(0.9866, 1e-3));
@@ -198,7 +205,7 @@ void main() {
         mix: 0.5,
         mode: SaturationMode.tanh,
       );
-      midProc.process(context, [inBuf], [outBuf]);
+      midProc.process(context, _inlets(inBuf), [outBuf]);
       expect(outBuf[0], closeTo(0.5 * 0.5 + wetVal * 0.5, 1e-4));
     });
 
@@ -257,8 +264,8 @@ void main() {
       final processor = SaturatorProcessor(
         numChannels: 1,
         mode: SaturationMode.cubic,
-        isDriveSignal: true,
-        isBiasSignal: true,
+        drive: null,
+        bias: null,
       );
 
       final driveBuf = Float32List.fromList([1.0, 2.0, 3.0, 4.0]);
@@ -274,5 +281,24 @@ void main() {
       expect(outBuf[0], isNot(equals(outBuf[3])));
       expect(outBuf.every((s) => s.isFinite), isTrue);
     });
+
+    test(
+      'modulates drive dynamically via ControlParam.signal in AudioPipeline',
+      () {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final lfo = SineOscillator(frequency: const .value(5));
+        final osc = SineOscillator(frequency: const .value(200));
+        final sat = Saturator.mono(
+          osc.outlet,
+          drive: ControlParam.signal(lfo.outlet),
+          mode: SaturationMode.tanh,
+        );
+        final pipeline = compilePipeline(root: sat, context: context).pipeline!;
+        pipeline.process();
+        final out = pipeline.outputs[0];
+        expect(out.any((s) => s != 0.0), isTrue);
+        expect(out.every((s) => s.isFinite), isTrue);
+      },
+    );
   });
 }

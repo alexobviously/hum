@@ -143,9 +143,16 @@ void main() {
       final outNoBlock = Float32List(512);
       final outBlock = Float32List(512);
 
+      final inSaturator = [
+        Float32List(0),
+        Float32List(0),
+        Float32List(0),
+        inBuf,
+      ];
+
       for (int b = 0; b < 20; b++) {
-        satWithDc.process(context, [inBuf], [outNoBlock]);
-        satWithBlock.process(context, [inBuf], [outBlock]);
+        satWithDc.process(context, inSaturator, [outNoBlock]);
+        satWithBlock.process(context, inSaturator, [outBlock]);
       }
 
       // Compute average (DC bias) across the block

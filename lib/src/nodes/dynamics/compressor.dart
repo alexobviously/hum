@@ -266,11 +266,7 @@ class CompressorProcessor({
     final length = context.vectorSize;
     final sampleRate = context.sampleRate.toDouble();
 
-    final isCompiled =
-        inputs.length >= Compressor.audioInletOffset + numChannels;
-    final int audioOffset = isCompiled ? Compressor.audioInletOffset : 0;
-
-    final sidechainBuf = isCompiled && hasSidechain
+    final sidechainBuf = hasSidechain
         ? inputs[Compressor.sidechainInlet]
         : null;
 
@@ -281,22 +277,18 @@ class CompressorProcessor({
     final staticKnee = knee;
     final staticMakeup = makeupGain;
 
-    final threshBuf = isCompiled && staticThreshold == null
+    final threshBuf = staticThreshold == null
         ? inputs[Compressor.thresholdInlet]
         : null;
-    final ratioBuf = isCompiled && staticRatio == null
-        ? inputs[Compressor.ratioInlet]
-        : null;
-    final attackBuf = isCompiled && staticAttack == null
+    final ratioBuf = staticRatio == null ? inputs[Compressor.ratioInlet] : null;
+    final attackBuf = staticAttack == null
         ? inputs[Compressor.attackInlet]
         : null;
-    final releaseBuf = isCompiled && staticRelease == null
+    final releaseBuf = staticRelease == null
         ? inputs[Compressor.releaseInlet]
         : null;
-    final kneeBuf = isCompiled && staticKnee == null
-        ? inputs[Compressor.kneeInlet]
-        : null;
-    final makeupBuf = isCompiled && staticMakeup == null
+    final kneeBuf = staticKnee == null ? inputs[Compressor.kneeInlet] : null;
+    final makeupBuf = staticMakeup == null
         ? inputs[Compressor.makeupGainInlet]
         : null;
 
@@ -343,7 +335,7 @@ class CompressorProcessor({
           peak = sidechainBuf[i].abs();
         } else {
           for (int c = 0; c < numChannels; c++) {
-            final val = inputs[audioOffset + c][i].abs();
+            final val = inputs[Compressor.audioInletOffset + c][i].abs();
             if (val > peak) peak = val;
           }
         }
@@ -369,7 +361,7 @@ class CompressorProcessor({
         final gain = dbToGain(totalGainDb);
 
         for (int c = 0; c < numChannels; c++) {
-          outputs[c][i] = inputs[audioOffset + c][i] * gain;
+          outputs[c][i] = inputs[Compressor.audioInletOffset + c][i] * gain;
         }
       }
     } else {
@@ -391,7 +383,7 @@ class CompressorProcessor({
           peak = sidechainBuf[i].abs();
         } else {
           for (int c = 0; c < numChannels; c++) {
-            final val = inputs[audioOffset + c][i].abs();
+            final val = inputs[Compressor.audioInletOffset + c][i].abs();
             if (val > peak) peak = val;
           }
         }
@@ -417,7 +409,7 @@ class CompressorProcessor({
         final gain = dbToGain(totalGainDb);
 
         for (int c = 0; c < numChannels; c++) {
-          outputs[c][i] = inputs[audioOffset + c][i] * gain;
+          outputs[c][i] = inputs[Compressor.audioInletOffset + c][i] * gain;
         }
       }
     }

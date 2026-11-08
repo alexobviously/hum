@@ -153,14 +153,11 @@ class const Saturator({
   @override
   SaturatorProcessor createProcessor() => SaturatorProcessor(
     numChannels: numChannels,
-    drive: drive.valueOrNull ?? 1.0,
-    bias: bias.valueOrNull ?? 0.0,
-    mix: mix.valueOrNull ?? 1.0,
+    drive: drive.valueOrNull,
+    bias: bias.valueOrNull,
+    mix: mix.valueOrNull,
     mode: mode,
     dcBlock: dcBlock,
-    isDriveSignal: drive.outletOrNull != null,
-    isBiasSignal: bias.outletOrNull != null,
-    isMixSignal: mix.outletOrNull != null,
   );
 
   @override
@@ -176,14 +173,11 @@ class const Saturator({
 /// Processor implementing non-linear transfer curves, asymmetric bias, and dry/wet blending.
 class SaturatorProcessor({
   required final int numChannels,
-  var double drive = 1.0,
-  var double bias = 0.0,
-  var double mix = 1.0,
-  var SaturationMode mode = SaturationMode.tanh,
+  var double? drive = 1.0,
+  var double? bias = 0.0,
+  var double? mix = 1.0,
+  var SaturationMode mode = .tanh,
   var bool dcBlock = false,
-  final bool isDriveSignal = false,
-  final bool isBiasSignal = false,
-  final bool isMixSignal = false,
 }) with DcBlockMixin implements AudioProcessor {
   static const double _twoOverPi = 0.6366197723675814;
   static const double _halfPi = 1.5707963267948966;
@@ -191,9 +185,9 @@ class SaturatorProcessor({
   @override
   void update(Object params) {
     final p = params as SaturatorParams;
-    drive = p.drive ?? drive;
-    bias = p.bias ?? bias;
-    mix = p.mix ?? mix;
+    drive = p.drive;
+    bias = p.bias;
+    mix = p.mix;
     mode = p.mode;
     dcBlock = p.dcBlock;
   }
@@ -226,34 +220,29 @@ class SaturatorProcessor({
     List<Float32List> outputs,
   ) {
     final length = context.vectorSize;
-    final int audioOffset = inputs.length > Saturator.audioInletOffset
-        ? Saturator.audioInletOffset
-        : 0;
-
-    final driveBuf = isDriveSignal && inputs.length > Saturator.driveInlet
-        ? inputs[Saturator.driveInlet]
-        : null;
-    final biasBuf = isBiasSignal && inputs.length > Saturator.biasInlet
-        ? inputs[Saturator.biasInlet]
-        : null;
-    final mixBuf = isMixSignal && inputs.length > Saturator.mixInlet
-        ? inputs[Saturator.mixInlet]
-        : null;
 
     final staticDrive = drive;
     final staticBias = bias;
     final staticMix = mix;
 
+    final driveBuf = staticDrive == null ? inputs[Saturator.driveInlet] : null;
+    final biasBuf = staticBias == null ? inputs[Saturator.biasInlet] : null;
+    final mixBuf = staticMix == null ? inputs[Saturator.mixInlet] : null;
+
+    final defaultDrive = staticDrive ?? 1.0;
+    final defaultBias = staticBias ?? 0.0;
+    final defaultMix = staticMix ?? 1.0;
+
     // Fast path: static scalar parameters
     if (driveBuf == null && biasBuf == null && mixBuf == null) {
-      final d = staticDrive;
-      final b = staticBias;
+      final d = defaultDrive;
+      final b = defaultBias;
       final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
-      final (dryGain, wetGain) = linearMix(staticMix);
-      final isFullWet = staticMix >= 1.0;
+      final (dryGain, wetGain) = linearMix(defaultMix);
+      final isFullWet = defaultMix >= 1.0;
 
       for (int c = 0; c < numChannels; c++) {
-        final inBuf = inputs[audioOffset + c];
+        final inBuf = inputs[Saturator.audioInletOffset + c];
         final outBuf = outputs[c];
 
         if (isFullWet) {
@@ -282,13 +271,13 @@ class SaturatorProcessor({
     } else {
       // Audio-rate modulated path
       for (int c = 0; c < numChannels; c++) {
-        final inBuf = inputs[audioOffset + c];
+        final inBuf = inputs[Saturator.audioInletOffset + c];
         final outBuf = outputs[c];
 
         for (int i = 0; i < length; i++) {
-          final d = driveBuf != null ? driveBuf[i] : staticDrive;
-          final b = biasBuf != null ? biasBuf[i] : staticBias;
-          final m = mixBuf != null ? mixBuf[i] : staticMix;
+          final d = driveBuf != null ? driveBuf[i] : defaultDrive;
+          final b = biasBuf != null ? biasBuf[i] : defaultBias;
+          final m = mixBuf != null ? mixBuf[i] : defaultMix;
 
           final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
           final x = inBuf[i];

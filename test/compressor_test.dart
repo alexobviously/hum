@@ -3,6 +3,18 @@ import 'dart:typed_data';
 import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
+List<Float32List> _compressorInputs(Float32List inL, [Float32List? inR]) => [
+  Float32List(0), // threshold
+  Float32List(0), // ratio
+  Float32List(0), // attack
+  Float32List(0), // release
+  Float32List(0), // knee
+  Float32List(0), // makeupGain
+  Float32List(0), // sidechain
+  inL,
+  ?inR,
+];
+
 void main() {
   group('Compressor node topology & declarations', () {
     test('declares expected inlets and outlets for mono and stereo', () {
@@ -155,7 +167,7 @@ void main() {
       final inBuffer = Float32List(vectorSize)..fillRange(0, vectorSize, inAmp);
       final outBuffer = Float32List(vectorSize);
 
-      processor.process(context, [inBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(inBuffer), [outBuffer]);
 
       for (int i = 0; i < vectorSize; i++) {
         expect(outBuffer[i], closeTo(inAmp, 1e-5));
@@ -182,7 +194,7 @@ void main() {
       final inBuffer = Float32List(vectorSize)..fillRange(0, vectorSize, 1.0);
       final outBuffer = Float32List(vectorSize);
 
-      processor.process(context, [inBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(inBuffer), [outBuffer]);
 
       final expectedGain = dbToGain(-15.0);
       for (int i = 0; i < vectorSize; i++) {
@@ -208,7 +220,7 @@ void main() {
       final inBuffer = Float32List(vectorSize)..fillRange(0, vectorSize, 1.0);
       final outBuffer = Float32List(vectorSize);
 
-      processor.process(context, [inBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(inBuffer), [outBuffer]);
 
       final expectedCeiling = dbToGain(-6.0);
       for (int i = 0; i < vectorSize; i++) {
@@ -243,10 +255,10 @@ void main() {
 
       // Case A: At -22 dB (inside knee, 2 dB below threshold)
       inBuf[0] = dbToGain(-22.0);
-      hardComp.process(context, [inBuf], [outBuf]);
+      hardComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final hardReductionA = hardComp.gainReductionDb;
 
-      softComp.process(context, [inBuf], [outBuf]);
+      softComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final softReductionA = softComp.gainReductionDb;
 
       // Hard knee does nothing below threshold
@@ -257,10 +269,10 @@ void main() {
 
       // Case B: Exactly at threshold (-20 dB)
       inBuf[0] = dbToGain(-20.0);
-      hardComp.process(context, [inBuf], [outBuf]);
+      hardComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final hardReductionB = hardComp.gainReductionDb;
 
-      softComp.process(context, [inBuf], [outBuf]);
+      softComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final softReductionB = softComp.gainReductionDb;
 
       expect(hardReductionB, equals(0.0));
@@ -269,10 +281,10 @@ void main() {
 
       // Case C: At -17 dB (top of knee, +3 dB above threshold)
       inBuf[0] = dbToGain(-17.0);
-      hardComp.process(context, [inBuf], [outBuf]);
+      hardComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final hardReductionC = hardComp.gainReductionDb;
 
-      softComp.process(context, [inBuf], [outBuf]);
+      softComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final softReductionC = softComp.gainReductionDb;
 
       // At top of knee, soft knee curve precisely meets hard knee linear reduction
@@ -299,7 +311,7 @@ void main() {
       final inBuffer = Float32List(vectorSize)..fillRange(0, vectorSize, inAmp);
       final outBuffer = Float32List(vectorSize);
 
-      processor.process(context, [inBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(inBuffer), [outBuffer]);
 
       for (int i = 0; i < vectorSize; i++) {
         expect(outBuffer[i], closeTo(inAmp * 2.0, 1e-4));
@@ -330,7 +342,7 @@ void main() {
       final outBuffer = Float32List(vectorSize);
 
       // Target reduction is 15 dB
-      processor.process(context, [inBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(inBuffer), [outBuffer]);
 
       // At sample 0, gain reduction just started (low reduction)
       expect(outBuffer[0], closeTo(1.0, 0.05));
@@ -364,11 +376,11 @@ void main() {
       final outBuffer = Float32List(vectorSize);
 
       // Block 1: Attack and settle at full 15 dB reduction
-      processor.process(context, [loudBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(loudBuffer), [outBuffer]);
       expect(processor.gainReductionDb, closeTo(15.0, 1e-2));
 
       // Block 2: Silence arrives, release phase begins
-      processor.process(context, [silentBuffer], [outBuffer]);
+      processor.process(context, _compressorInputs(silentBuffer), [outBuffer]);
 
       // Gain reduction should decay towards 0 dB
       expect(processor.gainReductionDb, lessThan(15.0));
@@ -395,7 +407,11 @@ void main() {
       final leftOut = Float32List(vectorSize);
       final rightOut = Float32List(vectorSize);
 
-      processor.process(context, [leftIn, rightIn], [leftOut, rightOut]);
+      processor.process(
+        context,
+        _compressorInputs(leftIn, rightIn),
+        [leftOut, rightOut],
+      );
 
       // Both channels should be scaled by the exact same gain factor corresponding to 0 dB peak (-15 dB reduction)
       final expectedGain = dbToGain(-15.0);
