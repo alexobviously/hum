@@ -120,6 +120,48 @@ void deinterleaveFloats(
   }
 }
 
+/// De-interleaves 16-bit integer PCM from [interleaved] into float audio in [targetChannels].
+///
+/// Input integer PCM values in `[-32768, 32767]` are converted to float in `[-1.0, 1.0]`.
+/// Fast paths are provided for mono and stereo channels.
+@pragma('vm:prefer-inline')
+void deinterleavePcm16(
+  Int16List interleaved,
+  List<Float32List> targetChannels, {
+  int? vectorSize,
+}) {
+  if (targetChannels.isEmpty) return;
+  final numChannels = targetChannels.length;
+  final size = vectorSize ?? targetChannels[0].length;
+  const double invScale = 1.0 / 32768.0;
+
+  if (numChannels == 1) {
+    final target = targetChannels[0];
+    for (int s = 0; s < size; s++) {
+      target[s] = interleaved[s] * invScale;
+    }
+    return;
+  }
+
+  if (numChannels == 2) {
+    final left = targetChannels[0];
+    final right = targetChannels[1];
+    int readIdx = 0;
+    for (int s = 0; s < size; s++) {
+      left[s] = interleaved[readIdx++] * invScale;
+      right[s] = interleaved[readIdx++] * invScale;
+    }
+    return;
+  }
+
+  int readIdx = 0;
+  for (int s = 0; s < size; s++) {
+    for (int c = 0; c < numChannels; c++) {
+      targetChannels[c][s] = interleaved[readIdx++] * invScale;
+    }
+  }
+}
+
 /// A reusable, zero-allocation container that manages pre-allocated buffers and byte
 /// views for interleaving multi-channel audio blocks.
 class BufferInterleaver({

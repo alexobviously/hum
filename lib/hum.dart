@@ -34,6 +34,7 @@ export 'src/nodes/filters/resonator_bank.dart';
 export 'src/nodes/filters/svf.dart';
 export 'src/nodes/io/out.dart';
 export 'src/nodes/io/subprocess_sink.dart';
+export 'src/nodes/io/subprocess_source.dart';
 export 'src/nodes/io/wav_sink.dart';
 export 'src/nodes/modulation/adsr.dart';
 export 'src/nodes/modulation/chance.dart';

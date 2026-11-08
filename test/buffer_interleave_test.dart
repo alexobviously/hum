@@ -76,6 +76,28 @@ void main() {
       expect(recoveredRight, equals(originalRight));
     });
 
+    test('deinterleavePcm16 mono and stereo converts to normalized floats', () {
+      final pcmMono = Int16List.fromList([0, 16384, -16384, 32767, -32768]);
+      final outMono = Float32List(5);
+      deinterleavePcm16(pcmMono, [outMono]);
+
+      expect(outMono[0], closeTo(0.0, 1e-4));
+      expect(outMono[1], closeTo(0.5, 1e-4));
+      expect(outMono[2], closeTo(-0.5, 1e-4));
+      expect(outMono[3], closeTo(0.999969, 1e-4));
+      expect(outMono[4], closeTo(-1.0, 1e-4));
+
+      final pcmStereo = Int16List.fromList([0, 16384, -16384, 32767]);
+      final outLeft = Float32List(2);
+      final outRight = Float32List(2);
+      deinterleavePcm16(pcmStereo, [outLeft, outRight]);
+
+      expect(outLeft[0], closeTo(0.0, 1e-4));
+      expect(outRight[0], closeTo(0.5, 1e-4));
+      expect(outLeft[1], closeTo(-0.5, 1e-4));
+      expect(outRight[1], closeTo(0.999969, 1e-4));
+    });
+
     test(
       'BufferInterleaver lazily allocates and produces correct byte views',
       () {
