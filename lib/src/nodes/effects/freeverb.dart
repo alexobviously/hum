@@ -8,6 +8,7 @@ typedef FreeverbParams = ({
   double? damp,
   double? width,
   double? mix,
+  double interpTime,
 });
 
 /// Jezar's classic Freeverb algorithmic stereo reverberator.
@@ -25,6 +26,7 @@ class Freeverb({
   final ControlParam<double> damp = const .value(0.5),
   final ControlParam<double> width = const .value(1.0),
   final ControlParam<double> mix = const .value(0.3),
+  final double interpTime = 0.03,
 }) extends AudioNode<FreeverbProcessor> {
   this
     : assert(
@@ -39,12 +41,14 @@ class Freeverb({
     ControlParam<double> damp = const .value(0.5),
     ControlParam<double> width = const .value(1.0),
     ControlParam<double> mix = const .value(0.3),
+    double interpTime = 0.03,
   }) => Freeverb(
     inputs: [input],
     roomSize: roomSize,
     damp: damp,
     width: width,
     mix: mix,
+    interpTime: interpTime,
   );
 
   factory stereo({
@@ -54,12 +58,14 @@ class Freeverb({
     ControlParam<double> damp = const .value(0.5),
     ControlParam<double> width = const .value(1.0),
     ControlParam<double> mix = const .value(0.3),
+    double interpTime = 0.03,
   }) => Freeverb(
     inputs: [left, right],
     roomSize: roomSize,
     damp: damp,
     width: width,
     mix: mix,
+    interpTime: interpTime,
   );
 
   static const roomSizeInlet = 0;
@@ -96,6 +102,7 @@ class Freeverb({
     damp: damp.valueOrNull,
     width: width.valueOrNull,
     mix: mix.valueOrNull,
+    interpTime: interpTime,
   );
 
   @override
@@ -104,6 +111,7 @@ class Freeverb({
     damp: damp.valueOrNull,
     width: width.valueOrNull,
     mix: mix.valueOrNull,
+    interpTime: interpTime,
   );
 
   @override
@@ -112,6 +120,11 @@ class Freeverb({
       const AudioNodeParamError(
         param: 'inputs',
         error: 'must have 1 (mono) or 2 (stereo) audio inputs',
+      ),
+    if (interpTime < 0)
+      const AudioNodeParamError(
+        param: 'interpTime',
+        error: 'must be non-negative',
       ),
   ];
 
@@ -179,6 +192,7 @@ class FreeverbProcessor implements AudioProcessor {
     this.damp = 0.5,
     this.width = 1.0,
     this.mix = 0.0,
+    this.interpTime = 0.03,
   });
 
   final bool isStereoInput;
@@ -194,6 +208,12 @@ class FreeverbProcessor implements AudioProcessor {
 
   /// Dry/Wet mix in [0.0, 1.0] (0.0 = 100% dry, 0.5 = 50/50, 1.0 = 100% wet).
   double? mix;
+
+  double interpTime;
+
+  // Prevent pops on steep changes
+  late final SmoothedValue _roomSmoother = SmoothedValue(roomSize ?? 0.5);
+  late final SmoothedValue _mixSmoother = SmoothedValue(mix ?? 0.0);
 
   int _sampleRate = 0;
 
@@ -252,10 +272,29 @@ class FreeverbProcessor implements AudioProcessor {
   @override
   void update(Object params) {
     final p = params as FreeverbParams;
+    final oldRoom = roomSize;
+    final oldMix = mix;
     roomSize = p.roomSize;
     damp = p.damp;
     width = p.width;
     mix = p.mix;
+    interpTime = p.interpTime;
+
+    if (p.roomSize != null) {
+      if (oldRoom == null || interpTime <= 0.0) {
+        _roomSmoother.snapTo(p.roomSize!);
+      } else {
+        _roomSmoother.setTarget(p.roomSize!);
+      }
+    }
+
+    if (p.mix != null) {
+      if (oldMix == null || interpTime <= 0.0) {
+        _mixSmoother.snapTo(p.mix!);
+      } else {
+        _mixSmoother.setTarget(p.mix!);
+      }
+    }
   }
 
   @override
@@ -270,6 +309,15 @@ class FreeverbProcessor implements AudioProcessor {
     final int audioOffset = inputs.length > Freeverb.audioInletOffset
         ? Freeverb.audioInletOffset
         : 0;
+
+    _roomSmoother.configure(
+      sampleRate: context.sampleRate.toDouble(),
+      rampTime: interpTime,
+    );
+    _mixSmoother.configure(
+      sampleRate: context.sampleRate.toDouble(),
+      rampTime: interpTime,
+    );
 
     final staticRoom = roomSize;
     final staticDamp = damp;
@@ -302,16 +350,27 @@ class FreeverbProcessor implements AudioProcessor {
     final allpassesL = _allpassesL!;
     final allpassesR = _allpassesR!;
 
-    final double constRoom = staticRoom ?? 0.5;
+    final bool isStaticRoom = roomBuf == null && staticRoom != null;
+    final bool isStaticMix = mixBuf == null && staticMix != null;
+    final bool isRoomSettled = _roomSmoother.isSettled;
+    final bool isMixSettled = _mixSmoother.isSettled;
+
+    final double constRoom = (isStaticRoom && isRoomSettled)
+        ? _roomSmoother.current
+        : (staticRoom ?? 0.5);
     final double constDamp = staticDamp ?? 0.5;
     final double constWidth = staticWidth ?? 1.0;
-    final double constMix = staticMix ?? 0.0;
+    final double constMix = (isStaticMix && isMixSettled)
+        ? _mixSmoother.current
+        : (staticMix ?? 0.0);
+    final (double constDry, double constWet) = equalPowerMix(constMix);
 
     for (int i = 0; i < vectorSize; i++) {
-      final double rSize = (roomBuf == null ? constRoom : roomBuf[i]).clamp(
-        0.0,
-        1.0,
-      );
+      final double rSize = roomBuf != null
+          ? roomBuf[i].clamp(0.0, 1.0)
+          : (isStaticRoom && !isRoomSettled
+                ? _roomSmoother.next().clamp(0.0, 1.0)
+                : constRoom.clamp(0.0, 1.0));
       final double dVal = (dampBuf == null ? constDamp : dampBuf[i]).clamp(
         0.0,
         1.0,
@@ -320,13 +379,14 @@ class FreeverbProcessor implements AudioProcessor {
         0.0,
         1.0,
       );
-      final double mVal = (mixBuf == null ? constMix : mixBuf[i]);
-
+      final (double gainDry, double gainWet) = mixBuf != null
+          ? equalPowerMix(mixBuf[i])
+          : (isStaticMix && !isMixSettled
+                ? equalPowerMix(_mixSmoother.next())
+                : (constDry, constWet));
       final double feedback = rSize * _scaleRoom + _offsetRoom;
       final double dampCoeff = dVal * _scaleDamp;
       final double invDampCoeff = 1.0 - dampCoeff;
-
-      final (double gainDry, double gainWet) = equalPowerMix(mVal);
       final double wet1 = gainWet * (wVal * 0.5 + 0.5);
       final double wet2 = gainWet * ((1.0 - wVal) * 0.5);
 

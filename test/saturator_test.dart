@@ -300,5 +300,47 @@ void main() {
         expect(out.every((s) => s.isFinite), isTrue);
       },
     );
+
+    test('interpolates drive smoothly across parameter updates', () {
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      final processor = SaturatorProcessor(
+        numChannels: 1,
+        mode: SaturationMode.tanh,
+        drive: 1.0,
+        mix: 1.0,
+        interpTime: 0.02,
+      );
+
+      final inBuf = Float32List(64);
+      for (int i = 0; i < 64; i++) {
+        inBuf[i] = 0.1;
+      }
+      final outBuf = Float32List(64);
+
+      // Block 0: static drive = 1.0
+      processor.process(context, _inlets(inBuf), [outBuf]);
+      // tanh(0.1 * 1.0) = tanh(0.1) ≈ 0.09966799
+      expect(outBuf[0], closeTo(0.099668, 1e-4));
+      expect(outBuf[63], closeTo(0.099668, 1e-4));
+
+      // Jump drive to 10.0
+      processor.update((
+        drive: 10.0,
+        bias: 0.0,
+        mix: 1.0,
+        mode: SaturationMode.tanh,
+        dcBlock: false,
+        interpTime: 0.02,
+      ));
+
+      // Block 1: slewing towards 10.0
+      processor.process(context, _inlets(inBuf), [outBuf]);
+      // Sample 0 starts near drive 1.0, far below full tanh(1.0) ≈ 0.76159
+      expect(outBuf[0], closeTo(0.099668, 0.05));
+      // By sample 63, output has smoothly grown
+      expect(outBuf[63], greaterThan(outBuf[0]));
+      // But hasn't reached full saturation yet (since 20ms = ~882 samples)
+      expect(outBuf[63], lessThan(0.76159));
+    });
   });
 }

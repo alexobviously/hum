@@ -330,5 +330,47 @@ void main() {
       // With zero slew, impulse delayed by exactly 20 samples immediately
       expect(outBuf[20], closeTo(1.0, 1e-4));
     });
+
+    test('interpolates feedback smoothly across parameter updates', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final proc = DelayProcessor(
+        numChannels: 1,
+        time: 0.005, // 5 samples
+        feedback: 0.0,
+        mix: 1.0,
+        interpTime: 0.05,
+      );
+
+      final inBuf = Float32List(vectorSize);
+      final outBuf = Float32List(vectorSize);
+      proc.process(context, [inBuf], [outBuf]);
+
+      // Jump feedback to 0.8
+      proc.update((
+        time: 0.005,
+        feedback: 0.8,
+        mix: 1.0,
+        damp: 0.0,
+        maxDelay: 10.0,
+        interpTime: 0.05,
+      ));
+
+      // Put an impulse at sample 0
+      inBuf[0] = 1.0;
+      proc.process(context, [inBuf], [outBuf]);
+
+      // Feedback should recirculate, but in this first block after the jump,
+      // the recirculated echo gain should ramp up smoothly rather than jumping instantly.
+      expect(outBuf[5], closeTo(1.0, 1e-4)); // direct delayed impulse
+      // Echo 1 at sample 10 should have feedback < 0.8 because fb is still slewing
+      expect(outBuf[10], greaterThan(0.0));
+      expect(outBuf[10], lessThan(0.8));
+    });
   });
 }

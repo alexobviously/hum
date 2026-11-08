@@ -221,5 +221,50 @@ void main() {
       expect(bytes, isNotNull);
       expect(bytes!.length, greaterThan(44));
     });
+
+    test('interpolates mix and roomSize smoothly across parameter updates', () {
+      const sampleRate = 44100;
+      const vectorSize = 64;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final proc = FreeverbProcessor(
+        isStereoInput: false,
+        roomSize: 0.5,
+        damp: 0.5,
+        width: 1.0,
+        mix: 0.0,
+        interpTime: 0.02,
+      );
+
+      final inBuf = Float32List(vectorSize);
+      for (int i = 0; i < vectorSize; i++) {
+        inBuf[i] = 1.0;
+      }
+      final outL = Float32List(vectorSize);
+      final outR = Float32List(vectorSize);
+
+      // Initial block: mix is 0.0, output should be dry (1.0)
+      proc.process(context, [inBuf], [outL, outR]);
+      expect(outL[0], closeTo(1.0, 1e-4));
+
+      // Jump mix to 1.0
+      proc.update((
+        roomSize: 0.5,
+        damp: 0.5,
+        width: 1.0,
+        mix: 1.0,
+        interpTime: 0.02,
+      ));
+
+      // In the very first block after jump, mix slews from 0.0 upward
+      // First sample should still be very close to dry (not 0.0 instantly)
+      proc.process(context, [inBuf], [outL, outR]);
+      expect(outL[0], greaterThan(0.95));
+      // By the end of this block, dry gain has begun decreasing smoothly
+      expect(outL[vectorSize - 1], lessThan(outL[0]));
+    });
   });
 }

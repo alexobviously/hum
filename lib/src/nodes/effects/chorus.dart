@@ -26,7 +26,7 @@ typedef ChorusParams = ({
 /// - **`depth`**: Modulation excursion in seconds (typically 0.001 to 0.005 s / 1 to 5 ms).
 /// - **`baseDelay`**: Center delay in seconds (typically 0.010 to 0.025 s / 10 to 25 ms).
 /// - **`feedback`**: Amount of delayed signal fed back into the delay line.
-///   `0.0` produces clean chorus; higher values create flanging and resonant color.
+///   `0.0` produces clean chorus; higher values create flanging and resonant colour.
 /// - **`mix`**: Equal-power dry/wet balance. `0.5` provides classic chorus beating;
 ///   `1.0` produces pure vibrato / pitch modulation.
 /// - **`stereoPhase`**: Phase offset between channels in radians. Defaults to

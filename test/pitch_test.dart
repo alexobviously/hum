@@ -62,6 +62,7 @@ void main() {
       final root = Note.parse('C4');
       expect(root.midi, equals(60));
       expect(root.hz, closeTo(261.63, 0.01));
+      expect(root.octave, equals(4));
 
       // Transposition
       final d4 = root.transpose(2);

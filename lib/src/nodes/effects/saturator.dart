@@ -40,6 +40,7 @@ typedef SaturatorParams = ({
   double? mix,
   SaturationMode mode,
   bool dcBlock,
+  double interpTime,
 });
 
 /// An [AudioNode] that provides non-linear saturation, waveshaping, and asymmetric
@@ -61,6 +62,7 @@ class const Saturator({
   final ControlParam<double> mix = const .value(1.0),
   final SaturationMode mode = .tanh,
   final bool dcBlock = false,
+  final double interpTime = 0.02,
 }) extends AudioNode<SaturatorProcessor> {
   factory mono(
     Outlet input, {
@@ -69,6 +71,7 @@ class const Saturator({
     ControlParam<double> mix = const .value(1.0),
     SaturationMode mode = .tanh,
     bool dcBlock = false,
+    double interpTime = 0.02,
   }) => Saturator(
     channels: [input],
     drive: drive,
@@ -76,6 +79,7 @@ class const Saturator({
     mix: mix,
     mode: mode,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
 
   factory stereo(
@@ -86,6 +90,7 @@ class const Saturator({
     ControlParam<double> mix = const .value(1.0),
     SaturationMode mode = .tanh,
     bool dcBlock = false,
+    double interpTime = 0.02,
   }) => Saturator(
     channels: [leftInput, rightInput],
     drive: drive,
@@ -93,6 +98,7 @@ class const Saturator({
     mix: mix,
     mode: mode,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
 
   /// Something like warm tube triode saturation with asymmetric bias.
@@ -102,6 +108,7 @@ class const Saturator({
     ControlParam<double> bias = const .value(0.3),
     ControlParam<double> mix = const .value(1.0),
     bool dcBlock = true,
+    double interpTime = 0.02,
   }) => .mono(
     input,
     drive: drive,
@@ -109,6 +116,7 @@ class const Saturator({
     mix: mix,
     mode: .cubic,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
 
   /// Something like analog tape saturation using hyperbolic tangent.
@@ -117,6 +125,7 @@ class const Saturator({
     ControlParam<double> drive = const .value(1.5),
     ControlParam<double> mix = const .value(1.0),
     bool dcBlock = true,
+    double interpTime = 0.02,
   }) => .mono(
     input,
     drive: drive,
@@ -124,6 +133,7 @@ class const Saturator({
     mix: mix,
     mode: .tanh,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
 
   static const driveInlet = 0;
@@ -158,6 +168,7 @@ class const Saturator({
     mix: mix.valueOrNull,
     mode: mode,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
 
   @override
@@ -167,7 +178,22 @@ class const Saturator({
     mix: mix.valueOrNull,
     mode: mode,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (channels.isEmpty)
+      const AudioNodeParamError(
+        param: 'channels',
+        error: 'must have at least 1 channel',
+      ),
+    if (interpTime < 0)
+      const AudioNodeParamError(
+        param: 'interpTime',
+        error: 'must be non-negative',
+      ),
+  ];
 }
 
 /// Processor implementing non-linear transfer curves, asymmetric bias, and dry/wet blending.
@@ -178,18 +204,41 @@ class SaturatorProcessor({
   var double? mix = 1.0,
   var SaturationMode mode = .tanh,
   var bool dcBlock = false,
+  var double interpTime = 0.02,
 }) with DcBlockMixin implements AudioProcessor {
   static const double _twoOverPi = 0.6366197723675814;
   static const double _halfPi = 1.5707963267948966;
 
+  late final SmoothedValue _driveSmoother = SmoothedValue(drive ?? 1.0);
+  late final SmoothedValue _mixSmoother = SmoothedValue(mix ?? 1.0);
+
   @override
   void update(Object params) {
     final p = params as SaturatorParams;
+    final oldDrive = drive;
+    final oldMix = mix;
     drive = p.drive;
     bias = p.bias;
     mix = p.mix;
     mode = p.mode;
     dcBlock = p.dcBlock;
+    interpTime = p.interpTime;
+
+    if (p.drive != null) {
+      if (oldDrive == null || interpTime <= 0.0) {
+        _driveSmoother.snapTo(p.drive!);
+      } else {
+        _driveSmoother.setTarget(p.drive!);
+      }
+    }
+
+    if (p.mix != null) {
+      if (oldMix == null || interpTime <= 0.0) {
+        _mixSmoother.snapTo(p.mix!);
+      } else {
+        _mixSmoother.setTarget(p.mix!);
+      }
+    }
   }
 
   @pragma('vm:prefer-inline')
@@ -221,6 +270,15 @@ class SaturatorProcessor({
   ) {
     final length = context.vectorSize;
 
+    _driveSmoother.configure(
+      sampleRate: context.sampleRate.toDouble(),
+      rampTime: interpTime,
+    );
+    _mixSmoother.configure(
+      sampleRate: context.sampleRate.toDouble(),
+      rampTime: interpTime,
+    );
+
     final staticDrive = drive;
     final staticBias = bias;
     final staticMix = mix;
@@ -229,17 +287,23 @@ class SaturatorProcessor({
     final biasBuf = staticBias == null ? inputs[Saturator.biasInlet] : null;
     final mixBuf = staticMix == null ? inputs[Saturator.mixInlet] : null;
 
-    final defaultDrive = staticDrive ?? 1.0;
-    final defaultBias = staticBias ?? 0.0;
-    final defaultMix = staticMix ?? 1.0;
+    final isStaticDrive = driveBuf == null && staticDrive != null;
+    final isStaticMix = mixBuf == null && staticMix != null;
+    final isDriveSettled = _driveSmoother.isSettled;
+    final isMixSettled = _mixSmoother.isSettled;
 
-    // Fast path: static scalar parameters
-    if (driveBuf == null && biasBuf == null && mixBuf == null) {
-      final d = defaultDrive;
-      final b = defaultBias;
+    // Fast path: static scalar parameters AND smoothers are settled
+    if (isStaticDrive &&
+        isDriveSettled &&
+        biasBuf == null &&
+        isStaticMix &&
+        isMixSettled) {
+      final d = _driveSmoother.current;
+      final b = staticBias ?? 0.0;
+      final m = _mixSmoother.current;
       final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
-      final (dryGain, wetGain) = linearMix(defaultMix);
-      final isFullWet = defaultMix >= 1.0;
+      final (dryGain, wetGain) = linearMix(m);
+      final isFullWet = m >= 1.0;
 
       for (int c = 0; c < numChannels; c++) {
         final inBuf = inputs[Saturator.audioInletOffset + c];
@@ -269,26 +333,35 @@ class SaturatorProcessor({
         }
       }
     } else {
-      // Audio-rate modulated path
-      for (int c = 0; c < numChannels; c++) {
-        final inBuf = inputs[Saturator.audioInletOffset + c];
-        final outBuf = outputs[c];
+      // Actively ramping or audio-rate modulated path
+      final defaultDrive = (isStaticDrive && isDriveSettled)
+          ? _driveSmoother.current
+          : (staticDrive ?? 1.0);
+      final defaultBias = staticBias ?? 0.0;
+      final defaultMix = (isStaticMix && isMixSettled)
+          ? _mixSmoother.current
+          : (staticMix ?? 1.0);
 
-        for (int i = 0; i < length; i++) {
-          final d = driveBuf != null ? driveBuf[i] : defaultDrive;
-          final b = biasBuf != null ? biasBuf[i] : defaultBias;
-          final m = mixBuf != null ? mixBuf[i] : defaultMix;
+      for (int i = 0; i < length; i++) {
+        final d = driveBuf != null
+            ? driveBuf[i]
+            : (isStaticDrive && !isDriveSettled
+                  ? _driveSmoother.next()
+                  : defaultDrive);
+        final b = biasBuf != null ? biasBuf[i] : defaultBias;
+        final m = mixBuf != null
+            ? mixBuf[i]
+            : (isStaticMix && !isMixSettled ? _mixSmoother.next() : defaultMix);
 
-          final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
+        final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
+        final (dryGain, wetGain) = m >= 1.0 ? (0.0, 1.0) : linearMix(m);
+
+        for (int c = 0; c < numChannels; c++) {
+          final inBuf = inputs[Saturator.audioInletOffset + c];
+          final outBuf = outputs[c];
           final x = inBuf[i];
           final wet = _shapeSample(x * d + b, mode) - dcOffset;
-
-          if (m >= 1.0) {
-            outBuf[i] = wet;
-          } else {
-            final (dryGain, wetGain) = linearMix(m);
-            outBuf[i] = x * dryGain + wet * wetGain;
-          }
+          outBuf[i] = m >= 1.0 ? wet : x * dryGain + wet * wetGain;
         }
       }
     }
@@ -310,6 +383,7 @@ extension OutletSaturatorExtension on Outlet {
     ControlParam<double> mix = const .value(1.0),
     SaturationMode mode = .tanh,
     bool dcBlock = false,
+    double interpTime = 0.02,
   }) => Saturator.mono(
     this,
     drive: drive,
@@ -317,5 +391,6 @@ extension OutletSaturatorExtension on Outlet {
     mix: mix,
     mode: mode,
     dcBlock: dcBlock,
+    interpTime: interpTime,
   );
 }

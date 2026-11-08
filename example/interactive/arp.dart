@@ -160,6 +160,7 @@ void main(List<String> args) async {
         currentScaleIndex = (currentScaleIndex + 1) % availableScales.length;
         synth.scale = availableScales[currentScaleIndex].take(10);
     }
+
     render();
     updateGraph();
   }

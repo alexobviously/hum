@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
@@ -144,10 +145,14 @@ class DelayProcessor({
   int _writeIndex = 0;
   List<Float32List>? _buffers;
   late final Float32List _dampStates = Float32List(numChannels);
-  // This is to prevent artefacts when the time param changes.
-  // That can happen because it makes the read head jump too far in the ring
-  // buffer, and we fix it by interpolating.
-  late final SmoothedValue _timeSmoother = SmoothedValue(time ?? 0.0);
+
+  // This is to prevent artefacts when parameters change.
+  late final SmoothedValue _fbSmoother = SmoothedValue(feedback ?? 0.0);
+  late final SmoothedValue _mixSmoother = SmoothedValue(mix ?? 0.5);
+  late final SmoothedValue _dampSmoother = SmoothedValue(damp ?? 0.0);
+
+  double _currentDelaySamples = 1.0;
+  double _targetDelaySamples = 1.0;
 
   // TODO: consider crossfade mode (alternative to smoothing)
 
@@ -164,12 +169,20 @@ class DelayProcessor({
     _bufferMask = size - 1;
     _writeIndex = 0;
     _buffers = List.generate(numChannels, (_) => Float32List(size));
+    _currentDelaySamples = ((time ?? 0.0) * sampleRate).clamp(
+      1.0,
+      maxDelay * sampleRate,
+    );
+    _targetDelaySamples = _currentDelaySamples;
   }
 
   @override
   void update(Object params) {
     final p = params as DelayParams;
     final oldTime = time;
+    final oldFb = feedback;
+    final oldMix = mix;
+    final oldDamp = damp;
     time = p.time;
     feedback = p.feedback;
     mix = p.mix;
@@ -177,10 +190,38 @@ class DelayProcessor({
     interpTime = p.interpTime;
 
     if (p.time != null) {
+      if (_sampleRate > 0) {
+        _targetDelaySamples = (p.time! * _sampleRate).clamp(
+          1.0,
+          maxDelay * _sampleRate,
+        );
+      }
       if (oldTime == null || interpTime <= 0.0) {
-        _timeSmoother.snapTo(p.time!);
+        _currentDelaySamples = _targetDelaySamples;
+      }
+    }
+
+    if (p.feedback != null) {
+      if (oldFb == null || interpTime <= 0.0) {
+        _fbSmoother.snapTo(p.feedback!);
       } else {
-        _timeSmoother.setTarget(p.time!);
+        _fbSmoother.setTarget(p.feedback!);
+      }
+    }
+
+    if (p.mix != null) {
+      if (oldMix == null || interpTime <= 0.0) {
+        _mixSmoother.snapTo(p.mix!);
+      } else {
+        _mixSmoother.setTarget(p.mix!);
+      }
+    }
+
+    if (p.damp != null) {
+      if (oldDamp == null || interpTime <= 0.0) {
+        _dampSmoother.snapTo(p.damp!);
+      } else {
+        _dampSmoother.setTarget(p.damp!);
       }
     }
   }
@@ -199,7 +240,9 @@ class DelayProcessor({
     final sampleRate = context.sampleRate.toDouble();
     final maxDelaySamples = maxDelay * sampleRate;
 
-    _timeSmoother.configure(sampleRate: sampleRate, rampTime: interpTime);
+    _fbSmoother.configure(sampleRate: sampleRate, rampTime: interpTime);
+    _mixSmoother.configure(sampleRate: sampleRate, rampTime: interpTime);
+    _dampSmoother.configure(sampleRate: sampleRate, rampTime: interpTime);
 
     final time = this.time;
     final feedback = this.feedback;
@@ -223,16 +266,28 @@ class DelayProcessor({
         ? inputs[Delay.dampInlet]
         : null;
 
-    final double constFb = (feedback ?? 0.0).clamp(-0.999, 0.999);
-    final double constDamp = (damp ?? 0.0).clamp(0.0, 1.0);
-    final (double constDry, double constWet) = mix != null
-        ? equalPowerMix(mix)
+    final bool isTimeSettled = _currentDelaySamples == _targetDelaySamples;
+    final bool isFbSettled = _fbSmoother.isSettled;
+    final bool isMixSettled = _mixSmoother.isSettled;
+    final bool isDampSettled = _dampSmoother.isSettled;
+
+    final double constDelaySamples = _targetDelaySamples;
+    final double constFb = (feedback != null && isFbSettled)
+        ? _fbSmoother.current.clamp(-0.999, 0.999)
+        : (feedback ?? 0.0).clamp(-0.999, 0.999);
+    final double constDamp = (damp != null && isDampSettled)
+        ? _dampSmoother.current.clamp(0.0, 1.0)
+        : (damp ?? 0.0).clamp(0.0, 1.0);
+    final (double constDry, double constWet) = (mix != null && isMixSettled)
+        ? equalPowerMix(_mixSmoother.current)
         : (0.0, 0.0);
 
-    final bool isTimeSettled = _timeSmoother.isSettled;
-    final double constDelaySamples = (time != null && isTimeSettled)
-        ? (_timeSmoother.current * sampleRate).clamp(1.0, maxDelaySamples)
-        : 1.0;
+    final double timeCoeff = (interpTime <= 0.0 || sampleRate <= 0.0)
+        ? 1.0
+        : (1.0 - math.exp(-6.907755278982137 / (sampleRate * interpTime)));
+    // Max tape slew rate: 0.75 samples/frame bounds read speed between 0.25x and 1.75x,
+    // guaranteeing no buffer skips or direction reversals (eliminating zipper noise).
+    final double maxTapeSlew = interpTime <= 0.0 ? double.infinity : 0.75;
 
     int writeIndex = _writeIndex;
 
@@ -242,9 +297,18 @@ class DelayProcessor({
       if (timeBuf != null) {
         delaySamples = (timeBuf[i] * sampleRate).clamp(1.0, maxDelaySamples);
       } else if (time != null) {
-        delaySamples = !isTimeSettled
-            ? (_timeSmoother.next() * sampleRate).clamp(1.0, maxDelaySamples)
-            : constDelaySamples;
+        if (!isTimeSettled) {
+          final diff = _targetDelaySamples - _currentDelaySamples;
+          if (diff.abs() < 1e-4) {
+            _currentDelaySamples = _targetDelaySamples;
+          } else {
+            final step = (diff * timeCoeff).clamp(-maxTapeSlew, maxTapeSlew);
+            _currentDelaySamples += step;
+          }
+          delaySamples = _currentDelaySamples;
+        } else {
+          delaySamples = constDelaySamples;
+        }
       } else {
         delaySamples = 1.0;
       }
@@ -258,13 +322,27 @@ class DelayProcessor({
       final int read1 = (read0 - 1) & mask;
 
       // Resolve feedback, damping, and dry/wet gains
-      final double fb = fbBuf != null ? fbBuf[i].clamp(-0.999, 0.999) : constFb;
+      final double fb = fbBuf != null
+          ? fbBuf[i].clamp(-0.999, 0.999)
+          : (feedback != null
+                ? (!isFbSettled
+                      ? _fbSmoother.next().clamp(-0.999, 0.999)
+                      : constFb)
+                : constFb);
       final double dampCoef = dampBuf != null
           ? dampBuf[i].clamp(0.0, 1.0)
-          : constDamp;
+          : (damp != null
+                ? (!isDampSettled
+                      ? _dampSmoother.next().clamp(0.0, 1.0)
+                      : constDamp)
+                : constDamp);
       final (double gainDry, double gainWet) = mixBuf != null
           ? equalPowerMix(mixBuf[i])
-          : (constDry, constWet);
+          : (mix != null
+                ? (!isMixSettled
+                      ? equalPowerMix(_mixSmoother.next())
+                      : (constDry, constWet))
+                : (0.0, 0.0));
 
       for (int c = 0; c < numChannels; c++) {
         final buf = buffers[c];

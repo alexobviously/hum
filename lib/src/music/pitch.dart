@@ -99,6 +99,10 @@ class const Note(
   /// Standard note name string (e.g. 'C4', 'A4').
   String get name => midiToNote(midi);
 
+  /// The octave number of this note according to scientific pitch notation
+  /// (e.g. C4 -> 4, A4 -> 4, D3 -> 3, C-1 -> -1).
+  int get octave => (midi ~/ 12) - 1;
+
   /// Transposes this note by a number of [semitones].
   Note transpose(int semitones) => Note(midi + semitones, a4);
 
