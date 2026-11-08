@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
-typedef MultParams = ({double? value});
+typedef MultParams = ({double? value, double interpTime});
 
 /// An [AudioNode] that multiplies incoming audio [channels] by a [value].
 ///
@@ -12,17 +12,24 @@ typedef MultParams = ({double? value});
 class const Mult({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
+  final double interpTime = 0.02,
 }) extends AudioNode<MultProcessor> {
   factory mono({
     required ControlParam<double> value,
     required Outlet input,
-  }) => Mult(value: value, channels: [input]);
+    double interpTime = 0.02,
+  }) => Mult(value: value, channels: [input], interpTime: interpTime);
 
   factory stereo({
     required ControlParam<double> value,
     required Outlet leftInput,
     required Outlet rightInput,
-  }) => Mult(value: value, channels: [leftInput, rightInput]);
+    double interpTime = 0.02,
+  }) => Mult(
+    value: value,
+    channels: [leftInput, rightInput],
+    interpTime: interpTime,
+  );
 
   static const valueInlet = 0;
 
@@ -45,22 +52,59 @@ class const Mult({
   MultProcessor createProcessor() => MultProcessor(
     value: value.valueOrNull,
     numChannels: channels.length,
+    interpTime: interpTime,
   );
 
   @override
-  MultParams get params => (value: value.valueOrNull);
+  MultParams get params => (
+    value: value.valueOrNull,
+    interpTime: interpTime,
+  );
+
+  @override
+  List<AudioNodeError> get errors => [
+    if (channels.isEmpty)
+      const AudioNodeParamError(param: 'channels', error: 'must not be empty'),
+    if (interpTime < 0)
+      const AudioNodeParamError(
+        param: 'interpTime',
+        error: 'must be non-negative',
+      ),
+  ];
+
+  @override
+  bool canUpdate(covariant Mult newNode) =>
+      super.canUpdate(newNode) && channels.length == newNode.channels.length;
 }
 
 class MultProcessor implements AudioProcessor {
   final int numChannels;
-  MultProcessor({required this.value, required this.numChannels});
-
   double? value;
+  double interpTime;
+
+  MultProcessor({
+    required this.value,
+    required this.numChannels,
+    this.interpTime = 0.02,
+  });
+
+  // To prevent 'zipper' noises when adjusting value sharply
+  late final SmoothedValue _smoother = SmoothedValue(value ?? 0.0);
 
   @override
   void update(Object params) {
-    params = params as MultParams;
-    value = params.value;
+    final p = params as MultParams;
+    final oldValue = value;
+    value = p.value;
+    interpTime = p.interpTime;
+
+    if (p.value != null) {
+      if (oldValue == null || interpTime <= 0.0) {
+        _smoother.snapTo(p.value!);
+      } else {
+        _smoother.setTarget(p.value!);
+      }
+    }
   }
 
   @override
@@ -72,12 +116,30 @@ class MultProcessor implements AudioProcessor {
     final value = this.value;
 
     if (value != null) {
-      for (int c = 0; c < numChannels; c++) {
-        final output = outputs[c];
-        final input = inputs[c + 1];
+      _smoother.configure(
+        sampleRate: context.sampleRate.toDouble(),
+        rampTime: interpTime,
+      );
 
-        for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = input[i] * value;
+      if (_smoother.isSettled) {
+        // Normal branch
+        final gain = _smoother.current;
+        for (int c = 0; c < numChannels; c++) {
+          final output = outputs[c];
+          final input = inputs[c + 1];
+
+          for (int i = 0; i < context.vectorSize; i++) {
+            output[i] = input[i] * gain;
+          }
+        }
+      } else {
+        // 'Currently interpolating' branch
+        final length = context.vectorSize;
+        for (int i = 0; i < length; i++) {
+          final gain = _smoother.next();
+          for (int c = 0; c < numChannels; c++) {
+            outputs[c][i] = inputs[c + 1][i] * gain;
+          }
         }
       }
     } else {
@@ -101,5 +163,6 @@ extension OutletMultExtension on Outlet {
       Mult.mono(input: this, value: .signal(other)).outlet;
 
   /// Multiplies a constant scalar [value] from this outlet.
-  Mult mult(double value) => Mult.mono(input: this, value: .value(value));
+  Mult mult(double value, {double interpTime = 0.02}) =>
+      Mult.mono(input: this, value: .value(value), interpTime: interpTime);
 }

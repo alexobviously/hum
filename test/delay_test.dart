@@ -243,5 +243,92 @@ void main() {
       expect(outUndamped[12], closeTo(0.64, 1e-4));
       expect(outDamped[12], lessThan(outUndamped[12]));
     });
+
+    test('slews delay time smoothly on update when interpTime > 0', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      // Start with delay time of 10 samples (0.01s), interpTime 0.05s (50 samples ramp)
+      final proc = DelayProcessor(
+        numChannels: 1,
+        time: 0.01,
+        feedback: 0.0,
+        mix: 1.0,
+        interpTime: 0.05,
+      );
+
+      // Warm up processor
+      final inBuf = Float32List(vectorSize);
+      final outBuf = Float32List(vectorSize);
+      proc.process(context, [inBuf], [outBuf]);
+
+      // Change delay time to 20 samples (0.02s)
+      proc.update((
+        time: 0.02,
+        feedback: 0.0,
+        mix: 1.0,
+        damp: 0.0,
+        maxDelay: 10.0,
+        interpTime: 0.05,
+      ));
+
+      // Put an impulse at sample 0 of the new block
+      inBuf[0] = 1.0;
+      proc.process(context, [inBuf], [outBuf]);
+
+      // If it jumped immediately to 20 samples, output at sample 10-15 would be zero.
+      // But because it slews gradually, the read head glides continuously across the buffer.
+      // Furthermore, after sufficient blocks, it settles at 20 samples.
+      inBuf.fillRange(0, vectorSize, 0.0);
+      for (int b = 0; b < 10; b++) {
+        proc.process(context, [inBuf], [outBuf]);
+      }
+
+      // Now settled at 0.02s (20 samples delay):
+      inBuf[0] = 1.0;
+      proc.process(context, [inBuf], [outBuf]);
+      expect(outBuf[20], closeTo(1.0, 1e-4));
+    });
+
+    test('snaps delay time immediately when interpTime is 0.0', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final proc = DelayProcessor(
+        numChannels: 1,
+        time: 0.01,
+        feedback: 0.0,
+        mix: 1.0,
+        interpTime: 0.0,
+      );
+
+      final inBuf = Float32List(vectorSize);
+      final outBuf = Float32List(vectorSize);
+      proc.process(context, [inBuf], [outBuf]);
+
+      // Snap immediately to 20 samples (0.02s)
+      proc.update((
+        time: 0.02,
+        feedback: 0.0,
+        mix: 1.0,
+        damp: 0.0,
+        maxDelay: 10.0,
+        interpTime: 0.0,
+      ));
+
+      inBuf[0] = 1.0;
+      proc.process(context, [inBuf], [outBuf]);
+
+      // With zero slew, impulse delayed by exactly 20 samples immediately
+      expect(outBuf[20], closeTo(1.0, 1e-4));
+    });
   });
 }

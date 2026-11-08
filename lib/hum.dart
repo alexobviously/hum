@@ -7,6 +7,7 @@ export 'src/core/audio_port.dart';
 export 'src/core/audio_processor.dart';
 export 'src/core/control_param.dart';
 export 'src/core/process_context.dart';
+export 'src/core/smoothed_value.dart';
 export 'src/core/terminal_node.dart';
 export 'src/engine/audio_engine.dart';
 export 'src/engine/audio_host.dart';

@@ -120,5 +120,74 @@ void main() {
       expect(out.length, equals(64));
       expect(out.every((s) => s >= -0.501 && s <= 0.501), isTrue);
     });
+
+    test('interpolates gain smoothly on update when interpTime > 0', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final proc = MultProcessor(
+        value: 0.0,
+        numChannels: 1,
+        interpTime: 0.05, // 50 samples ramp
+      );
+
+      final dummyInlet = Float32List(vectorSize);
+      final inBuf = Float32List(vectorSize);
+      inBuf.fillRange(0, vectorSize, 1.0); // Constant 1.0 DC
+      final outBuf = Float32List(vectorSize);
+
+      proc.process(context, [dummyInlet, inBuf], [outBuf]);
+      expect(outBuf[0], equals(0.0));
+
+      // Update target gain from 0.0 to 1.0
+      proc.update((value: 1.0, interpTime: 0.05));
+      proc.process(context, [dummyInlet, inBuf], [outBuf]);
+
+      // Instead of instantly jumping to 1.0, it ramps upwards
+      expect(outBuf[0], greaterThan(0.0));
+      expect(outBuf[0], lessThan(0.5));
+      expect(outBuf[vectorSize - 1], greaterThan(outBuf[0]));
+      expect(outBuf[vectorSize - 1], lessThan(1.0));
+
+      // After settling, output reaches exactly 1.0
+      for (int i = 0; i < 10; i++) {
+        proc.process(context, [dummyInlet, inBuf], [outBuf]);
+      }
+      expect(outBuf[0], closeTo(1.0, 1e-4));
+    });
+
+    test('snaps gain immediately when interpTime is 0.0', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final proc = MultProcessor(
+        value: 0.0,
+        numChannels: 1,
+        interpTime: 0.0,
+      );
+
+      final dummyInlet = Float32List(vectorSize);
+      final inBuf = Float32List(vectorSize);
+      inBuf.fillRange(0, vectorSize, 1.0);
+      final outBuf = Float32List(vectorSize);
+
+      proc.process(context, [dummyInlet, inBuf], [outBuf]);
+
+      proc.update((value: 1.0, interpTime: 0.0));
+      proc.process(context, [dummyInlet, inBuf], [outBuf]);
+
+      // All samples in block are immediately 1.0
+      for (int i = 0; i < vectorSize; i++) {
+        expect(outBuf[i], closeTo(1.0, 1e-5));
+      }
+    });
   });
 }

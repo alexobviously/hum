@@ -184,5 +184,85 @@ void main() {
       expect(bytes, isNotNull);
       expect(bytes!.length, greaterThan(44));
     });
+
+    test('interpolates position smoothly on update when interpTime > 0', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      // Start at position -1.0 (100% A), ramp 50 samples
+      final proc = CrossfadeProcessor(
+        numChannels: 1,
+        position: -1.0,
+        mode: CrossfadeMode.linear,
+        interpTime: 0.05,
+      );
+
+      final inA = Float32List(vectorSize); // 0.0
+      final inB = Float32List(vectorSize);
+      inB.fillRange(0, vectorSize, 1.0); // 1.0
+      final out = Float32List(vectorSize);
+
+      proc.process(context, [inA, inB], [out]);
+      expect(out[0], equals(0.0));
+
+      // Move to position +1.0 (100% B)
+      proc.update((
+        position: 1.0,
+        mode: CrossfadeMode.linear,
+        interpTime: 0.05,
+      ));
+      proc.process(context, [inA, inB], [out]);
+
+      // Output should ramp upwards smoothly
+      expect(out[0], greaterThan(0.0));
+      expect(out[vectorSize - 1], greaterThan(out[0]));
+      expect(out[vectorSize - 1], lessThan(1.0));
+
+      // Eventually reaches 1.0 (100% B)
+      for (int i = 0; i < 10; i++) {
+        proc.process(context, [inA, inB], [out]);
+      }
+      expect(out[0], closeTo(1.0, 1e-4));
+    });
+
+    test('snaps position immediately when interpTime is 0.0', () {
+      const sampleRate = 1000;
+      const vectorSize = 32;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final proc = CrossfadeProcessor(
+        numChannels: 1,
+        position: -1.0,
+        mode: CrossfadeMode.linear,
+        interpTime: 0.0,
+      );
+
+      final inA = Float32List(vectorSize);
+      final inB = Float32List(vectorSize);
+      inB.fillRange(0, vectorSize, 1.0);
+      final out = Float32List(vectorSize);
+
+      proc.process(context, [inA, inB], [out]);
+
+      // Move to position +1.0 with 0.0 interpTime
+      proc.update((
+        position: 1.0,
+        mode: CrossfadeMode.linear,
+        interpTime: 0.0,
+      ));
+      proc.process(context, [inA, inB], [out]);
+
+      // Immediately 1.0 for all samples
+      for (int i = 0; i < vectorSize; i++) {
+        expect(out[i], closeTo(1.0, 1e-5));
+      }
+    });
   });
 }

@@ -17,7 +17,11 @@ enum CrossfadeMode {
   linear,
 }
 
-typedef CrossfadeParams = ({double? position, CrossfadeMode mode});
+typedef CrossfadeParams = ({
+  double? position,
+  CrossfadeMode mode,
+  double interpTime,
+});
 
 /// An [AudioNode] that blends between two signals or multi-channel buses [a] and [b]
 /// according to a bipolar [position] parameter (`-1.0` = 100% [a], `0.0` = 50/50 center, `+1.0` = 100% [b]).
@@ -35,15 +39,20 @@ class Crossfade extends AudioNode<CrossfadeProcessor> {
   /// Blending curve ([CrossfadeMode.equalPower] or [CrossfadeMode.linear]).
   final CrossfadeMode mode;
 
+  /// Time in seconds to interpolate to new static [position] values.
+  final double interpTime;
+
   Crossfade({
     required this.a,
     required this.b,
     this.position = const .value(0.0),
     this.mode = .equalPower,
+    this.interpTime = 0.02,
   }) : assert(
          a.length == b.length,
          'Channels for inputs a and b must match in length (${a.length} != ${b.length})',
-       );
+       ),
+       assert(interpTime >= 0.0, 'interpTime must be non-negative');
 
   /// Convenience factory for mono signals.
   factory mono({
@@ -51,7 +60,14 @@ class Crossfade extends AudioNode<CrossfadeProcessor> {
     required Outlet b,
     ControlParam<double> position = const .value(0.0),
     CrossfadeMode mode = .equalPower,
-  }) => Crossfade(a: [a], b: [b], position: position, mode: mode);
+    double interpTime = 0.02,
+  }) => Crossfade(
+    a: [a],
+    b: [b],
+    position: position,
+    mode: mode,
+    interpTime: interpTime,
+  );
 
   /// Convenience factory for stereo signals.
   factory stereo({
@@ -61,11 +77,13 @@ class Crossfade extends AudioNode<CrossfadeProcessor> {
     required Outlet bRight,
     ControlParam<double> position = const .value(0.0),
     CrossfadeMode mode = .equalPower,
+    double interpTime = 0.02,
   }) => Crossfade(
     a: [aLeft, aRight],
     b: [bLeft, bRight],
     position: position,
     mode: mode,
+    interpTime: interpTime,
   );
 
   int get numChannels => a.length;
@@ -103,10 +121,15 @@ class Crossfade extends AudioNode<CrossfadeProcessor> {
     numChannels: numChannels,
     position: position.valueOrNull,
     mode: mode,
+    interpTime: interpTime,
   );
 
   @override
-  CrossfadeParams get params => (position: position.valueOrNull, mode: mode);
+  CrossfadeParams get params => (
+    position: position.valueOrNull,
+    mode: mode,
+    interpTime: interpTime,
+  );
 
   @override
   List<AudioNodeError> get errors => [
@@ -119,6 +142,11 @@ class Crossfade extends AudioNode<CrossfadeProcessor> {
         param: 'b',
         error: 'channel count (${b.length}) must match a (${a.length})',
       ),
+    if (interpTime < 0)
+      const AudioNodeParamError(
+        param: 'interpTime',
+        error: 'must be non-negative',
+      ),
   ];
 
   @override
@@ -130,18 +158,33 @@ class CrossfadeProcessor implements AudioProcessor {
   final int numChannels;
   double? position;
   CrossfadeMode mode;
+  double interpTime;
 
   CrossfadeProcessor({
     required this.numChannels,
     required this.position,
     required this.mode,
+    this.interpTime = 0.02,
   });
+
+  // To prevent 'zipper' noises when adjusting position sharply
+  late final SmoothedValue _posSmoother = SmoothedValue(position ?? 0.0);
 
   @override
   void update(Object params) {
-    params = params as CrossfadeParams;
-    position = params.position;
-    mode = params.mode;
+    final p = params as CrossfadeParams;
+    final oldPos = position;
+    position = p.position;
+    mode = p.mode;
+    interpTime = p.interpTime;
+
+    if (p.position != null) {
+      if (oldPos == null || interpTime <= 0.0) {
+        _posSmoother.snapTo(p.position!);
+      } else {
+        _posSmoother.setTarget(p.position!);
+      }
+    }
   }
 
   @override
@@ -157,19 +200,41 @@ class CrossfadeProcessor implements AudioProcessor {
         : 0;
 
     if (position != null) {
-      // Constant position over the entire block
-      final (gainA, gainB) = switch (mode) {
-        .equalPower => equalPowerGains(position),
-        .linear => linearGains(position),
-      };
+      _posSmoother.configure(
+        sampleRate: context.sampleRate.toDouble(),
+        rampTime: interpTime,
+      );
 
-      for (int c = 0; c < numChannels; c++) {
-        final inA = inputs[audioOffset + c];
-        final inB = inputs[audioOffset + numChannels + c];
-        final out = outputs[c];
+      if (_posSmoother.isSettled) {
+        // Constant position over the entire block
+        final (gainA, gainB) = switch (mode) {
+          .equalPower => equalPowerGains(_posSmoother.current),
+          .linear => linearGains(_posSmoother.current),
+        };
 
+        for (int c = 0; c < numChannels; c++) {
+          final inA = inputs[audioOffset + c];
+          final inB = inputs[audioOffset + numChannels + c];
+          final out = outputs[c];
+
+          for (int i = 0; i < length; i++) {
+            out[i] = inA[i] * gainA + inB[i] * gainB;
+          }
+        }
+      } else {
+        // Interpolating position per frame across channels
         for (int i = 0; i < length; i++) {
-          out[i] = inA[i] * gainA + inB[i] * gainB;
+          final pos = _posSmoother.next();
+          final (gainA, gainB) = switch (mode) {
+            .equalPower => equalPowerGains(pos),
+            .linear => linearGains(pos),
+          };
+
+          for (int c = 0; c < numChannels; c++) {
+            outputs[c][i] =
+                inputs[audioOffset + c][i] * gainA +
+                inputs[audioOffset + numChannels + c][i] * gainB;
+          }
         }
       }
     } else {

@@ -8,10 +8,11 @@ typedef DelayParams = ({
   double? mix,
   double? damp,
   double maxDelay,
+  double interpTime,
 });
 
-/// A multi-channel delay effect with feedback, 1-pole damping, and fractional
-/// linear interpolation.
+/// A multi-channel delay effect with feedback, 1-pole damping, fractional
+/// linear interpolation, and clickless parameter slewing.
 class Delay({
   required final List<Outlet> channels,
   final ControlParam<double> time = const .value(0.5),
@@ -19,6 +20,7 @@ class Delay({
   final ControlParam<double> mix = const .value(0.5),
   final ControlParam<double> damp = const .value(0.0),
   final double maxDelay = 10.0,
+  final double interpTime = 0.06,
 }) extends AudioNode<DelayProcessor> {
   this : assert(maxDelay > 0.0, 'maxDelay must be positive');
 
@@ -29,6 +31,7 @@ class Delay({
     ControlParam<double> mix = const .value(0.5),
     ControlParam<double> damp = const .value(0.0),
     double maxDelay = 10.0,
+    double interpTime = 0.06,
   }) => Delay(
     channels: [input],
     time: time,
@@ -36,6 +39,7 @@ class Delay({
     mix: mix,
     damp: damp,
     maxDelay: maxDelay,
+    interpTime: interpTime,
   );
 
   factory stereo({
@@ -46,6 +50,7 @@ class Delay({
     ControlParam<double> mix = const .value(0.5),
     ControlParam<double> damp = const .value(0.0),
     double maxDelay = 10.0,
+    double interpTime = 0.06,
   }) => Delay(
     channels: [leftInput, rightInput],
     time: time,
@@ -53,6 +58,7 @@ class Delay({
     mix: mix,
     damp: damp,
     maxDelay: maxDelay,
+    interpTime: interpTime,
   );
 
   int get numChannels => channels.length;
@@ -92,6 +98,7 @@ class Delay({
     mix: mix.valueOrNull,
     damp: damp.valueOrNull,
     maxDelay: maxDelay,
+    interpTime: interpTime,
   );
 
   @override
@@ -101,12 +108,18 @@ class Delay({
     mix: mix.valueOrNull,
     damp: damp.valueOrNull,
     maxDelay: maxDelay,
+    interpTime: interpTime,
   );
 
   @override
   List<AudioNodeError> get errors => [
     if (maxDelay <= 0)
       const AudioNodeParamError(param: 'maxDelay', error: 'must be positive'),
+    if (interpTime < 0)
+      const AudioNodeParamError(
+        param: 'interpTime',
+        error: 'must be non-negative',
+      ),
   ];
 
   // Ring buffer size is fixed.
@@ -124,12 +137,19 @@ class DelayProcessor({
   var double? mix,
   var double? damp = 0.0,
   final double maxDelay = 10.0,
+  var double interpTime = 0.06,
 }) implements AudioProcessor {
   int _sampleRate = 0;
   int _bufferMask = 0;
   int _writeIndex = 0;
   List<Float32List>? _buffers;
   late final Float32List _dampStates = Float32List(numChannels);
+  // This is to prevent artefacts when the time param changes.
+  // That can happen because it makes the read head jump too far in the ring
+  // buffer, and we fix it by interpolating.
+  late final SmoothedValue _timeSmoother = SmoothedValue(time ?? 0.0);
+
+  // TODO: consider crossfade mode (alternative to smoothing)
 
   void _ensureBuffers(int sampleRate) {
     if (_sampleRate == sampleRate && _buffers != null) return;
@@ -149,10 +169,20 @@ class DelayProcessor({
   @override
   void update(Object params) {
     final p = params as DelayParams;
+    final oldTime = time;
     time = p.time;
     feedback = p.feedback;
     mix = p.mix;
     damp = p.damp;
+    interpTime = p.interpTime;
+
+    if (p.time != null) {
+      if (oldTime == null || interpTime <= 0.0) {
+        _timeSmoother.snapTo(p.time!);
+      } else {
+        _timeSmoother.setTarget(p.time!);
+      }
+    }
   }
 
   @override
@@ -168,6 +198,8 @@ class DelayProcessor({
     final length = context.vectorSize;
     final sampleRate = context.sampleRate.toDouble();
     final maxDelaySamples = maxDelay * sampleRate;
+
+    _timeSmoother.configure(sampleRate: sampleRate, rampTime: interpTime);
 
     final time = this.time;
     final feedback = this.feedback;
@@ -193,12 +225,14 @@ class DelayProcessor({
 
     final double constFb = (feedback ?? 0.0).clamp(-0.999, 0.999);
     final double constDamp = (damp ?? 0.0).clamp(0.0, 1.0);
-    final double constDelaySamples = time != null
-        ? (time * sampleRate).clamp(1.0, maxDelaySamples)
-        : 1.0;
     final (double constDry, double constWet) = mix != null
         ? equalPowerMix(mix)
         : (0.0, 0.0);
+
+    final bool isTimeSettled = _timeSmoother.isSettled;
+    final double constDelaySamples = (time != null && isTimeSettled)
+        ? (_timeSmoother.current * sampleRate).clamp(1.0, maxDelaySamples)
+        : 1.0;
 
     int writeIndex = _writeIndex;
 
@@ -207,8 +241,12 @@ class DelayProcessor({
       final double delaySamples;
       if (timeBuf != null) {
         delaySamples = (timeBuf[i] * sampleRate).clamp(1.0, maxDelaySamples);
+      } else if (time != null) {
+        delaySamples = !isTimeSettled
+            ? (_timeSmoother.next() * sampleRate).clamp(1.0, maxDelaySamples)
+            : constDelaySamples;
       } else {
-        delaySamples = constDelaySamples;
+        delaySamples = 1.0;
       }
 
       // Fractional sample decomposition
