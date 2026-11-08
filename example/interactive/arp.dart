@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:io' show stdin, stdout, exit;
+import 'dart:io' show exit, stdin, stdout;
 
+import 'package:args/args.dart';
 import 'package:hum/hum.dart';
 
-// You need ffmpeg installed with `ffplay` in path.
+// You need ffmpeg installed with `ffplay` or SoX installed with `play` in path.
 
 final availableScales = <Scale>[
   .minor(.parse('A3')),
@@ -16,7 +17,32 @@ final availableScales = <Scale>[
   .majorPentatonic(.parse('C4')),
 ];
 
-void main() async {
+final parser = ArgParser()
+  ..addOption(
+    'output',
+    abbr: 'o',
+    allowed: ['ffplay', 'sox'],
+    defaultsTo: 'ffplay',
+    help: 'Audio output backend (ffplay or sox/play)',
+  )
+  ..addFlag(
+    'help',
+    abbr: 'h',
+    negatable: false,
+    help: 'Show help message',
+  );
+
+void main(List<String> args) async {
+  final results = parser.parse(args);
+
+  if (results['help'] == true) {
+    stdout.writeln('Interactive Arpeggiator');
+    stdout.writeln(parser.usage);
+    exit(0);
+  }
+
+  final player = results.option('output')!;
+
   final sr = 44100, vs = 64;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await AudioHost.spawn(context: context);
@@ -29,11 +55,18 @@ void main() async {
   void updateGraph() => host.setGraph(root: synth.buildGraph());
   updateGraph();
 
-  final output = await PipedAudioOutput.ffplay(
-    numChannels: 2,
-    vectorSize: vs,
-    sampleRate: sr,
-  );
+  final output = switch (player) {
+    'sox' => await PipedAudioOutput.sox(
+      numChannels: 2,
+      vectorSize: vs,
+      sampleRate: sr,
+    ),
+    _ => await PipedAudioOutput.ffplay(
+      numChannels: 2,
+      vectorSize: vs,
+      sampleRate: sr,
+    ),
+  };
   await host.startPlayback(output);
 
   final oldLineMode = stdin.lineMode;
@@ -51,19 +84,23 @@ void main() async {
     void line(String text) =>
         buf.writeln('$text\x1b[K'); // Clear line to the right
 
-    line('♫♫♫♫♫ ARPEGGIATOR');
+    line('♫♫♫♫♫ ARPEGGIATOR [$player]');
     line('');
+    final scaleName =
+        '${availableScales[currentScaleIndex].root.name} ${availableScales[currentScaleIndex].pattern.name}';
+    line('${'(m)   Scale'.padRight(24)}$scaleName');
+    line('${'(+/-) BPM'.padRight(24)}${synth.bpm.toStringAsFixed(0)}');
+    line('${'(←/→) Cutoff'.padRight(24)}${synth.cutoff.toStringAsFixed(0)} Hz');
+    line('${'(↑/↓) Reso'.padRight(24)}${synth.reso.toStringAsFixed(2)}');
     line(
-      '(m)   Scale\t\t${availableScales[currentScaleIndex].root.name} ${availableScales[currentScaleIndex].pattern.name}',
+      '${'(,/.) Delay Feedback'.padRight(24)}${synth.delayFeedback.toStringAsFixed(2)}',
     );
-    line('(+/-) BPM\t\t${synth.bpm.toStringAsFixed(0)}');
-    line('(←/→) Cutoff\t\t${synth.cutoff.toStringAsFixed(0)} Hz');
-    line('(↑/↓) Reso\t\t${synth.reso.toStringAsFixed(2)}');
-    line('(,/.) Delay Feedback\t${synth.delayFeedback.toStringAsFixed(2)}');
-    line('(</>) Delay Mix\t\t${synth.delayMix.toStringAsFixed(2)}');
-    line('(a/z) Sine\t\t${_levelToBar(synth.sineLevel)}');
-    line('(s/x) Square\t\t${_levelToBar(synth.squareLevel)}');
-    line('(d/c) Saw\t\t${_levelToBar(synth.sawLevel)}');
+    line(
+      '${'(</>) Delay Mix'.padRight(24)}${synth.delayMix.toStringAsFixed(2)}',
+    );
+    line('${'(a/z) Sine'.padRight(24)}${_levelToBar(synth.sineLevel)}');
+    line('${'(s/x) Square'.padRight(24)}${_levelToBar(synth.squareLevel)}');
+    line('${'(d/c) Saw'.padRight(24)}${_levelToBar(synth.sawLevel)}');
 
     line('');
     line('Press number keys to toggle steps');
