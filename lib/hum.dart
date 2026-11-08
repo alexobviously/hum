@@ -46,6 +46,7 @@ export 'src/nodes/oscillators/square_oscillator.dart';
 export 'src/nodes/oscillators/triangle_oscillator.dart';
 export 'src/nodes/sources/karplus_strong.dart';
 export 'src/nodes/sources/noise_generator.dart';
+export 'src/nodes/sources/swarm.dart';
 export 'src/nodes/sources/vinyl_noise.dart';
 export 'src/nodes/utils/abs.dart';
 export 'src/nodes/utils/add.dart';

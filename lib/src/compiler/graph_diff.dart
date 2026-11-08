@@ -124,7 +124,8 @@ GraphDiff diffGraph(GraphSnapshot oldSnapshot, GraphSnapshot newSnapshot) {
     if (matchedNewToOld.containsKey(newNode)) continue;
     for (final oldNode in oldNodes) {
       if (matchedOldToNew.containsKey(oldNode)) continue;
-      if (oldNode.canUpdate(newNode)) {
+      if (oldNode.runtimeType == newNode.runtimeType &&
+          oldNode.canUpdate(newNode)) {
         final oldId = oldSnapshot.nodeIds[oldNode];
         if (oldId != null) {
           matchedOldToNew[oldNode] = newNode;
