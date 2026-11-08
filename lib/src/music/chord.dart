@@ -54,6 +54,11 @@ class const ChordPattern(
     [0, 3, 6, 10],
   );
 
+  // --- 9th Chords ---
+
+  /// Major 9th chord: `[0, 4, 7, 11, 14]`.
+  static const major9 = ChordPattern('Major 9th', 'maj9', [0, 4, 7, 11, 14]);
+
   @override
   String toString() => name;
 }
@@ -102,6 +107,9 @@ class const Chord(
 
   factory min7(Note root, {int inversion = 0}) =>
       Chord(root, .minor7, inversion: inversion);
+
+  factory maj9(Note root, {int inversion = 0}) =>
+      Chord(root, .major9, inversion: inversion);
 
   /// Returns the concrete list of [Note]s comprising this chord, with inversions applied.
   List<Note> get notes {
@@ -175,4 +183,5 @@ extension NoteChordExtension on Note {
   Chord get dom7Chord => .dom7(this);
   Chord get maj7Chord => .maj7(this);
   Chord get min7Chord => .min7(this);
+  Chord get maj9Chord => .maj9(this);
 }

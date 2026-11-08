@@ -241,6 +241,21 @@ void main() {
       );
     });
 
+    test('generates expected notes for 9th chords', () {
+      final dMaj9 = Chord.maj9(Note.parse('D3'));
+      expect(
+        dMaj9.notes.map((n) => n.name).toList(),
+        equals(['D3', 'F#3', 'A3', 'C#4', 'E4']),
+      );
+      expect(dMaj9.name, equals('D3maj9'));
+
+      final fromExtension = Note.parse('D3').maj9Chord;
+      expect(
+        fromExtension.notes.map((n) => n.name).toList(),
+        equals(['D3', 'F#3', 'A3', 'C#4', 'E4']),
+      );
+    });
+
     test('inversion shifts bass notes up by an octave', () {
       final cMaj = Chord.major(Note.parse('C4'));
 
