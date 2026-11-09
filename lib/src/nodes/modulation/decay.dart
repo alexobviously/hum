@@ -140,6 +140,14 @@ class DecayProcessor implements AudioProcessor {
   /// Linear rate accumulator for attack when retriggered mid-flight.
   double _linearAttackRate = 0.0;
 
+  double _cachedDecay = -1.0;
+  double _cachedAttack = -1.0;
+  double _cachedSampleRate = 0.0;
+  double _aTime = 0.0001;
+  double _expAttackCoeff = 0.0;
+  double _expDecayCoeff = 0.0;
+  double _linDecayRate = 0.0;
+
   @override
   void update(Object params) {
     final p = params as DecayParams;
@@ -158,20 +166,28 @@ class DecayProcessor implements AudioProcessor {
     final triggerBuffer = inputs[Decay.triggerInlet];
     final sampleRate = context.sampleRate.toDouble();
 
-    final double dTime = math.max(0.0001, decay);
-    final double aTime = math.max(0.0001, attack);
     final bool hasAttack = attack > 0.0;
     final DecayCurve activeCurve = curve;
 
-    // Analog RC exponential coefficients:
-    // Attack targets 1.5 overshoot to cross 1.0 in finite time: ln(3) ~= 1.098612
-    final double expAttackCoeff =
-        1.0 - math.exp(-1.098612 / (aTime * sampleRate));
-    // Decay targets -0.01 undershoot to cleanly hit 0.0 in finite time:
-    final double expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
+    if (decay != _cachedDecay ||
+        attack != _cachedAttack ||
+        sampleRate != _cachedSampleRate) {
+      _cachedDecay = decay;
+      _cachedAttack = attack;
+      _cachedSampleRate = sampleRate;
 
-    // Linear rates per sample:
-    final double linDecayRate = 1.0 / (dTime * sampleRate);
+      final double dTime = decay > 0.0001 ? decay : 0.0001;
+      _aTime = attack > 0.0001 ? attack : 0.0001;
+
+      _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
+      _expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
+      _linDecayRate = 1.0 / (dTime * sampleRate);
+    }
+
+    final double expAttackCoeff = _expAttackCoeff;
+    final double expDecayCoeff = _expDecayCoeff;
+    final double linDecayRate = _linDecayRate;
+    final double aTime = _aTime;
 
     double currentLevel = level;
     DecayState currentState = state;
@@ -202,20 +218,24 @@ class DecayProcessor implements AudioProcessor {
           currentLevel = 0.0;
 
         case .attack:
-          currentLevel += switch (activeCurve) {
-            .exponential => expAttackCoeff * (1.5 - currentLevel),
-            .linear => linAttackRate,
-          };
+          switch (activeCurve) {
+            case .exponential:
+              currentLevel += expAttackCoeff * (1.5 - currentLevel);
+            case .linear:
+              currentLevel += linAttackRate;
+          }
           if (currentLevel >= 1.0) {
             currentLevel = 1.0;
             currentState = .decay;
           }
 
         case .decay:
-          currentLevel += switch (activeCurve) {
-            .exponential => expDecayCoeff * (-0.01 - currentLevel),
-            .linear => -linDecayRate,
-          };
+          switch (activeCurve) {
+            case .exponential:
+              currentLevel += expDecayCoeff * (-0.01 - currentLevel);
+            case .linear:
+              currentLevel -= linDecayRate;
+          }
           if (currentLevel <= 0.0005) {
             currentLevel = 0.0;
             currentState = .idle;
