@@ -147,6 +147,7 @@ class IsolateAudioHost extends AudioHost {
     final isolate = await Isolate.spawn(
       _audioWorkerEntry,
       (hostSendPort: hostReceivePort.sendPort, context: context),
+      debugName: 'hum_engine',
     );
 
     final engineSendPort = await hostReceivePort.first as SendPort;

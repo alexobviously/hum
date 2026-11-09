@@ -159,7 +159,7 @@ class SvfFilterProcessor implements AudioProcessor {
       final k = 1.0 / q;
 
       for (int i = 0; i < length; i++) {
-        final f = cutoffBuffer[i].clamp(1.0, maxCutoff);
+        final f = cutoffBuffer[i].fastClamp(1.0, maxCutoff);
         final g = math.tan(piOverSr * f);
         final a1 = 1.0 / (1.0 + g * (g + k));
         final a2 = g * a1;
@@ -186,7 +186,7 @@ class SvfFilterProcessor implements AudioProcessor {
       final g = math.tan(piOverSr * f);
 
       for (int i = 0; i < length; i++) {
-        final q = resonanceBuffer[i].clamp(0.01, 100.0);
+        final q = resonanceBuffer[i].fastClamp(0.01, 100.0);
         final k = 1.0 / q;
         final a1 = 1.0 / (1.0 + g * (g + k));
         final a2 = g * a1;
@@ -212,8 +212,8 @@ class SvfFilterProcessor implements AudioProcessor {
       final resonanceBuffer = inputs[SvfFilter.resonanceInlet];
 
       for (int i = 0; i < length; i++) {
-        final f = cutoffBuffer[i].clamp(1.0, maxCutoff);
-        final q = resonanceBuffer[i].clamp(0.01, 100.0);
+        final f = cutoffBuffer[i].fastClamp(1.0, maxCutoff);
+        final q = resonanceBuffer[i].fastClamp(0.01, 100.0);
         final g = math.tan(piOverSr * f);
         final k = 1.0 / q;
         final a1 = 1.0 / (1.0 + g * (g + k));

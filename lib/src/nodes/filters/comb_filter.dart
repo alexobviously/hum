@@ -220,18 +220,17 @@ class CombFilterProcessor({
     final double constFreq = (frequency ?? 440.0).clamp(minFrequency, maxFreq);
     final double constFb = (feedback ?? 0.9).clamp(-0.9999, 0.9999);
     final double constDamp = (damp ?? 0.0).clamp(0.0, 1.0);
-    final (double constDry, double constWet) = mix != null
-        ? equalPowerMix(mix)
-        : (0.0, 1.0);
+    final double constDry = mix != null ? equalPowerDry(mix) : 0.0;
+    final double constWet = mix != null ? equalPowerWet(mix) : 1.0;
 
     int writeIndex = _writeIndex;
 
     for (int i = 0; i < length; i++) {
       // Resolve frequency and delay length in samples
       final double freq = freqBuf != null
-          ? freqBuf[i].clamp(minFrequency, maxFreq)
+          ? freqBuf[i].fastClamp(minFrequency, maxFreq)
           : constFreq;
-      final double delaySamples = (sampleRate / freq).clamp(
+      final double delaySamples = (sampleRate / freq).fastClamp(
         2.0,
         maxDelaySamples,
       );
@@ -244,14 +243,21 @@ class CombFilterProcessor({
       final int read1 = (read0 - 1) & mask;
 
       final double fb = fbBuf != null
-          ? fbBuf[i].clamp(-0.9999, 0.9999)
+          ? fbBuf[i].fastClamp(-0.9999, 0.9999)
           : constFb;
       final double dampCoef = dampBuf != null
-          ? dampBuf[i].clamp(0.0, 1.0)
+          ? dampBuf[i].fastClamp(0.0, 1.0)
           : constDamp;
-      final (double gainDry, double gainWet) = mixBuf != null
-          ? equalPowerMix(mixBuf[i])
-          : (constDry, constWet);
+      final double gainDry;
+      final double gainWet;
+      if (mixBuf != null) {
+        final m = mixBuf[i];
+        gainDry = equalPowerDry(m);
+        gainWet = equalPowerWet(m);
+      } else {
+        gainDry = constDry;
+        gainWet = constWet;
+      }
 
       for (int c = 0; c < numChannels; c++) {
         final buf = buffers[c];

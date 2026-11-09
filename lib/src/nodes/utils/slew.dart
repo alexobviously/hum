@@ -176,7 +176,7 @@ class SlewProcessor({
 
         for (int i = 0; i < length; i++) {
           final diff = inBuf[i] - last;
-          last += diff.clamp(-maxFall, maxRise);
+          last += diff.fastClamp(-maxFall, maxRise);
           outBuf[i] = last;
         }
         _lastSamples[c] = last;
@@ -199,7 +199,7 @@ class SlewProcessor({
               : double.infinity;
 
           final diff = inBuf[i] - last;
-          last += diff.clamp(-maxFall, maxRise);
+          last += diff.fastClamp(-maxFall, maxRise);
           outBuf[i] = last;
         }
         _lastSamples[c] = last;

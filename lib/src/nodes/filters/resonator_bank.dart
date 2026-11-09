@@ -435,9 +435,9 @@ class ResonatorBankProcessor({
       final gainRCoeffs = Float64List(count);
 
       for (int k = 0; k < count; k++) {
-        final f = (_frequencies[k] * pitchMult).clamp(10.0, maxCutoff);
+        final f = (_frequencies[k] * pitchMult).fastClamp(10.0, maxCutoff);
         // Brightness rolloff: higher modes scale Q proportionally
-        final modeQ = (baseQ * math.pow(bright, k * 0.5)).clamp(0.5, 500.0);
+        final modeQ = (baseQ * math.pow(bright, k * 0.5)).fastClamp(0.5, 500.0);
 
         final g = math.tan(piOverSr * f);
         final kDamp = 1.0 / modeQ;
@@ -450,8 +450,9 @@ class ResonatorBankProcessor({
         kCoeffs[k] = kDamp;
 
         // Stereo pan weights
-        final pan = (_basePans[k] * curSpread).clamp(-1.0, 1.0);
-        final (pL, pR) = equalPowerGains(pan);
+        final pan = (_basePans[k] * curSpread).fastClamp(-1.0, 1.0);
+        final pL = equalPowerGainLeft(pan);
+        final pR = equalPowerGainRight(pan);
         final modeGain = _baseGains[k];
         gainLCoeffs[k] = pL * modeGain;
         gainRCoeffs[k] = pR * modeGain;
@@ -498,18 +499,22 @@ class ResonatorBankProcessor({
         );
         final baseQ = (qBuf != null ? qBuf[i] : defaultQ).clamp(0.5, 500.0);
         final bright = (brightBuf != null ? brightBuf[i] : defaultBrightness)
-            .clamp(0.0, 2.0);
+            .fastClamp(0.0, 2.0);
         final curSpread = (spreadBuf != null ? spreadBuf[i] : defaultSpread)
-            .clamp(0.0, 1.0);
+            .fastClamp(0.0, 1.0);
         final curMix = (mixBuf != null ? mixBuf[i] : defaultMix);
-        final (dryGain, wetGain) = equalPowerMix(curMix);
+        final dryGain = equalPowerDry(curMix);
+        final wetGain = equalPowerWet(curMix);
 
         double accumL = 0.0;
         double accumR = 0.0;
 
         for (int k = 0; k < count; k++) {
-          final f = (_frequencies[k] * pitchMult).clamp(10.0, maxCutoff);
-          final modeQ = (baseQ * math.pow(bright, k * 0.5)).clamp(0.5, 500.0);
+          final f = (_frequencies[k] * pitchMult).fastClamp(10.0, maxCutoff);
+          final modeQ = (baseQ * math.pow(bright, k * 0.5)).fastClamp(
+            0.5,
+            500.0,
+          );
 
           final g = math.tan(piOverSr * f);
           final kDamp = 1.0 / modeQ;
@@ -526,8 +531,9 @@ class ResonatorBankProcessor({
 
           final bp = kDamp * v1;
 
-          final pan = (_basePans[k] * curSpread).clamp(-1.0, 1.0);
-          final (pL, pR) = equalPowerGains(pan);
+          final pan = (_basePans[k] * curSpread).fastClamp(-1.0, 1.0);
+          final pL = equalPowerGainLeft(pan);
+          final pR = equalPowerGainRight(pan);
           final modeGain = _baseGains[k];
 
           accumL += bp * (pL * modeGain);

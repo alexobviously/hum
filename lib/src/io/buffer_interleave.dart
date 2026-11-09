@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../nodes/utils/clamp.dart';
+
 /// Interleaves multi-channel audio from [channels] into the pre-allocated [target] buffer.
 ///
 /// If [vectorSize] is omitted, it defaults to the length of the first channel.
@@ -55,7 +57,7 @@ void interleavePcm16(
   if (numChannels == 1) {
     final ch = channels[0];
     for (int s = 0; s < size; s++) {
-      final sample = ch[s].clamp(-1.0, 1.0);
+      final sample = ch[s].fastClamp(-1.0, 1.0);
       target[s] = (sample * 32767.0).round();
     }
     return;
@@ -66,8 +68,8 @@ void interleavePcm16(
     final right = channels[1];
     int writeIdx = 0;
     for (int s = 0; s < size; s++) {
-      final sampleL = left[s].clamp(-1.0, 1.0);
-      final sampleR = right[s].clamp(-1.0, 1.0);
+      final sampleL = left[s].fastClamp(-1.0, 1.0);
+      final sampleR = right[s].fastClamp(-1.0, 1.0);
       target[writeIdx++] = (sampleL * 32767.0).round();
       target[writeIdx++] = (sampleR * 32767.0).round();
     }
@@ -77,7 +79,7 @@ void interleavePcm16(
   int writeIdx = 0;
   for (int s = 0; s < size; s++) {
     for (int c = 0; c < numChannels; c++) {
-      final sample = channels[c][s].clamp(-1.0, 1.0);
+      final sample = channels[c][s].fastClamp(-1.0, 1.0);
       target[writeIdx++] = (sample * 32767.0).round();
     }
   }

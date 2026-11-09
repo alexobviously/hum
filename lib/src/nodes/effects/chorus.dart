@@ -270,9 +270,8 @@ class ChorusProcessor({
       maxDelay - constDepth,
     );
     final double constFb = (feedback ?? 0.0).clamp(-0.95, 0.95);
-    final (double constDry, double constWet) = mix != null
-        ? equalPowerMix(mix)
-        : (0.7071, 0.7071);
+    final double constDry = mix != null ? equalPowerDry(mix) : 0.7071;
+    final double constWet = mix != null ? equalPowerWet(mix) : 0.7071;
 
     int writeIndex = _writeIndex;
     double lfoPhase = _lfoPhase;
@@ -280,18 +279,27 @@ class ChorusProcessor({
 
     for (int i = 0; i < length; i++) {
       final double curRate = rateBuf != null
-          ? rateBuf[i].clamp(0.01, 20.0)
+          ? rateBuf[i].fastClamp(0.01, 20.0)
           : constRate;
       final double curDepth = depthBuf != null
-          ? depthBuf[i].clamp(0.0, maxDelay * 0.5)
+          ? depthBuf[i].fastClamp(0.0, maxDelay * 0.5)
           : constDepth;
       final double curBaseDelay = baseDelayBuf != null
-          ? baseDelayBuf[i].clamp(0.0005, maxDelay - curDepth)
+          ? baseDelayBuf[i].fastClamp(0.0005, maxDelay - curDepth)
           : constBaseDelay;
-      final double fb = fbBuf != null ? fbBuf[i].clamp(-0.95, 0.95) : constFb;
-      final (double gainDry, double gainWet) = mixBuf != null
-          ? equalPowerMix(mixBuf[i])
-          : (constDry, constWet);
+      final double fb = fbBuf != null
+          ? fbBuf[i].fastClamp(-0.95, 0.95)
+          : constFb;
+      final double gainDry;
+      final double gainWet;
+      if (mixBuf != null) {
+        final m = mixBuf[i];
+        gainDry = equalPowerDry(m);
+        gainWet = equalPowerWet(m);
+      } else {
+        gainDry = constDry;
+        gainWet = constWet;
+      }
 
       for (int c = 0; c < numOutputs; c++) {
         // Map input channel (supports mono-to-stereo broadcast)
@@ -304,7 +312,7 @@ class ChorusProcessor({
 
         // Modulated delay time in samples
         final double delayTime = curBaseDelay + curDepth * lfoVal;
-        final double delaySamples = (delayTime * sampleRate).clamp(
+        final double delaySamples = (delayTime * sampleRate).fastClamp(
           1.0,
           maxDelaySamples,
         );

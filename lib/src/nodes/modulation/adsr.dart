@@ -161,22 +161,21 @@ class AdsrProcessor implements AudioProcessor {
     bool lastGate = _lastGate;
     double linAttackRate = _linearAttackRate;
 
+    final bool isExp = activeCurve == AdsrCurve.exponential;
+
     for (int i = 0; i < output.length; i++) {
       final bool gateHigh = gateBuffer[i] > 0.0;
 
       // Edge detection
-      switch ((lastGate, gateHigh)) {
-        case (false, true):
-          // Gate Rising Edge: Trigger Note On / Attack
-          currentState = .attack;
-          if (activeCurve == .linear) {
-            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
-          }
-        case (true, false) when currentState != .idle:
-          // Gate Falling Edge: Trigger Note Off / Release
-          currentState = .release;
-        case _:
-          break;
+      if (!lastGate && gateHigh) {
+        // Gate Rising Edge: Trigger Note On / Attack
+        currentState = .attack;
+        if (!isExp) {
+          linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
+        }
+      } else if (lastGate && !gateHigh && currentState != .idle) {
+        // Gate Falling Edge: Trigger Note Off / Release
+        currentState = .release;
       }
       lastGate = gateHigh;
 
@@ -186,11 +185,9 @@ class AdsrProcessor implements AudioProcessor {
           currentLevel = 0.0;
 
         case .attack:
-          currentLevel += switch (activeCurve) {
-            // Charge towards 1.5 overshoot
-            .exponential => expAttackCoeff * (1.5 - currentLevel),
-            .linear => linAttackRate,
-          };
+          currentLevel += isExp
+              ? expAttackCoeff * (1.5 - currentLevel)
+              : linAttackRate;
 
           if (currentLevel >= 1.0) {
             currentLevel = 1.0;
@@ -198,12 +195,10 @@ class AdsrProcessor implements AudioProcessor {
           }
 
         case .decay:
-          currentLevel += switch (activeCurve) {
-            .exponential => expDecayCoeff * (sLevel - currentLevel),
-            .linear => -linDecayRate,
-          };
-          if (currentLevel <= sLevel ||
-              (currentLevel - sLevel).abs() <= 0.0005) {
+          currentLevel += isExp
+              ? expDecayCoeff * (sLevel - currentLevel)
+              : -linDecayRate;
+          if (currentLevel <= sLevel || currentLevel - sLevel <= 0.0005) {
             currentLevel = sLevel;
             currentState = .sustain;
           }
@@ -212,11 +207,9 @@ class AdsrProcessor implements AudioProcessor {
           currentLevel = sLevel;
 
         case .release:
-          currentLevel += switch (activeCurve) {
-            // Discharge towards -0.01 undershoot
-            .exponential => expReleaseCoeff * (-0.01 - currentLevel),
-            .linear => -linReleaseRate,
-          };
+          currentLevel += isExp
+              ? expReleaseCoeff * (-0.01 - currentLevel)
+              : -linReleaseRate;
           if (currentLevel <= 0.0005) {
             currentLevel = 0.0;
             currentState = .idle;

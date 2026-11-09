@@ -126,8 +126,7 @@ class ClampProcessor({
         final inBuf = inputs[Clamp.audioInletOffset + c];
         final outBuf = outputs[c];
         for (int i = 0; i < length; i++) {
-          final s = inBuf[i];
-          outBuf[i] = s < lo ? lo : (s > hi ? hi : s);
+          outBuf[i] = inBuf[i].fastClamp(lo, hi);
         }
       }
       return;
@@ -142,12 +141,47 @@ class ClampProcessor({
       final outBuf = outputs[c];
 
       for (int i = 0; i < length; i++) {
-        final s = inBuf[i];
         final lo = minBuf != null ? minBuf[i] : fallbackMin;
         final hi = maxBuf != null ? maxBuf[i] : fallbackMax;
-        outBuf[i] = s < lo ? lo : (s > hi ? hi : s);
+        outBuf[i] = inBuf[i].fastClamp(lo, hi);
       }
     }
+  }
+}
+
+/// Inlined scalar clamp function for unboxed `double` values.
+///
+/// Compiles directly to native floating-point min/max instructions with zero
+/// heap allocations or boxing overhead.
+@pragma('vm:prefer-inline')
+double clampDouble(double value, double min, double max) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+/// Zero-allocation clamp extension on [double].
+///
+/// Replaces `num.clamp(min, max)` in audio rendering loops to avoid polymorphic
+/// dispatch and heap-allocated `_Double` boxing.
+extension FastClampDouble on double {
+  /// Clamps this [double] between [min] and [max] with zero heap allocation.
+  @pragma('vm:prefer-inline')
+  double fastClamp(double min, double max) {
+    if (this < min) return min;
+    if (this > max) return max;
+    return this;
+  }
+}
+
+/// Zero-allocation clamp extension on [int].
+extension FastClampInt on int {
+  /// Clamps this [int] between [min] and [max] with zero heap allocation.
+  @pragma('vm:prefer-inline')
+  int fastClamp(int min, int max) {
+    if (this < min) return min;
+    if (this > max) return max;
+    return this;
   }
 }
 

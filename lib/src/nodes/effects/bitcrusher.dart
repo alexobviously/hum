@@ -150,7 +150,7 @@ class BitcrusherProcessor implements AudioProcessor {
     double levels,
     double invLevels,
   ) {
-    return (sample.clamp(-1.0, 1.0) * levels).round() * invLevels;
+    return (sample.fastClamp(-1.0, 1.0) * levels).round() * invLevels;
   }
 
   @override
@@ -192,7 +192,7 @@ class BitcrusherProcessor implements AudioProcessor {
     if (!hasSignalBits && currentBits != _lastBits) {
       _lastBits = currentBits;
       if (currentBits < 16.0) {
-        final intBits = currentBits.round().clamp(1, 16);
+        final intBits = currentBits.round().fastClamp(1, 16);
         _cachedLevels = (1 << (intBits - 1)).toDouble();
         _cachedInvLevels = 1.0 / _cachedLevels;
       }
@@ -220,7 +220,7 @@ class BitcrusherProcessor implements AudioProcessor {
         }
 
         if (hasSignalBits && bits < 16.0) {
-          final intBits = bits.round().clamp(1, 16);
+          final intBits = bits.round().fastClamp(1, 16);
           if (intBits.toDouble() != _lastBits) {
             _lastBits = intBits.toDouble();
             // pow(2, intBits - 1) but faster

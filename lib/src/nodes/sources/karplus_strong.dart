@@ -103,9 +103,9 @@ class KarplusStrongProcessor({
     for (int i = 0; i < output.length; i++) {
       final bool isGateHigh = gateBuffer[i] > 0.0;
       final double rawFreq = freqBuf == null ? constFreq : freqBuf[i];
-      final double freq = rawFreq.clamp(20.0, maxFreq);
+      final double freq = rawFreq.fastClamp(20.0, maxFreq);
       final double rawFb = fbBuf == null ? constFeedback : fbBuf[i];
-      final double fb = rawFb.clamp(0.0, 0.9999);
+      final double fb = rawFb.fastClamp(0.0, 0.9999);
 
       if (isGateHigh && !_lastGate) {
         // Impulse length is equal to delay period.

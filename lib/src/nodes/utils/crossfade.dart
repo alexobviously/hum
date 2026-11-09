@@ -227,9 +227,13 @@ class CrossfadeProcessor implements AudioProcessor {
         // Interpolating position per frame across channels
         for (int i = 0; i < length; i++) {
           final pos = _posSmoother.next();
-          final (gainA, gainB) = switch (mode) {
-            .equalPower => equalPowerGains(pos),
-            .linear => linearGains(pos),
+          final double gainA = switch (mode) {
+            .equalPower => equalPowerGainLeft(pos),
+            .linear => linearGainLeft(pos),
+          };
+          final double gainB = switch (mode) {
+            .equalPower => equalPowerGainRight(pos),
+            .linear => linearGainRight(pos),
           };
 
           for (int c = 0; c < numChannels; c++) {
@@ -251,8 +255,10 @@ class CrossfadeProcessor implements AudioProcessor {
             final out = outputs[c];
 
             for (int i = 0; i < length; i++) {
-              final (gainA, gainB) = equalPowerGains(posBuf[i]);
-              out[i] = inA[i] * gainA + inB[i] * gainB;
+              final p = posBuf[i];
+              out[i] =
+                  inA[i] * equalPowerGainLeft(p) +
+                  inB[i] * equalPowerGainRight(p);
             }
           }
 
@@ -263,8 +269,8 @@ class CrossfadeProcessor implements AudioProcessor {
             final out = outputs[c];
 
             for (int i = 0; i < length; i++) {
-              final (gainA, gainB) = linearGains(posBuf[i]);
-              out[i] = inA[i] * gainA + inB[i] * gainB;
+              final p = posBuf[i];
+              out[i] = inA[i] * linearGainLeft(p) + inB[i] * linearGainRight(p);
             }
           }
       }

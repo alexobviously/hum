@@ -167,5 +167,19 @@ void main() {
       final out = pipeline.outputs[0];
       expect(out.every((s) => s >= -0.501 && s <= 0.801), isTrue);
     });
+
+    test('fastClamp and clampDouble clamp accurately without boxing', () {
+      expect(1.5.fastClamp(-1.0, 1.0), equals(1.0));
+      expect((-1.5).fastClamp(-1.0, 1.0), equals(-1.0));
+      expect(0.25.fastClamp(-1.0, 1.0), equals(0.25));
+
+      expect(clampDouble(1.5, -1.0, 1.0), equals(1.0));
+      expect(clampDouble(-1.5, -1.0, 1.0), equals(-1.0));
+      expect(clampDouble(0.25, -1.0, 1.0), equals(0.25));
+
+      expect(15.fastClamp(0, 10), equals(10));
+      expect((-5).fastClamp(0, 10), equals(0));
+      expect(5.fastClamp(0, 10), equals(5));
+    });
   });
 }

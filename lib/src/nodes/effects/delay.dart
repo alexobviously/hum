@@ -277,9 +277,12 @@ class DelayProcessor({
     final double constDamp = (damp != null && isDampSettled)
         ? _dampSmoother.current.clamp(0.0, 1.0)
         : (damp ?? 0.0).clamp(0.0, 1.0);
-    final (double constDry, double constWet) = (mix != null && isMixSettled)
-        ? equalPowerMix(_mixSmoother.current)
-        : (0.0, 0.0);
+    final double constDry = (mix != null && isMixSettled)
+        ? equalPowerDry(_mixSmoother.current)
+        : 0.0;
+    final double constWet = (mix != null && isMixSettled)
+        ? equalPowerWet(_mixSmoother.current)
+        : 0.0;
 
     final double timeCoeff = (interpTime <= 0.0 || sampleRate <= 0.0)
         ? 1.0
@@ -294,14 +297,20 @@ class DelayProcessor({
       // Resolve delay time in samples for this frame
       final double delaySamples;
       if (timeBuf != null) {
-        delaySamples = (timeBuf[i] * sampleRate).clamp(1.0, maxDelaySamples);
+        delaySamples = (timeBuf[i] * sampleRate).fastClamp(
+          1.0,
+          maxDelaySamples,
+        );
       } else if (time != null) {
         if (!isTimeSettled) {
           final diff = _targetDelaySamples - _currentDelaySamples;
           if (diff.abs() < 1e-4) {
             _currentDelaySamples = _targetDelaySamples;
           } else {
-            final step = (diff * timeCoeff).clamp(-maxTapeSlew, maxTapeSlew);
+            final step = (diff * timeCoeff).fastClamp(
+              -maxTapeSlew,
+              maxTapeSlew,
+            );
             _currentDelaySamples += step;
           }
           delaySamples = _currentDelaySamples;
@@ -322,26 +331,38 @@ class DelayProcessor({
 
       // Resolve feedback, damping, and dry/wet gains
       final double fb = fbBuf != null
-          ? fbBuf[i].clamp(-0.999, 0.999)
+          ? fbBuf[i].fastClamp(-0.999, 0.999)
           : (feedback != null
                 ? (!isFbSettled
-                      ? _fbSmoother.next().clamp(-0.999, 0.999)
+                      ? _fbSmoother.next().fastClamp(-0.999, 0.999)
                       : constFb)
                 : constFb);
       final double dampCoef = dampBuf != null
-          ? dampBuf[i].clamp(0.0, 1.0)
+          ? dampBuf[i].fastClamp(0.0, 1.0)
           : (damp != null
                 ? (!isDampSettled
-                      ? _dampSmoother.next().clamp(0.0, 1.0)
+                      ? _dampSmoother.next().fastClamp(0.0, 1.0)
                       : constDamp)
                 : constDamp);
-      final (double gainDry, double gainWet) = mixBuf != null
-          ? equalPowerMix(mixBuf[i])
-          : (mix != null
-                ? (!isMixSettled
-                      ? equalPowerMix(_mixSmoother.next())
-                      : (constDry, constWet))
-                : (0.0, 0.0));
+      final double gainDry;
+      final double gainWet;
+      if (mixBuf != null) {
+        final m = mixBuf[i];
+        gainDry = equalPowerDry(m);
+        gainWet = equalPowerWet(m);
+      } else if (mix != null) {
+        if (!isMixSettled) {
+          final m = _mixSmoother.next();
+          gainDry = equalPowerDry(m);
+          gainWet = equalPowerWet(m);
+        } else {
+          gainDry = constDry;
+          gainWet = constWet;
+        }
+      } else {
+        gainDry = 0.0;
+        gainWet = 0.0;
+      }
 
       for (int c = 0; c < numChannels; c++) {
         final buf = buffers[c];

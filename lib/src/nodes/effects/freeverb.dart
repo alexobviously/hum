@@ -365,27 +365,38 @@ class FreeverbProcessor implements AudioProcessor {
     final double constMix = (isStaticMix && isMixSettled)
         ? _mixSmoother.current
         : (staticMix ?? 0.0);
-    final (double constDry, double constWet) = equalPowerMix(constMix);
+    final double constDry = equalPowerDry(constMix);
+    final double constWet = equalPowerWet(constMix);
 
     for (int i = 0; i < vectorSize; i++) {
       final double rSize = roomBuf != null
-          ? roomBuf[i].clamp(0.0, 1.0)
+          ? roomBuf[i].fastClamp(0.0, 1.0)
           : (isStaticRoom && !isRoomSettled
-                ? _roomSmoother.next().clamp(0.0, 1.0)
-                : constRoom.clamp(0.0, 1.0));
-      final double dVal = (dampBuf == null ? constDamp : dampBuf[i]).clamp(
+                ? _roomSmoother.next().fastClamp(0.0, 1.0)
+                : constRoom.fastClamp(0.0, 1.0));
+      final double dVal = (dampBuf == null ? constDamp : dampBuf[i]).fastClamp(
         0.0,
         1.0,
       );
-      final double wVal = (widthBuf == null ? constWidth : widthBuf[i]).clamp(
-        0.0,
-        1.0,
-      );
-      final (double gainDry, double gainWet) = mixBuf != null
-          ? equalPowerMix(mixBuf[i])
-          : (isStaticMix && !isMixSettled
-                ? equalPowerMix(_mixSmoother.next())
-                : (constDry, constWet));
+      final double wVal = (widthBuf == null ? constWidth : widthBuf[i])
+          .fastClamp(
+            0.0,
+            1.0,
+          );
+      final double gainDry;
+      final double gainWet;
+      if (mixBuf != null) {
+        final m = mixBuf[i];
+        gainDry = equalPowerDry(m);
+        gainWet = equalPowerWet(m);
+      } else if (isStaticMix && !isMixSettled) {
+        final m = _mixSmoother.next();
+        gainDry = equalPowerDry(m);
+        gainWet = equalPowerWet(m);
+      } else {
+        gainDry = constDry;
+        gainWet = constWet;
+      }
       final double feedback = rSize * _scaleRoom + _offsetRoom;
       final double dampCoeff = dVal * _scaleDamp;
       final double invDampCoeff = 1.0 - dampCoeff;
