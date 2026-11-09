@@ -183,20 +183,27 @@ class SlewProcessor({
       }
     } else {
       // Modulated path: audio-rate modulated rise and/or fall times
+
+      // Precalculating these to optimise inner loop
+      final double constMaxRise = (staticRise != null && staticRise > 0.0)
+          ? (1.0 / (staticRise * sr))
+          : .infinity;
+      final double constMaxFall = (staticFall != null && staticFall > 0.0)
+          ? (1.0 / (staticFall * sr))
+          : .infinity;
+
       for (int c = 0; c < numChannels; c++) {
         final inBuf = inputs[audioOffset + c];
         final outBuf = outputs[c];
         var last = _lastSamples[c];
 
         for (int i = 0; i < length; i++) {
-          final r = hasSignalRise ? riseBuf[i] : staticRise;
-          final f = hasSignalFall ? fallBuf[i] : staticFall;
-          final maxRise = (r != null && r > 0.0)
-              ? (1.0 / (r * sr))
-              : double.infinity;
-          final maxFall = (f != null && f > 0.0)
-              ? (1.0 / (f * sr))
-              : double.infinity;
+          final double maxRise = hasSignalRise
+              ? (riseBuf[i] > 0.0 ? 1.0 / (riseBuf[i] * sr) : .infinity)
+              : constMaxRise;
+          final double maxFall = hasSignalFall
+              ? (fallBuf[i] > 0.0 ? 1.0 / (fallBuf[i] * sr) : .infinity)
+              : constMaxFall;
 
           final diff = inBuf[i] - last;
           last += diff.fastClamp(-maxFall, maxRise);
