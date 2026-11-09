@@ -587,6 +587,7 @@ void _displayBenchmarkReport({
   double startupMb = 0.0;
   int steadyScavenges = 0;
   double steadyMb = 0.0;
+  final steadyPausesMs = <double>[];
 
   bool inBenchmark = false;
   for (final line in stderrText.split('\n')) {
@@ -601,7 +602,11 @@ void _displayBenchmarkReport({
 
     if (line.contains('Scavenge') || line.contains('MarkSweep')) {
       final parts = line.split(',');
+      double pauseMs = 0.0;
       double mb = 0.0;
+      if (parts.length > 4) {
+        pauseMs = double.tryParse(parts[4].trim()) ?? 0.0;
+      }
       if (parts.length > 5) {
         mb = double.tryParse(parts[5].trim()) ?? 0.0;
       }
@@ -611,6 +616,7 @@ void _displayBenchmarkReport({
         }
         steadyScavenges++;
         steadyMb += mb;
+        steadyPausesMs.add(pauseMs);
       } else {
         startupScavenges++;
         startupMb += mb;
@@ -656,6 +662,42 @@ void _displayBenchmarkReport({
   } else {
     stdout.writeln(
       '${'║ Steady-State:   ⚠️  $steadyScavenges GC scavenges (${steadyMb.toStringAsFixed(1)} MB garbage)'.padRight(67)}║',
+    );
+    final double steadyPauseTotalMs = steadyPausesMs.isEmpty
+        ? 0.0
+        : steadyPausesMs.reduce((a, b) => a + b);
+    final double steadyPauseMinMs = steadyPausesMs.isEmpty
+        ? 0.0
+        : steadyPausesMs.reduce((a, b) => a < b ? a : b);
+    final double steadyPauseMaxMs = steadyPausesMs.isEmpty
+        ? 0.0
+        : steadyPausesMs.reduce((a, b) => a > b ? a : b);
+    final double steadyPauseAvgMs = steadyPausesMs.isEmpty
+        ? 0.0
+        : steadyPauseTotalMs / steadyPausesMs.length;
+
+    final gcPct = renderTimeMs > 0
+        ? (steadyPauseTotalMs / renderTimeMs) * 100.0
+        : 0.0;
+    final totalStr = steadyPauseTotalMs == 0.0
+        ? '<0.1 ms'
+        : '${steadyPauseTotalMs.toStringAsFixed(1)} ms';
+    final pctStr = (steadyPauseTotalMs == 0.0 || gcPct < 0.01)
+        ? '<0.01%'
+        : '${gcPct.toStringAsFixed(2)}%';
+    stdout.writeln(
+      '${'║ GC Pause Time:  $totalStr total ($pctStr of render time)'.padRight(67)}║',
+    );
+
+    final minStr = '${steadyPauseMinMs.toStringAsFixed(1)} ms';
+    final maxStr = '${steadyPauseMaxMs.toStringAsFixed(1)} ms';
+    final avgStr = steadyPauseAvgMs < 0.01
+        ? '<0.01 ms'
+        : (steadyPauseAvgMs < 0.1
+            ? '${steadyPauseAvgMs.toStringAsFixed(2)} ms'
+            : '${steadyPauseAvgMs.toStringAsFixed(1)} ms');
+    stdout.writeln(
+      '${'║ Pause Duration: avg: $avgStr | min: $minStr | max: $maxStr'.padRight(67)}║',
     );
   }
   stdout.writeln(
