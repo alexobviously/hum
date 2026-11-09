@@ -61,6 +61,12 @@ class MapRange({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [inLow, inHigh, outLow, outHigh];
+
+  @override
   MapRangeParams get params => (
     inLow: inLow.value,
     inHigh: inHigh.value,

@@ -29,6 +29,12 @@ class const Abs({required final List<Outlet> channels})
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => const [];
+
+  @override
   AbsProcessor createProcessor() => AbsProcessor(numChannels: channels.length);
 
   @override

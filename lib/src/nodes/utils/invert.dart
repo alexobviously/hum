@@ -26,6 +26,12 @@ class const Invert({required final List<Outlet> channels})
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => const [];
+
+  @override
   InvertProcessor createProcessor() =>
       InvertProcessor(numChannels: channels.length);
 

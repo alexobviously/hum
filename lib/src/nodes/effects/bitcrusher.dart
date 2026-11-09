@@ -82,8 +82,10 @@ class Bitcrusher({
   Outlet get right => outlets[1];
 
   @override
-  bool canUpdate(covariant Bitcrusher newNode) =>
-      super.canUpdate(newNode) && numChannels == newNode.numChannels;
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [bitDepth, downsample, mix];
 
   @override
   BitcrusherProcessor createProcessor() => BitcrusherProcessor(

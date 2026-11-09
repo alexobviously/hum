@@ -65,6 +65,12 @@ class const Tah({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [threshold, activeHigh];
+
+  @override
   TahProcessor createProcessor() => TahProcessor(
     numChannels: channels.length,
     threshold: threshold,

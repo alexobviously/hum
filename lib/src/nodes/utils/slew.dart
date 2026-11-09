@@ -105,6 +105,12 @@ class const Slew({
   Outlet get right => outlets[1];
 
   @override
+  List<Object?> get fixedProps => [initialValue];
+
+  @override
+  List<Object?> get dynamicProps => [rise, fall];
+
+  @override
   SlewProcessor createProcessor() => SlewProcessor(
     numChannels: numChannels,
     rise: rise.valueOrNull,

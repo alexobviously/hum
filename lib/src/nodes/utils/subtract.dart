@@ -53,6 +53,12 @@ class const Subtract({
   Outlet get right => outlets[1];
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [value];
+
+  @override
   SubtractProcessor createProcessor() => SubtractProcessor(
     value: value.valueOrNull,
     numChannels: channels.length,

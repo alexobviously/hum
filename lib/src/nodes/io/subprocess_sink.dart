@@ -90,21 +90,14 @@ class SubprocessSink({
   ];
 
   @override
-  bool canUpdate(covariant SubprocessSink newNode) =>
-      super.canUpdate(newNode) &&
-      executable == newNode.executable &&
-      format == newNode.format &&
-      channels.length == newNode.channels.length &&
-      _listsEqual(arguments, newNode.arguments);
+  List<Object?> get fixedProps => [
+    executable,
+    format,
+    arguments,
+  ];
 
-  static bool _listsEqual(List<String> a, List<String> b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
+  @override
+  List<Object?> get dynamicProps => const [];
 }
 
 /// The runtime processor for [SubprocessSink].

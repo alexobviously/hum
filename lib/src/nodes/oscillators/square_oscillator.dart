@@ -27,6 +27,12 @@ class SquareOscillator extends OscillatorNode<SquareOscillatorProcessor> {
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [frequency, usePolyBlep];
+
+  @override
   SquareOscillatorProcessor createProcessor() => SquareOscillatorProcessor(
     frequency: frequency.valueOrNull,
     usePolyBlep: usePolyBlep,

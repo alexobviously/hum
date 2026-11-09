@@ -123,12 +123,11 @@ class Delay({
       ),
   ];
 
-  // Ring buffer size is fixed.
   @override
-  bool canUpdate(covariant Delay newNode) =>
-      super.canUpdate(newNode) &&
-      maxDelay == newNode.maxDelay &&
-      numChannels == newNode.numChannels;
+  List<Object?> get fixedProps => [maxDelay];
+
+  @override
+  List<Object?> get dynamicProps => [time, feedback, mix, damp, interpTime];
 }
 
 class DelayProcessor({

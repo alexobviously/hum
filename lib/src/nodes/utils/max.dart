@@ -73,10 +73,13 @@ class Max({
   ];
 
   @override
-  bool canUpdate(covariant Max newNode) =>
-      super.canUpdate(newNode) &&
-      value.canUpdate(newNode.value) &&
-      channels.length == newNode.channels.length;
+  List<Object?> get fixedProps => [
+    value != null,
+    value?.isSignal,
+  ];
+
+  @override
+  List<Object?> get dynamicProps => [value];
 }
 
 class MaxProcessor implements AudioProcessor {

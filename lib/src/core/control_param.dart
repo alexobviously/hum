@@ -49,6 +49,16 @@ class ControlParamValue<T> extends ControlParam<T> {
 
   const factory value(T value) = ControlParamValue<T>;
   factory stream(Stream<T> stream, T initialValue) = ControlParamStream<T>;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other.runtimeType == runtimeType &&
+          other is ControlParamValue<T> &&
+          other.value == value);
+
+  @override
+  int get hashCode => Object.hash(runtimeType, value);
 }
 
 class ControlParamStream<T> extends ControlParam<T>
@@ -76,10 +86,26 @@ class ControlParamStream<T> extends ControlParam<T>
     super.dispose();
     _sub.cancel();
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ControlParamStream<T> && identical(stream, other.stream));
+
+  @override
+  int get hashCode => identityHashCode(stream);
 }
 
 class ControlParamSignal extends ControlParam<double> {
   final Outlet outlet;
 
   const ControlParamSignal(this.outlet);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ControlParamSignal && other.outlet == outlet);
+
+  @override
+  int get hashCode => outlet.hashCode;
 }

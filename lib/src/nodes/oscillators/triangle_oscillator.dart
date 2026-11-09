@@ -30,6 +30,12 @@ class TriangleOscillator extends OscillatorNode<TriangleOscillatorProcessor> {
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [frequency, usePolyBlep];
+
+  @override
   TriangleOscillatorProcessor createProcessor() => TriangleOscillatorProcessor(
     frequency: frequency.valueOrNull,
     usePolyBlep: usePolyBlep,

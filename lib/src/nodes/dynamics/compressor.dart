@@ -154,10 +154,17 @@ class const Compressor({
   ];
 
   @override
-  bool canUpdate(covariant Compressor newNode) =>
-      super.canUpdate(newNode) &&
-      numChannels == newNode.numChannels &&
-      (sidechain != null) == (newNode.sidechain != null);
+  List<Object?> get fixedProps => [sidechain != null];
+
+  @override
+  List<Object?> get dynamicProps => [
+    threshold,
+    ratio,
+    attack,
+    release,
+    knee,
+    makeupGain,
+  ];
 
   @override
   CompressorProcessor createProcessor() => CompressorProcessor(

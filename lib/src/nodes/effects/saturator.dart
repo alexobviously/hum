@@ -172,6 +172,19 @@ class const Saturator({
   );
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [
+    drive,
+    bias,
+    mix,
+    mode,
+    dcBlock,
+    interpTime,
+  ];
+
+  @override
   SaturatorParams get params => (
     drive: drive.valueOrNull,
     bias: bias.valueOrNull,

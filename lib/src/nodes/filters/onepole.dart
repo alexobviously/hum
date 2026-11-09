@@ -34,6 +34,12 @@ class OnePoleFilter extends AudioNode<OnePoleProcessor> {
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [cutoff, type];
+
+  @override
   OnePoleProcessor createProcessor() =>
       OnePoleProcessor(cutoff: cutoff.valueOrNull, type: type);
 

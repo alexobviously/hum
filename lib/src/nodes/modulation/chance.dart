@@ -69,6 +69,12 @@ class Chance({
   Outlet get alt => outlets[1];
 
   @override
+  List<Object?> get fixedProps => [seed];
+
+  @override
+  List<Object?> get dynamicProps => [probability];
+
+  @override
   ChanceProcessor createProcessor() => ChanceProcessor(
     probability: probability.valueOrNull ?? 0.5,
     seed: seed,

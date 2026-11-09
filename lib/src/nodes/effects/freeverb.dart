@@ -129,8 +129,10 @@ class Freeverb({
   ];
 
   @override
-  bool canUpdate(covariant Freeverb newNode) =>
-      super.canUpdate(newNode) && inputs.length == newNode.inputs.length;
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [roomSize, damp, width, mix, interpTime];
 }
 
 /// Internal Lowpass-Feedback Comb Filter (LBCF) with 1-pole damping.

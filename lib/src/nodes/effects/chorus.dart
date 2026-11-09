@@ -172,12 +172,10 @@ class Chorus({
   ];
 
   @override
-  bool canUpdate(covariant Chorus newNode) =>
-      super.canUpdate(newNode) &&
-      maxDelay == newNode.maxDelay &&
-      stereoPhase == newNode.stereoPhase &&
-      numChannels == newNode.numChannels &&
-      numOutputs == newNode.numOutputs;
+  List<Object?> get fixedProps => [maxDelay, stereoPhase];
+
+  @override
+  List<Object?> get dynamicProps => [rate, depth, baseDelay, feedback, mix];
 }
 
 class ChorusProcessor({

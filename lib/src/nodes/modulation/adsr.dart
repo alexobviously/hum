@@ -56,6 +56,12 @@ class Adsr({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [attack, decay, sustain, release, curve];
+
+  @override
   AdsrProcessor createProcessor() => AdsrProcessor(
     attack: attack.valueOrNull ?? 0.01,
     decay: decay.valueOrNull ?? 0.1,

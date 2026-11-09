@@ -323,4 +323,44 @@ void main() {
       expect(bcMono1.canUpdate(bcStereo), isFalse);
     });
   });
+
+  group('AudioNode compare and port count reconciliation', () {
+    test('compare returns .identical when all props and port counts match', () {
+      final f1 = SvfFilter(input: osc1.outlet, cutoff: const .value(440));
+      final f2 = SvfFilter(input: osc1.outlet, cutoff: const .value(440));
+      expect(f1.compare(f2), equals(NodeComparisonResult.identical));
+    });
+
+    test(
+      'compare returns .update when dynamicProps change but ports match',
+      () {
+        final f1 = SvfFilter(input: osc1.outlet, cutoff: const .value(440));
+        final f2 = SvfFilter(input: osc1.outlet, cutoff: const .value(880));
+        expect(f1.compare(f2), equals(NodeComparisonResult.update));
+      },
+    );
+
+    test('compare returns .replace when inlets.length differs', () {
+      final sumMono = Sum.pair(osc1.outlet, osc2.outlet);
+      final sumTriple = Sum.of([osc1.outlet, osc2.outlet, osc1.outlet]);
+      expect(sumMono.compare(sumTriple), equals(NodeComparisonResult.replace));
+      expect(sumMono.canUpdate(sumTriple), isFalse);
+    });
+
+    test('compare returns .replace when outlets.length differs', () {
+      final bcMono = Bitcrusher.mono(input: osc1.outlet);
+      final bcStereo = Bitcrusher.stereo(
+        left: osc1.outlet,
+        right: osc2.outlet,
+      );
+      expect(bcMono.compare(bcStereo), equals(NodeComparisonResult.replace));
+      expect(bcMono.canUpdate(bcStereo), isFalse);
+    });
+
+    test('compare returns .unrelated when runtimeType differs', () {
+      final f = SvfFilter(input: osc1.outlet, cutoff: const .value(440));
+      final d = Delay.mono(input: osc1.outlet);
+      expect(f.compare(d), equals(NodeComparisonResult.unrelated));
+    });
+  });
 }

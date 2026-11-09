@@ -92,6 +92,12 @@ class Decay({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [decay, attack, curve];
+
+  @override
   DecayProcessor createProcessor() => DecayProcessor(
     decay: decay.valueOrNull ?? 0.1,
     attack: attack.valueOrNull ?? 0.0,

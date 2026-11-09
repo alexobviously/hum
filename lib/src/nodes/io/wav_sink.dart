@@ -46,11 +46,10 @@ class WavSink extends TerminalNode<WavSinkProcessor> {
   ];
 
   @override
-  bool canUpdate(covariant WavSink newNode) =>
-      super.canUpdate(newNode) &&
-      path == newNode.path &&
-      channels.length == newNode.channels.length &&
-      format == newNode.format;
+  List<Object?> get fixedProps => [path, format];
+
+  @override
+  List<Object?> get dynamicProps => const [];
 }
 
 /// The runtime processor for [WavSink].

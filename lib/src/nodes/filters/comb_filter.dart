@@ -127,10 +127,10 @@ class CombFilter({
   ];
 
   @override
-  bool canUpdate(covariant CombFilter newNode) =>
-      super.canUpdate(newNode) &&
-      minFrequency == newNode.minFrequency &&
-      numChannels == newNode.numChannels;
+  List<Object?> get fixedProps => [minFrequency];
+
+  @override
+  List<Object?> get dynamicProps => [frequency, feedback, damp, mix];
 }
 
 class CombFilterProcessor({

@@ -21,6 +21,12 @@ class const NoiseGenerator({final NoiseType type = .white, final int? seed})
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => [seed];
+
+  @override
+  List<Object?> get dynamicProps => [type];
+
+  @override
   NoiseGeneratorProcessor createProcessor() => NoiseGeneratorProcessor(
     type: type,
     seed: seed,

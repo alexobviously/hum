@@ -41,6 +41,12 @@ class const Add({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [value];
+
+  @override
   AddProcessor createProcessor() => AddProcessor(
     value: value.valueOrNull,
     numChannels: channels.length,

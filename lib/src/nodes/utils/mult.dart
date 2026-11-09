@@ -73,8 +73,10 @@ class const Mult({
   ];
 
   @override
-  bool canUpdate(covariant Mult newNode) =>
-      super.canUpdate(newNode) && channels.length == newNode.channels.length;
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [value, interpTime];
 }
 
 class MultProcessor implements AudioProcessor {

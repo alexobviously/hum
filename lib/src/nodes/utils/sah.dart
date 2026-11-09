@@ -68,6 +68,12 @@ class const Sah({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [threshold, triggerEdge];
+
+  @override
   SahProcessor createProcessor() => SahProcessor(
     numChannels: channels.length,
     threshold: threshold,

@@ -150,8 +150,10 @@ class Crossfade extends AudioNode<CrossfadeProcessor> {
   ];
 
   @override
-  bool canUpdate(covariant Crossfade newNode) =>
-      super.canUpdate(newNode) && numChannels == newNode.numChannels;
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [position, mode, interpTime];
 }
 
 class CrossfadeProcessor implements AudioProcessor {

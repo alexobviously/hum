@@ -102,8 +102,10 @@ class StepSequencer({
   ];
 
   @override
-  bool canUpdate(covariant StepSequencer newNode) =>
-      super.canUpdate(newNode) && (reset != null) == (newNode.reset != null);
+  List<Object?> get fixedProps => [reset != null];
+
+  @override
+  List<Object?> get dynamicProps => [steps, threshold];
 }
 
 class StepSequencerProcessor({

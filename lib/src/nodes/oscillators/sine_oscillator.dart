@@ -24,6 +24,12 @@ class SineOscillator extends OscillatorNode<SineOscillatorProcessor> {
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [frequency];
+
+  @override
   SineOscillatorProcessor createProcessor() => SineOscillatorProcessor(
     frequency: frequency.valueOrNull,
   );

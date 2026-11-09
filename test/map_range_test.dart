@@ -132,6 +132,10 @@ class DummyNode extends AudioNode<DummyProcessor> {
   @override
   DummyProcessor createProcessor() => DummyProcessor();
   @override
+  List<Object?> get fixedProps => const [];
+  @override
+  List<Object?> get dynamicProps => const [];
+  @override
   Object get params => const Object();
 }
 

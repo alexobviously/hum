@@ -36,6 +36,12 @@ class StereoPan extends AudioNode<StereoPanProcessor> {
   ];
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [pan];
+
+  @override
   StereoPanProcessor createProcessor() =>
       StereoPanProcessor(pan: pan.valueOrNull);
 

@@ -139,6 +139,12 @@ class const DCBlock({
   Outlet get right => outlets[1];
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [cutoffHz];
+
+  @override
   DCBlockProcessor createProcessor() =>
       DCBlockProcessor(numChannels: numChannels, cutoffHz: cutoffHz);
 

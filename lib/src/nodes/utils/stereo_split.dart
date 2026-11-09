@@ -26,6 +26,12 @@ class StereoSplit extends AudioNode<StereoSplitProcessor> {
   ];
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => const [];
+
+  @override
   StereoSplitProcessor createProcessor() => StereoSplitProcessor();
 
   @override

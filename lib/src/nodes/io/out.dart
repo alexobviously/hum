@@ -35,10 +35,10 @@ class Out({
   ];
 
   @override
-  bool canUpdate(AudioNode newNode) =>
-      super.canUpdate(newNode) &&
-      newNode is Out &&
-      channels.length == newNode.channels.length;
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => const [];
 }
 
 /// The runtime processor for [Out].

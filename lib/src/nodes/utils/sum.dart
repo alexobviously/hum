@@ -42,8 +42,10 @@ class Sum({required final List<Outlet> inputs})
   ];
 
   @override
-  bool canUpdate(covariant Sum newNode) =>
-      super.canUpdate(newNode) && inputs.length == newNode.inputs.length;
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => const [];
 }
 
 class SumProcessor implements AudioProcessor {

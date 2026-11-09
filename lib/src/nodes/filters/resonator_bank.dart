@@ -236,6 +236,21 @@ class const ResonatorBank({
   Outlet get outlet => outlets[0];
 
   @override
+  List<Object?> get fixedProps => [frequencies.length];
+
+  @override
+  List<Object?> get dynamicProps => [
+    frequencies,
+    gains,
+    pans,
+    frequencyMultiplier,
+    q,
+    brightness,
+    spread,
+    mix,
+  ];
+
+  @override
   ResonatorBankProcessor createProcessor() => ResonatorBankProcessor(
     numInputChannels: numInputChannels,
     frequencies: frequencies,

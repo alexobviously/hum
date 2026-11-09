@@ -62,6 +62,15 @@ class const Clamp({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => [
+    min?.isSignal,
+    max?.isSignal,
+  ];
+
+  @override
+  List<Object?> get dynamicProps => [min, max];
+
+  @override
   ClampProcessor createProcessor() => ClampProcessor(
     numChannels: channels.length,
     min: min?.valueOrNull,

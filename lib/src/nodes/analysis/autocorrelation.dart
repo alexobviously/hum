@@ -42,6 +42,17 @@ class Autocorrelation extends AudioNode<AutocorrelationProcessor> {
   );
 
   @override
+  List<Object?> get fixedProps => [
+    windowSize,
+    hopSize,
+    minFrequency,
+    maxFrequency,
+  ];
+
+  @override
+  List<Object?> get dynamicProps => const [];
+
+  @override
   Object get params => ();
 }
 

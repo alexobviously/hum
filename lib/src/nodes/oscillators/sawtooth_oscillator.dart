@@ -27,6 +27,12 @@ class SawtoothOscillator extends OscillatorNode<SawtoothOscillatorProcessor> {
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [frequency, usePolyBlep];
+
+  @override
   SawtoothOscillatorProcessor createProcessor() => SawtoothOscillatorProcessor(
     frequency: frequency.valueOrNull,
     usePolyBlep: usePolyBlep,

@@ -50,6 +50,12 @@ class Clock({
   Outlet get trigger => outlets[triggerOutlet];
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [frequency, pulseWidth];
+
+  @override
   ClockProcessor createProcessor() => ClockProcessor(
     frequency: frequency.valueOrNull,
     pulseWidth: pulseWidth.valueOrNull,

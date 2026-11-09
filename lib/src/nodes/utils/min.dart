@@ -73,10 +73,13 @@ class Min({
   ];
 
   @override
-  bool canUpdate(covariant Min newNode) =>
-      super.canUpdate(newNode) &&
-      value.canUpdate(newNode.value) &&
-      channels.length == newNode.channels.length;
+  List<Object?> get fixedProps => [
+    value != null,
+    value?.isSignal,
+  ];
+
+  @override
+  List<Object?> get dynamicProps => [value];
 }
 
 class MinProcessor implements AudioProcessor {

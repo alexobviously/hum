@@ -34,6 +34,12 @@ class KarplusStrong({
   Outlet get outlet => outlets.first;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [frequency, feedback];
+
+  @override
   KarplusStrongParams get params =>
       (frequency: frequency.valueOrNull, feedback: feedback.valueOrNull);
 }

@@ -12,6 +12,12 @@ class _LoopNode extends AudioNode<AudioProcessor> {
   AudioProcessor createProcessor() => throw UnimplementedError();
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => const [];
+
+  @override
   Object get params => ();
 }
 

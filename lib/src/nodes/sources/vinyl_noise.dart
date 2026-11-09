@@ -103,6 +103,12 @@ class const VinylNoise({
   Outlet get outlet => outlets[0];
 
   @override
+  List<Object?> get fixedProps => [seed];
+
+  @override
+  List<Object?> get dynamicProps => [crackle, hiss, warp, density, rpm];
+
+  @override
   VinylNoiseProcessor createProcessor() => VinylNoiseProcessor(
     crackle: crackle.valueOrNull,
     hiss: hiss.valueOrNull,

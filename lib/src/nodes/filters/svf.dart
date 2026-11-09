@@ -64,6 +64,12 @@ class SvfFilter extends AudioNode<SvfFilterProcessor> {
   Outlet get outlet => lowpass;
 
   @override
+  List<Object?> get fixedProps => const [];
+
+  @override
+  List<Object?> get dynamicProps => [cutoff, resonance];
+
+  @override
   SvfFilterProcessor createProcessor() => SvfFilterProcessor(
     cutoff: cutoff.valueOrNull,
     resonance: resonance.valueOrNull,
