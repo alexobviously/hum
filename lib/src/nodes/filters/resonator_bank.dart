@@ -315,6 +315,14 @@ class ResonatorBankProcessor({
   Float64List _s1 = Float64List(frequencies.length);
   Float64List _s2 = Float64List(frequencies.length);
 
+  // Pre-allocated coefficient buffers for block processing (zero heap allocation)
+  late Float64List _a1Coeffs = Float64List(_frequencies.length);
+  late Float64List _a2Coeffs = Float64List(_frequencies.length);
+  late Float64List _gCoeffs = Float64List(_frequencies.length);
+  late Float64List _kCoeffs = Float64List(_frequencies.length);
+  late Float64List _gainLCoeffs = Float64List(_frequencies.length);
+  late Float64List _gainRCoeffs = Float64List(_frequencies.length);
+
   int get modeCount => _frequencies.length;
 
   static List<double> _normalizeGains(int count, List<double>? userGains) {
@@ -338,7 +346,7 @@ class ResonatorBankProcessor({
     for (int k = 1; k < count; k++) {
       final sign = (k % 2 == 1) ? -1.0 : 1.0;
       final step = ((k + 1) ~/ 2) / (count / 2.0);
-      pans[k] = (sign * step).clamp(-1.0, 1.0);
+      pans[k] = (sign * step).fastClamp(-1.0, 1.0);
     }
     return pans;
   }
@@ -349,8 +357,15 @@ class ResonatorBankProcessor({
 
     if (_frequencies.length != p.frequencies.length) {
       _frequencies = List.of(p.frequencies);
-      _s1 = Float64List(_frequencies.length);
-      _s2 = Float64List(_frequencies.length);
+      final count = _frequencies.length;
+      _s1 = Float64List(count);
+      _s2 = Float64List(count);
+      _a1Coeffs = Float64List(count);
+      _a2Coeffs = Float64List(count);
+      _gCoeffs = Float64List(count);
+      _kCoeffs = Float64List(count);
+      _gainLCoeffs = Float64List(count);
+      _gainRCoeffs = Float64List(count);
     } else {
       _frequencies.setAll(0, p.frequencies);
     }
@@ -420,19 +435,19 @@ class ResonatorBankProcessor({
 
     if (isStaticParams) {
       // Fast path: block-constant tuning, Q, and stereo pan coefficients
-      final baseQ = defaultQ.clamp(0.5, 500.0);
-      final pitchMult = defaultPitch.clamp(0.01, 100.0);
-      final bright = defaultBrightness.clamp(0.0, 2.0);
-      final curSpread = defaultSpread.clamp(0.0, 1.0);
+      final baseQ = defaultQ.fastClamp(0.5, 500.0);
+      final pitchMult = defaultPitch.fastClamp(0.01, 100.0);
+      final bright = defaultBrightness.fastClamp(0.0, 2.0);
+      final curSpread = defaultSpread.fastClamp(0.0, 1.0);
       final (dryGain, wetGain) = equalPowerMix(defaultMix);
 
-      // Pre-compute per-mode SVF coefficients and stereo weights once for the block
-      final a1Coeffs = Float64List(count);
-      final a2Coeffs = Float64List(count);
-      final gCoeffs = Float64List(count);
-      final kCoeffs = Float64List(count);
-      final gainLCoeffs = Float64List(count);
-      final gainRCoeffs = Float64List(count);
+      // Pre-compute per-mode SVF coefficients and stereo weights once for the block into pre-allocated arrays
+      final a1Coeffs = _a1Coeffs;
+      final a2Coeffs = _a2Coeffs;
+      final gCoeffs = _gCoeffs;
+      final kCoeffs = _kCoeffs;
+      final gainLCoeffs = _gainLCoeffs;
+      final gainRCoeffs = _gainRCoeffs;
 
       for (int k = 0; k < count; k++) {
         final f = (_frequencies[k] * pitchMult).fastClamp(10.0, maxCutoff);
@@ -493,11 +508,9 @@ class ResonatorBankProcessor({
       // Audio-rate modulated path
       for (int i = 0; i < length; i++) {
         final x = 0.5 * (inL[i] + inR[i]);
-        final pitchMult = (pitchBuf != null ? pitchBuf[i] : defaultPitch).clamp(
-          0.01,
-          100.0,
-        );
-        final baseQ = (qBuf != null ? qBuf[i] : defaultQ).clamp(0.5, 500.0);
+        final pitchMult = (pitchBuf != null ? pitchBuf[i] : defaultPitch)
+            .fastClamp(0.01, 100.0);
+        final baseQ = (qBuf != null ? qBuf[i] : defaultQ).fastClamp(0.5, 500.0);
         final bright = (brightBuf != null ? brightBuf[i] : defaultBrightness)
             .fastClamp(0.0, 2.0);
         final curSpread = (spreadBuf != null ? spreadBuf[i] : defaultSpread)

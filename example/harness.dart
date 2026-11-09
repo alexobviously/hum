@@ -19,6 +19,8 @@ class const DemoOptions({
   final bool play = false,
   final AudioPlayerMode player = .auto,
   final bool offline = false,
+  final bool bench = false,
+  final bool benchWorker = false,
   final String? outputPath,
   final int? bars,
   final double? bpm,
@@ -49,6 +51,18 @@ class const DemoOptions({
         'offline',
         negatable: false,
         help: 'Bounce audio offline to WAV (default)',
+      )
+      ..addFlag(
+        'bench',
+        abbr: 'B',
+        negatable: false,
+        help: 'Benchmark throughput, block latency, and GC allocation profile',
+      )
+      ..addFlag(
+        'bench-worker',
+        hide: true,
+        negatable: false,
+        help: 'Internal worker flag for GC profiling',
       )
       ..addOption(
         'out',
@@ -105,10 +119,12 @@ class const DemoOptions({
       return const .parseResult(help: true);
     }
 
+    final isBench = results.flag('bench') || results.flag('bench-worker');
+    final isWorker = results.flag('bench-worker');
     final hasFfplay = results.flag('ffplay');
     final hasSox = results.flag('sox');
     final hasPlay = results.flag('play') || hasFfplay || hasSox;
-    final isOffline = results.flag('offline') || !hasPlay;
+    final isOffline = results.flag('offline') || (!hasPlay && !isBench);
 
     final AudioPlayerMode playerMode = switch ((hasFfplay, hasSox)) {
       (true, _) => .ffplay,
@@ -117,9 +133,11 @@ class const DemoOptions({
     };
 
     return DemoOptions(
-      play: hasPlay && !results.flag('offline'),
+      play: hasPlay && !results.flag('offline') && !isBench,
       player: playerMode,
       offline: isOffline,
+      bench: isBench,
+      benchWorker: isWorker,
       outputPath: results.option('out'),
       bars: int.tryParse(results.option('bars') ?? ''),
       bpm: double.tryParse(results.option('bpm') ?? ''),
@@ -171,7 +189,19 @@ Future<void> runDemo({
   final rawResult = builder(context, effectiveTempo);
   final terminal = _resolveTerminal(rawResult);
 
-  if (options.play) {
+  if (options.bench) {
+    await _runBenchmark(
+      name: name,
+      terminal: terminal,
+      context: context,
+      tempo: effectiveTempo,
+      bars: effectiveBars,
+      sampleRate: effectiveSr,
+      vectorSize: effectiveVs,
+      isWorker: options.benchWorker,
+      args: args,
+    );
+  } else if (options.play) {
     await _runLivePlayback(
       name: name,
       terminal: terminal,
@@ -423,4 +453,243 @@ Future<bool> _hasExecutable(String executable) async {
   } catch (_) {
     return false;
   }
+}
+
+/// Executes a high-precision throughput, block latency, and GC allocation benchmark.
+Future<void> _runBenchmark({
+  required String name,
+  required TerminalNode terminal,
+  required ProcessContext context,
+  required Tempo tempo,
+  required int bars,
+  required int sampleRate,
+  required int vectorSize,
+  required bool isWorker,
+  required List<String> args,
+}) async {
+  if (!isWorker) {
+    // Parent process: try to spawn a worker process with --verbose_gc to capture exact allocation metrics
+    final scriptUri = Platform.script;
+    if (scriptUri.scheme == 'file' &&
+        File(scriptUri.toFilePath()).existsSync()) {
+      try {
+        final workerArgs = <String>[
+          '--packages=.dart_tool/package_config.json',
+          '--verbose_gc',
+          scriptUri.toFilePath(),
+          '--bench-worker',
+          for (final a in args)
+            if (a != '--bench' && a != '-B' && a != '--bench-worker') a,
+        ];
+        final result = await Process.run(Platform.executable, workerArgs);
+        if (result.exitCode == 0) {
+          _displayBenchmarkReport(
+            name: name,
+            tempo: tempo,
+            bars: bars,
+            sampleRate: sampleRate,
+            vectorSize: vectorSize,
+            stdoutText: result.stdout as String,
+            stderrText: result.stderr as String,
+          );
+          return;
+        }
+      } catch (_) {
+        // Fall back to in-process benchmark if spawning is blocked
+      }
+    }
+  }
+
+  // Worker or in-process execution
+  final compileResult = compilePipeline(root: terminal, context: context);
+  if (compileResult.hasErrors) {
+    stderr.writeln('❌ Graph compilation failed:');
+    for (final diag in compileResult.diagnostics) {
+      stderr.writeln('   $diag');
+    }
+    exitCode = 1;
+    return;
+  }
+
+  final pipeline = compileResult.pipeline!;
+
+  // 1. Warm-up phase: run 10,000 blocks to allow Dart VM JIT optimization & inlining
+  const warmupBlocks = 25000;
+  for (int i = 0; i < warmupBlocks; i++) {
+    pipeline.process();
+  }
+
+  // 2. Steady-state benchmark
+  final totalBlocks = tempo.blocksFor(
+    bars: bars.toDouble(),
+    sampleRate: sampleRate,
+    vectorSize: vectorSize,
+  );
+
+  stderr.writeln('=== HUM_BENCHMARK_START ===');
+  final stopwatch = Stopwatch()..start();
+  for (int i = 0; i < totalBlocks; i++) {
+    pipeline.process();
+  }
+  stopwatch.stop();
+  stderr.writeln('=== HUM_BENCHMARK_END ===');
+
+  final elapsedUs = stopwatch.elapsedMicroseconds;
+
+  if (isWorker) {
+    stdout.writeln('METRICS: $totalBlocks $elapsedUs');
+  } else {
+    _displayInProcessReport(
+      name: name,
+      tempo: tempo,
+      bars: bars,
+      sampleRate: sampleRate,
+      vectorSize: vectorSize,
+      totalBlocks: totalBlocks,
+      elapsedUs: elapsedUs,
+    );
+  }
+}
+
+/// Formats and displays benchmark results with parsed GC metrics.
+void _displayBenchmarkReport({
+  required String name,
+  required Tempo tempo,
+  required int bars,
+  required int sampleRate,
+  required int vectorSize,
+  required String stdoutText,
+  required String stderrText,
+}) {
+  final match = RegExp(r'METRICS:\s*(\d+)\s+(\d+)').firstMatch(stdoutText);
+  if (match == null) {
+    stdout.write(stdoutText);
+    stderr.write(stderrText);
+    return;
+  }
+
+  final totalBlocks = int.parse(match.group(1)!);
+  final elapsedUs = int.parse(match.group(2)!);
+
+  int startupScavenges = 0;
+  double startupMb = 0.0;
+  int steadyScavenges = 0;
+  double steadyMb = 0.0;
+
+  bool inBenchmark = false;
+  for (final line in stderrText.split('\n')) {
+    if (line.contains('=== HUM_BENCHMARK_START ===')) {
+      inBenchmark = true;
+      continue;
+    }
+    if (line.contains('=== HUM_BENCHMARK_END ===')) {
+      inBenchmark = false;
+      continue;
+    }
+
+    if (line.contains('Scavenge') || line.contains('MarkSweep')) {
+      final parts = line.split(',');
+      double mb = 0.0;
+      if (parts.length > 5) {
+        mb = double.tryParse(parts[5].trim()) ?? 0.0;
+      }
+      if (inBenchmark) {
+        stderr.writeln('STEADY GC: $line');
+        steadyScavenges++;
+        steadyMb += mb;
+      } else {
+        startupScavenges++;
+        startupMb += mb;
+      }
+    }
+  }
+
+  final totalSamples = totalBlocks * vectorSize;
+  final audioDurationSec = totalSamples / sampleRate;
+  final renderTimeMs = elapsedUs / 1000.0;
+  final speedFactor = (audioDurationSec * 1000000.0) / elapsedUs;
+  final usPerBlock = elapsedUs / totalBlocks;
+  final blockBudgetUs = (vectorSize / sampleRate) * 1000000.0;
+  final dspLoadPct = (usPerBlock / blockBudgetUs) * 100.0;
+  final mSamplesPerSec = totalSamples / (elapsedUs / 1000000.0) / 1000000.0;
+
+  final border = '═' * 66;
+  stdout.writeln('╔$border╗');
+  stdout.writeln('║ ⚡ [hum] Audio Engine Benchmark: ${name.padRight(31)} ║');
+  stdout.writeln('╠$border╣');
+  stdout.writeln(
+    '${'║ Duration:       ${audioDurationSec.toStringAsFixed(1)}s audio ($bars bars @ ${tempo.bpm.round()} BPM)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Sample Rate:    $sampleRate Hz | Vector Size: $vectorSize samples'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Render Time:    ${renderTimeMs.toStringAsFixed(2)} ms ($totalBlocks blocks processed)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Throughput:     ${speedFactor.toStringAsFixed(0)}x real-time (${mSamplesPerSec.toStringAsFixed(2)} M samples/sec)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Block Latency:  ${usPerBlock.toStringAsFixed(2)} µs / block (budget: ${blockBudgetUs.toStringAsFixed(1)} µs)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ DSP Load:       ${dspLoadPct.toStringAsFixed(3)}% of audio callback budget'.padRight(67)}║',
+  );
+  if (steadyScavenges == 0) {
+    stdout.writeln(
+      '${'║ Steady-State:   0 GC scavenges (ZERO heap allocations! ⚡)'.padRight(67)}║',
+    );
+  } else {
+    stdout.writeln(
+      '${'║ Steady-State:   ⚠️  $steadyScavenges GC scavenges (${steadyMb.toStringAsFixed(1)} MB garbage)'.padRight(67)}║',
+    );
+  }
+  stdout.writeln(
+    '${'║ JIT Warmup:     $startupScavenges scavenges (${startupMb.toStringAsFixed(1)} MB during compilation)'.padRight(67)}║',
+  );
+  stdout.writeln('╚$border╝');
+}
+
+/// Fallback display when subprocess execution is not available.
+void _displayInProcessReport({
+  required String name,
+  required Tempo tempo,
+  required int bars,
+  required int sampleRate,
+  required int vectorSize,
+  required int totalBlocks,
+  required int elapsedUs,
+}) {
+  final totalSamples = totalBlocks * vectorSize;
+  final audioDurationSec = totalSamples / sampleRate;
+  final renderTimeMs = elapsedUs / 1000.0;
+  final speedFactor = (audioDurationSec * 1000000.0) / elapsedUs;
+  final usPerBlock = elapsedUs / totalBlocks;
+  final blockBudgetUs = (vectorSize / sampleRate) * 1000000.0;
+  final dspLoadPct = (usPerBlock / blockBudgetUs) * 100.0;
+  final mSamplesPerSec = totalSamples / (elapsedUs / 1000000.0) / 1000000.0;
+
+  final border = '═' * 66;
+  stdout.writeln('╔$border╗');
+  stdout.writeln('║ ⚡ [hum] Audio Engine Benchmark: ${name.padRight(31)} ║');
+  stdout.writeln('╠$border╣');
+  stdout.writeln(
+    '${'║ Duration:       ${audioDurationSec.toStringAsFixed(1)}s audio ($bars bars @ ${tempo.bpm.round()} BPM)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Sample Rate:    $sampleRate Hz | Vector Size: $vectorSize samples'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Render Time:    ${renderTimeMs.toStringAsFixed(2)} ms ($totalBlocks blocks processed)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Throughput:     ${speedFactor.toStringAsFixed(0)}x real-time (${mSamplesPerSec.toStringAsFixed(2)} M samples/sec)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ Block Latency:  ${usPerBlock.toStringAsFixed(2)} µs / block (budget: ${blockBudgetUs.toStringAsFixed(1)} µs)'.padRight(67)}║',
+  );
+  stdout.writeln(
+    '${'║ DSP Load:       ${dspLoadPct.toStringAsFixed(3)}% of audio callback budget'.padRight(67)}║',
+  );
+  stdout.writeln('╚$border╝');
 }

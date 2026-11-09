@@ -168,7 +168,7 @@ class DelayProcessor({
     _bufferMask = size - 1;
     _writeIndex = 0;
     _buffers = List.generate(numChannels, (_) => Float32List(size));
-    _currentDelaySamples = ((time ?? 0.0) * sampleRate).clamp(
+    _currentDelaySamples = ((time ?? 0.0) * sampleRate).fastClamp(
       1.0,
       maxDelay * sampleRate,
     );
@@ -190,7 +190,7 @@ class DelayProcessor({
 
     if (p.time != null) {
       if (_sampleRate > 0) {
-        _targetDelaySamples = (p.time! * _sampleRate).clamp(
+        _targetDelaySamples = (p.time! * _sampleRate).fastClamp(
           1.0,
           maxDelay * _sampleRate,
         );
@@ -272,11 +272,11 @@ class DelayProcessor({
 
     final double constDelaySamples = _targetDelaySamples;
     final double constFb = (feedback != null && isFbSettled)
-        ? _fbSmoother.current.clamp(-0.999, 0.999)
-        : (feedback ?? 0.0).clamp(-0.999, 0.999);
+        ? _fbSmoother.current.fastClamp(-0.999, 0.999)
+        : (feedback ?? 0.0).fastClamp(-0.999, 0.999);
     final double constDamp = (damp != null && isDampSettled)
-        ? _dampSmoother.current.clamp(0.0, 1.0)
-        : (damp ?? 0.0).clamp(0.0, 1.0);
+        ? _dampSmoother.current.fastClamp(0.0, 1.0)
+        : (damp ?? 0.0).fastClamp(0.0, 1.0);
     final double constDry = (mix != null && isMixSettled)
         ? equalPowerDry(_mixSmoother.current)
         : 0.0;

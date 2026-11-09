@@ -125,7 +125,7 @@ class ChanceProcessor implements AudioProcessor {
     final outA = outputs[0];
     final outB = outputs[1];
 
-    final double p = probability.clamp(0.0, 1.0);
+    final double p = probability.fastClamp(0.0, 1.0);
     bool lastInput = _lastInput;
     bool routeToA = _routeToA;
 

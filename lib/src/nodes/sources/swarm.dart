@@ -136,7 +136,7 @@ class Swarm {
     final panners = <StereoPan>[];
     final internalNodes = <AudioNode>[];
 
-    final clampedSpread = stereoSpread.clamp(0.0, 1.0);
+    final clampedSpread = stereoSpread.fastClamp(0.0, 1.0);
 
     for (int i = 0; i < voices; i++) {
       // Calculate normalized position x in [-1.0, 1.0]
@@ -148,7 +148,7 @@ class Swarm {
       final cents = detuneCurve * detuneCents;
       final ratio = math.pow(2.0, cents / 1200.0).toDouble();
 
-      final pan = (x * clampedSpread).clamp(-1.0, 1.0);
+      final pan = (x * clampedSpread).fastClamp(-1.0, 1.0);
 
       // Frequency calculation: static scalar or parallel signal modulation
       final ControlParam<double> voiceFreq;

@@ -186,7 +186,7 @@ class CombFilterProcessor({
 
     // Guard rails for pitch/frequency bounds
     final maxFreq = sampleRate * 0.49;
-    final maxDelaySamples = (sampleRate / minFrequency).clamp(
+    final maxDelaySamples = (sampleRate / minFrequency).fastClamp(
       2.0,
       mask.toDouble(),
     );
@@ -217,9 +217,12 @@ class CombFilterProcessor({
         ? inputs[CombFilter.mixInlet]
         : null;
 
-    final double constFreq = (frequency ?? 440.0).clamp(minFrequency, maxFreq);
-    final double constFb = (feedback ?? 0.9).clamp(-0.9999, 0.9999);
-    final double constDamp = (damp ?? 0.0).clamp(0.0, 1.0);
+    final double constFreq = (frequency ?? 440.0).fastClamp(
+      minFrequency,
+      maxFreq,
+    );
+    final double constFb = (feedback ?? 0.9).fastClamp(-0.9999, 0.9999);
+    final double constDamp = (damp ?? 0.0).fastClamp(0.0, 1.0);
     final double constDry = mix != null ? equalPowerDry(mix) : 0.0;
     final double constWet = mix != null ? equalPowerWet(mix) : 1.0;
 

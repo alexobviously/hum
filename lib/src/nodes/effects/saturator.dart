@@ -367,7 +367,10 @@ class SaturatorProcessor({
             : (isStaticMix && !isMixSettled ? _mixSmoother.next() : defaultMix);
 
         final dcOffset = b == 0.0 ? 0.0 : _shapeSample(b, mode);
-        final (dryGain, wetGain) = m >= 1.0 ? (0.0, 1.0) : linearMix(m);
+        // final (dryGain, wetGain) = m >= 1.0 ? (0.0, 1.0) : linearMix(m);
+        final clamped = m.fastClamp(0.0, 1.0);
+        final dryGain = m >= 1.0 ? 0.0 : 1.0 - clamped;
+        final wetGain = m >= 1.0 ? 1.0 : clamped;
 
         for (int c = 0; c < numChannels; c++) {
           final inBuf = inputs[Saturator.audioInletOffset + c];

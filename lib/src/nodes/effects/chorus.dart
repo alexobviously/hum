@@ -231,7 +231,10 @@ class ChorusProcessor({
     final mask = _bufferMask;
     final length = context.vectorSize;
     final sampleRate = context.sampleRate.toDouble();
-    final maxDelaySamples = (maxDelay * sampleRate).clamp(1.0, mask.toDouble());
+    final maxDelaySamples = (maxDelay * sampleRate).fastClamp(
+      1.0,
+      mask.toDouble(),
+    );
 
     final rate = this.rate;
     final depth = this.depth;
@@ -263,13 +266,13 @@ class ChorusProcessor({
         ? inputs[Chorus.mixInlet]
         : null;
 
-    final double constRate = (rate ?? 1.2).clamp(0.01, 20.0);
-    final double constDepth = (depth ?? 0.003).clamp(0.0, maxDelay * 0.5);
-    final double constBaseDelay = (baseDelay ?? 0.015).clamp(
+    final double constRate = (rate ?? 1.2).fastClamp(0.01, 20.0);
+    final double constDepth = (depth ?? 0.003).fastClamp(0.0, maxDelay * 0.5);
+    final double constBaseDelay = (baseDelay ?? 0.015).fastClamp(
       0.0005,
       maxDelay - constDepth,
     );
-    final double constFb = (feedback ?? 0.0).clamp(-0.95, 0.95);
+    final double constFb = (feedback ?? 0.0).fastClamp(-0.95, 0.95);
     final double constDry = mix != null ? equalPowerDry(mix) : 0.7071;
     final double constWet = mix != null ? equalPowerWet(mix) : 0.7071;
 

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../nodes/utils/clamp.dart';
+
 enum WavFormat {
   pcm16(code: 1, bitsPerSample: 16),
   float32(code: 3, bitsPerSample: 32);
@@ -48,7 +50,7 @@ void writeWav(
       for (final block in audio) {
         final pcm16 = Int16List(block.length);
         for (int i = 0; i < block.length; i++) {
-          final sample = block[i].clamp(-1.0, 1.0);
+          final sample = block[i].fastClamp(-1.0, 1.0);
           pcm16[i] = (sample * 32767.0).round();
         }
         builder.add(pcm16.buffer.asUint8List());

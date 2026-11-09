@@ -116,6 +116,21 @@ class AdsrProcessor implements AudioProcessor {
   /// Linear rate accumulator for attack when retriggered mid-flight.
   double _linearAttackRate = 0.0;
 
+  // Cached coefficients for zero-allocation steady-state processing
+  double _cachedAttack = -1.0;
+  double _cachedDecay = -1.0;
+  double _cachedSustain = -1.0;
+  double _cachedRelease = -1.0;
+  double _cachedSampleRate = -1.0;
+
+  double _aTime = 0.01;
+  double _sLevel = 0.7;
+  double _expAttackCoeff = 0.0;
+  double _expDecayCoeff = 0.0;
+  double _expReleaseCoeff = 0.0;
+  double _linDecayRate = 0.0;
+  double _linReleaseRate = 0.0;
+
   @override
   void update(Object params) {
     final p = params as AdsrParams;
@@ -136,32 +151,50 @@ class AdsrProcessor implements AudioProcessor {
     final gateBuffer = inputs[Adsr.gateInlet];
     final sampleRate = context.sampleRate.toDouble();
 
-    // Cache parameters and coefficients for this block
-    final double aTime = math.max(0.0001, attack);
-    final double dTime = math.max(0.0001, decay);
-    final double sLevel = sustain.clamp(0.0, 1.0);
-    final double rTime = math.max(0.0001, release);
-    final AdsrCurve activeCurve = curve;
+    // Cache parameters and coefficients when parameters or sample rate change
+    if (attack != _cachedAttack ||
+        decay != _cachedDecay ||
+        sustain != _cachedSustain ||
+        release != _cachedRelease ||
+        sampleRate != _cachedSampleRate) {
+      _cachedAttack = attack;
+      _cachedDecay = decay;
+      _cachedSustain = sustain;
+      _cachedRelease = release;
+      _cachedSampleRate = sampleRate;
 
-    // Analog RC exponential coefficients:
-    // Attack targets 1.5 (overshoot) to cross 1.0 in a finite time with punchy convex curvature.
-    // ln(1.5 / (1.5 - 1.0)) = ln(3.0) ~= 1.098612
-    final double expAttackCoeff =
-        1.0 - math.exp(-1.098612 / (aTime * sampleRate));
-    final double expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
-    // Release targets -0.01 (undershoot) to cleanly hit 0.0 in finite time.
-    final double expReleaseCoeff = 1.0 - math.exp(-3.0 / (rTime * sampleRate));
+      _aTime = attack > 0.0001 ? attack : 0.0001;
+      final double dTime = decay > 0.0001 ? decay : 0.0001;
+      _sLevel = sustain.fastClamp(0.0, 1.0);
+      final double rTime = release > 0.0001 ? release : 0.0001;
 
-    // Linear rates per sample
-    final double linDecayRate = (1.0 - sLevel) / (dTime * sampleRate);
-    final double linReleaseRate = 1.0 / (rTime * sampleRate);
+      // Analog RC exponential coefficients:
+      // Attack targets 1.5 (overshoot) to cross 1.0 in a finite time with punchy convex curvature.
+      // ln(1.5 / (1.5 - 1.0)) = ln(3.0) ~= 1.098612
+      _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
+      _expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
+      // Release targets -0.01 (undershoot) to cleanly hit 0.0 in finite time.
+      _expReleaseCoeff = 1.0 - math.exp(-3.0 / (rTime * sampleRate));
+
+      // Linear rates per sample
+      _linDecayRate = (1.0 - _sLevel) / (dTime * sampleRate);
+      _linReleaseRate = 1.0 / (rTime * sampleRate);
+    }
+
+    final double sLevel = _sLevel;
+    final double aTime = _aTime;
+    final double expAttackCoeff = _expAttackCoeff;
+    final double expDecayCoeff = _expDecayCoeff;
+    final double expReleaseCoeff = _expReleaseCoeff;
+    final double linDecayRate = _linDecayRate;
+    final double linReleaseRate = _linReleaseRate;
 
     double currentLevel = level;
     AdsrState currentState = state;
     bool lastGate = _lastGate;
     double linAttackRate = _linearAttackRate;
 
-    final bool isExp = activeCurve == AdsrCurve.exponential;
+    final bool isExp = curve == AdsrCurve.exponential;
 
     for (int i = 0; i < output.length; i++) {
       final bool gateHigh = gateBuffer[i] > 0.0;

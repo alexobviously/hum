@@ -129,8 +129,8 @@ class SvfFilterProcessor implements AudioProcessor {
 
     if (cutoff != null && resonance != null) {
       // Both cutoff and resonance are constant across the block
-      final f = cutoff.clamp(1.0, maxCutoff);
-      final q = resonance.clamp(0.01, 100.0);
+      final f = cutoff.fastClamp(1.0, maxCutoff);
+      final q = resonance.fastClamp(0.01, 100.0);
       final g = math.tan(piOverSr * f);
       final k = 1.0 / q;
       final a1 = 1.0 / (1.0 + g * (g + k));
@@ -155,7 +155,7 @@ class SvfFilterProcessor implements AudioProcessor {
     } else if (cutoff == null && resonance != null) {
       // Modulated cutoff, constant resonance
       final cutoffBuffer = inputs[SvfFilter.cutoffInlet];
-      final q = resonance.clamp(0.01, 100.0);
+      final q = resonance.fastClamp(0.01, 100.0);
       final k = 1.0 / q;
 
       for (int i = 0; i < length; i++) {
@@ -182,7 +182,7 @@ class SvfFilterProcessor implements AudioProcessor {
     } else if (cutoff != null && resonance == null) {
       // Constant cutoff, modulated resonance
       final resonanceBuffer = inputs[SvfFilter.resonanceInlet];
-      final f = cutoff.clamp(1.0, maxCutoff);
+      final f = cutoff.fastClamp(1.0, maxCutoff);
       final g = math.tan(piOverSr * f);
 
       for (int i = 0; i < length; i++) {

@@ -108,7 +108,7 @@ class ClockProcessor({
     final widthBuffer = hasSignalWidth ? inputs[Clock.pulseWidthInlet] : null;
 
     final double staticFreq = frequency ?? 2.0;
-    final double staticWidth = (pulseWidth ?? 0.5).clamp(0.0, 1.0);
+    final double staticWidth = (pulseWidth ?? 0.5).fastClamp(0.0, 1.0);
     final double fallbackInc = staticFreq / sampleRate;
 
     if (!hasSignalFreq && !hasSignalWidth) {
@@ -130,7 +130,7 @@ class ClockProcessor({
     } else {
       for (int i = 0; i < gateOut.length; i++) {
         final double threshold = hasSignalWidth
-            ? widthBuffer![i].clamp(0.0, 1.0)
+            ? widthBuffer![i].fastClamp(0.0, 1.0)
             : staticWidth;
         final double inc = hasSignalFreq
             ? (freqBuffer![i] / sampleRate)

@@ -123,7 +123,7 @@ class AutocorrelationProcessor implements AudioProcessor {
   }
 
   void _correlate(int sampleRate) {
-    final int maxTau = (sampleRate / minFrequency).ceil().clamp(
+    final int maxTau = (sampleRate / minFrequency).ceil().fastClamp(
       1,
       _ring.length - windowSize,
     );
