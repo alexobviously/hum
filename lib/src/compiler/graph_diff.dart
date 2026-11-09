@@ -119,34 +119,28 @@ GraphDiff diffGraph(GraphSnapshot oldSnapshot, GraphSnapshot newSnapshot) {
     }
   }
 
-  // Pass 2: Match compatible nodes of same type where canUpdate is true
+  final addedNodes = <int, AudioNode>{};
+  final updatedParams = <int, Object>{};
+  final removedNodeIds = <int>[];
+
+  // Pass 2: Match compatible nodes of same type
   for (final newNode in newNodes) {
     if (matchedNewToOld.containsKey(newNode)) continue;
     for (final oldNode in oldNodes) {
       if (matchedOldToNew.containsKey(oldNode)) continue;
-      if (oldNode.runtimeType == newNode.runtimeType &&
-          oldNode.canUpdate(newNode)) {
+      final comparison = oldNode.compare(newNode);
+      if (comparison == .identical || comparison == .update) {
         final oldId = oldSnapshot.nodeIds[oldNode];
         if (oldId != null) {
           matchedOldToNew[oldNode] = newNode;
           matchedNewToOld[newNode] = oldNode;
           matchedNewIds[newNode] = oldId;
+          if (comparison == .update) {
+            updatedParams[oldId] = newNode.params;
+          }
           break;
         }
       }
-    }
-  }
-
-  final addedNodes = <int, AudioNode>{};
-  final updatedParams = <int, Object>{};
-  final removedNodeIds = <int>[];
-
-  // Matched nodes: check if params need an in-place update
-  for (final MapEntry(key: newNode, value: oldNode)
-      in matchedNewToOld.entries) {
-    final id = matchedNewIds[newNode]!;
-    if (oldNode.params != newNode.params) {
-      updatedParams[id] = newNode.params;
     }
   }
 
