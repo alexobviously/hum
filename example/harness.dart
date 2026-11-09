@@ -483,9 +483,18 @@ Future<void> _runBenchmark({
     if (scriptUri.scheme == 'file' &&
         File(scriptUri.toFilePath()).existsSync()) {
       try {
+        final forwardedVmFlags = [
+          for (final flag in Platform.executableArguments)
+            if (!flag.startsWith('--resolved_executable_name') &&
+                !flag.startsWith('--executable_name') &&
+                !flag.startsWith('--packages') &&
+                flag != '--verbose_gc')
+              flag,
+        ];
         final workerArgs = <String>[
           '--packages=.dart_tool/package_config.json',
           '--verbose_gc',
+          ...forwardedVmFlags,
           scriptUri.toFilePath(),
           '--bench-worker',
           for (final a in args)
