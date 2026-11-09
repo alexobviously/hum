@@ -21,6 +21,7 @@ class const DemoOptions({
   final bool offline = false,
   final bool bench = false,
   final bool benchWorker = false,
+  final bool verboseGc = false,
   final String? outputPath,
   final int? bars,
   final double? bpm,
@@ -63,6 +64,12 @@ class const DemoOptions({
         hide: true,
         negatable: false,
         help: 'Internal worker flag for GC profiling',
+      )
+      ..addFlag(
+        'verbose-gc',
+        abbr: 'v',
+        negatable: false,
+        help: 'Print raw GC scavenge event logs during benchmark',
       )
       ..addOption(
         'out',
@@ -138,6 +145,7 @@ class const DemoOptions({
       offline: isOffline,
       bench: isBench,
       benchWorker: isWorker,
+      verboseGc: results.flag('verbose-gc'),
       outputPath: results.option('out'),
       bars: int.tryParse(results.option('bars') ?? ''),
       bpm: double.tryParse(results.option('bpm') ?? ''),
@@ -199,6 +207,7 @@ Future<void> runDemo({
       sampleRate: effectiveSr,
       vectorSize: effectiveVs,
       isWorker: options.benchWorker,
+      verboseGc: options.verboseGc,
       args: args,
     );
   } else if (options.play) {
@@ -465,6 +474,7 @@ Future<void> _runBenchmark({
   required int sampleRate,
   required int vectorSize,
   required bool isWorker,
+  bool verboseGc = false,
   required List<String> args,
 }) async {
   if (!isWorker) {
@@ -491,6 +501,7 @@ Future<void> _runBenchmark({
             vectorSize: vectorSize,
             stdoutText: result.stdout as String,
             stderrText: result.stderr as String,
+            verboseGc: verboseGc,
           );
           return;
         }
@@ -560,6 +571,7 @@ void _displayBenchmarkReport({
   required int vectorSize,
   required String stdoutText,
   required String stderrText,
+  bool verboseGc = false,
 }) {
   final match = RegExp(r'METRICS:\s*(\d+)\s+(\d+)').firstMatch(stdoutText);
   if (match == null) {
@@ -594,7 +606,9 @@ void _displayBenchmarkReport({
         mb = double.tryParse(parts[5].trim()) ?? 0.0;
       }
       if (inBenchmark) {
-        stderr.writeln('STEADY GC: $line');
+        if (verboseGc) {
+          stderr.writeln('STEADY GC: $line');
+        }
         steadyScavenges++;
         steadyMb += mb;
       } else {
