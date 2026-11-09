@@ -21,6 +21,7 @@ export 'src/music/decibels.dart';
 export 'src/music/pitch.dart';
 export 'src/music/scale.dart';
 export 'src/music/tempo.dart';
+export 'src/nodes/analysis/autocorrelation.dart';
 export 'src/nodes/dynamics/compressor.dart';
 export 'src/nodes/effects/bitcrusher.dart';
 export 'src/nodes/effects/chorus.dart';
