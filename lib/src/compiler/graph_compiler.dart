@@ -174,6 +174,10 @@ CompileGraphResult compileGraph({
   final sortedNodes = topologicalSort(discovered);
 
   // 4. Virtual buffer slot allocation
+  // TODO(buffer-allocation): replace this one-slot-per-outlet scheme with
+  // `allocateBufferSlots(sortedNodes, pinned: <final output outlets>)` from
+  // buffer_allocation.dart. Not wired up yet: processors need auditing for
+  // stale buffer contents (slots are reused uncleared) and in-place safety.
   final outletSlots = <Outlet, int>{};
   int nextSlot = 0;
 
