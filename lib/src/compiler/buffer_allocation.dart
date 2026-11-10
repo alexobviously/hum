@@ -78,9 +78,12 @@ Map<Outlet, LiveRange> computeLiveRanges(
 }
 
 // TODO(buffer-allocation): wire this into `compileGraph` (replacing the
-// one-slot-per-outlet allocation in step 4) once the engine's processors have
-// been audited for stale buffer contents and in-place safety. It is
-// deliberately not used by the host yet.
+// one-slot-per-outlet allocation in step 4). It is deliberately not used by the
+// host yet. Remaining blockers:
+//  - Processors that cache views of their buffers (`Sum`, `Mult`, `Crossfade`)
+//    must be invalidated when slot assignments change (planned: a topology
+//    epoch in `ProcessContext`).
+//  - Decide which nodes opt in to `canProcessInPlace`.
 /// Assigns virtual buffer slots to the outlets of [sortedNodes], reusing slots
 /// whose contents are no longer needed.
 ///
@@ -104,8 +107,9 @@ Map<Outlet, LiveRange> computeLiveRanges(
 /// Outlets in [pinned] keep their slot for the whole schedule; pass the
 /// graph's final output outlets here.
 ///
-/// Slots are reused without being cleared, so every processor must fully
-/// overwrite each of its output buffers on every block.
+/// Slots are reused without being cleared, so an output buffer may contain
+/// anything when a processor receives it. It is the processor's responsibility
+/// to leave each output in the state it wants, zeroing it if necessary.
 BufferAllocation allocateBufferSlots(
   List<AudioNode> sortedNodes, {
   Iterable<Outlet> pinned = const [],

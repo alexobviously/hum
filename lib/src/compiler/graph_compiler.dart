@@ -176,8 +176,9 @@ CompileGraphResult compileGraph({
   // 4. Virtual buffer slot allocation
   // TODO(buffer-allocation): replace this one-slot-per-outlet scheme with
   // `allocateBufferSlots(sortedNodes, pinned: <final output outlets>)` from
-  // buffer_allocation.dart. Not wired up yet: processors need auditing for
-  // stale buffer contents (slots are reused uncleared) and in-place safety.
+  // buffer_allocation.dart. Not wired up yet: processors that cache buffer
+  // views need invalidating when slots change (topology epoch), and we need to
+  // decide which nodes opt in to in-place processing. See the TODO there.
   final outletSlots = <Outlet, int>{};
   int nextSlot = 0;
 
