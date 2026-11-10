@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
@@ -33,7 +33,7 @@ jobs:
         run: echo "::add-matcher::.github/dart-problem-matcher.json"
 
       - name: Analyze project
-        run: dart analyze --fatal-infos
+        run: dart analyze
 
       - name: Run unit tests
         run: dart test

@@ -1,5 +1,4 @@
 import 'package:hum/hum.dart';
-import 'package:hum/src/utils/deep_equality.dart';
 
 part 'audio_node_error.dart';
 
