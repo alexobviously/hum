@@ -185,13 +185,13 @@ void main() {
       );
       final processor = chance.createProcessor();
 
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 2);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
       int hitsA = 0;
       int hitsB = 0;
 
-      final inBuf = Float32List(2);
-      final outA = Float32List(2);
-      final outB = Float32List(2);
+      final inBuf = Float32List(4);
+      final outA = Float32List(4);
+      final outB = Float32List(4);
 
       for (int i = 0; i < numTrials; i++) {
         inBuf[0] = 1.0; // Trigger rising edge

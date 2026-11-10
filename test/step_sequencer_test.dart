@@ -71,7 +71,7 @@ void main() {
           hasReset: false,
         );
 
-        final context = ProcessContext(sampleRate: 100, vectorSize: 6);
+        final context = ProcessContext(sampleRate: 100, vectorSize: 8);
 
         // Block 1:
         // sample 0: clock high (1st pulse -> step 0)
@@ -80,9 +80,11 @@ void main() {
         // sample 3: clock high (2nd pulse -> step 1)
         // sample 4: clock low
         // sample 5: clock high (3rd pulse -> step 2)
-        final clockBuf = Float32List.fromList([1.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
-        final emptyReset = Float32List(6);
-        final cvOut = Float32List(6);
+        // sample 6: clock low
+        // sample 7: clock low
+        final clockBuf = Float32List.fromList([1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0]);
+        final emptyReset = Float32List(8);
+        final cvOut = Float32List(8);
 
         processor.process(
           context,
@@ -97,9 +99,11 @@ void main() {
         expect(cvOut[3], equals(20.0));
         expect(cvOut[4], equals(20.0));
         expect(cvOut[5], equals(30.0));
+        expect(cvOut[6], equals(30.0));
+        expect(cvOut[7], equals(30.0));
 
         // Block 2: 4th pulse wraps back to step 0 (10.0)
-        final clockBuf2 = Float32List.fromList([0.0, 1.0, 0.0, 0.0, 0.0, 0.0]);
+        final clockBuf2 = Float32List.fromList([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         processor.process(
           context,
           [clockBuf2, emptyReset],
@@ -118,12 +122,12 @@ void main() {
         hasReset: true,
       );
 
-      final context = ProcessContext(sampleRate: 100, vectorSize: 6);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 8);
 
       // Advance to step 1 (200.0) on clock pulses
-      final clockBuf = Float32List.fromList([1.0, 0.0, 1.0, 0.0, 0.0, 0.0]);
-      final resetBuf = Float32List.fromList([0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
-      final cvOut = Float32List(6);
+      final clockBuf = Float32List.fromList([1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+      final resetBuf = Float32List.fromList([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]);
+      final cvOut = Float32List(8);
 
       processor.process(
         context,

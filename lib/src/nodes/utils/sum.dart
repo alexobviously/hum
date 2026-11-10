@@ -68,88 +68,51 @@ class SumProcessor implements AudioProcessor {
     List<Float32List> outputs,
   ) {
     final out = outputs[0];
-    final length = context.vectorSize;
+    final vs = context.vectorSize;
 
     if (numInputs == 0) {
-      out.fillRange(0, length, 0.0);
+      out.fillRange(0, vs, 0.0);
       return;
     }
 
     final in0 = inputs[0];
 
     if (numInputs == 1) {
-      out.setRange(0, length, in0);
+      out.setRange(0, vs, in0);
       return;
     }
 
-    final simdLength = length ~/ 4;
-    final tailStart = simdLength * 4;
+    final simdLength = vs >> 2; // length ~/ 4
 
-    if (simdLength > 0) {
-      // lazy initialisation, happens in first block
-      if (!identical(_lastOut, out)) {
-        _lastOut = out;
-        _out4 = out.buffer.asFloat32x4List(out.offsetInBytes, simdLength);
-        _in4 = [
-          for (int c = 0; c < numInputs; c++)
-            inputs[c].buffer.asFloat32x4List(
-              inputs[c].offsetInBytes,
-              simdLength,
-            ),
-        ];
-      }
-
-      final out4 = _out4!;
-      final in4 = _in4!;
-
-      // This is just an optimisation to avoid needlessly 'zeroing' the buffer.
-      _addPair(out4, in4[0], in4[1], simdLength);
-
-      for (int c = 2; c < numInputs; c++) {
-        _accumulate(out4, in4[c], simdLength);
-      }
-
-      // Another, slightly less efficient, way to write this would be
-      //
-      // out.fillRange(0, length, 0.0); // Wasted pass: writes 64 zeros to memory
-      // for (int c = 0; c < numInputs; c++) {
-      //   out[i] += inputs[c][i];
-      // }
+    // lazy initialisation, happens in first block
+    if (!identical(_lastOut, out)) {
+      _lastOut = out;
+      _out4 = out.buffer.asFloat32x4List(out.offsetInBytes, simdLength);
+      _in4 = [
+        for (int c = 0; c < numInputs; c++)
+          inputs[c].buffer.asFloat32x4List(
+            inputs[c].offsetInBytes,
+            simdLength,
+          ),
+      ];
     }
 
-    if (tailStart < length) {
-      final in1 = inputs[1];
-      for (int i = tailStart; i < length; i++) {
-        out[i] = in0[i] + in1[i];
-      }
-      for (int c = 2; c < numInputs; c++) {
-        final inC = inputs[c];
-        for (int i = tailStart; i < length; i++) {
-          out[i] += inC[i];
-        }
-      }
-    }
-  }
+    final out4 = _out4!;
+    final in4 = _in4!;
 
-  /// Inlined static helper guarantees the Dart JIT unboxes SIMD registers
-  /// without boxing.
-  @pragma('vm:prefer-inline')
-  static void _addPair(
-    Float32x4List out,
-    Float32x4List a,
-    Float32x4List b,
-    int len,
-  ) {
-    for (int i = 0; i < len; i++) {
-      out[i] = a[i] + b[i];
-    }
-  }
+    // This is just an optimisation to avoid needlessly 'zeroing' the buffer.
+    SIMD.add(out4, in4[0], in4[1], simdLength);
 
-  @pragma('vm:prefer-inline')
-  static void _accumulate(Float32x4List out, Float32x4List a, int len) {
-    for (int i = 0; i < len; i++) {
-      out[i] = out[i] + a[i];
+    for (int c = 2; c < numInputs; c++) {
+      SIMD.accumulate(out4, in4[c], simdLength);
     }
+
+    // Another, slightly less efficient, way to write this would be
+    //
+    // out.fillRange(0, length, 0.0); // Wasted pass: writes 64 zeros to memory
+    // for (int c = 0; c < numInputs; c++) {
+    //   out[i] += inputs[c][i];
+    // }
   }
 }
 

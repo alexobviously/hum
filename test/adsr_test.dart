@@ -127,7 +127,7 @@ void main() {
 
     test('smoothly retriggers from current level without pops or clicks', () {
       const sampleRate = 1000;
-      const vectorSize = 50;
+      const vectorSize = 52;
       final context = ProcessContext(
         sampleRate: sampleRate,
         vectorSize: vectorSize,
@@ -151,8 +151,8 @@ void main() {
       final out1 = [Float32List(vectorSize)];
       processor.process(context, [gate1], out1);
 
-      // Envelope is releasing mid-way at sample 49
-      final releaseLevel = out1[0][49];
+      // Envelope is releasing mid-way at sample 51
+      final releaseLevel = out1[0][51];
       expect(releaseLevel, greaterThan(0.1));
       expect(processor.state, equals(AdsrState.release));
 

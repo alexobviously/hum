@@ -101,7 +101,7 @@ void main() {
     });
 
     test('samples on falling edge', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 6);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
       final processor = SahProcessor(
         numChannels: 1,
         threshold: 0.5,
@@ -109,9 +109,9 @@ void main() {
       );
 
       // Trigger rises at 1, falls below 0.5 at 4
-      final trigBuf = Float32List.fromList([0.0, 1.0, 1.0, 1.0, 0.0, 0.0]);
-      final inBuf = Float32List.fromList([5.0, 15.0, 25.0, 35.0, 45.0, 55.0]);
-      final outBuf = Float32List(6);
+      final trigBuf = Float32List.fromList([0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0]);
+      final inBuf = Float32List.fromList([5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0]);
+      final outBuf = Float32List(8);
 
       processor.process(
         context,
@@ -127,10 +127,12 @@ void main() {
       // Falling edge at index 4 (1.0 -> 0.0 <= 0.5), latches 45.0
       expect(outBuf[4], equals(45.0));
       expect(outBuf[5], equals(45.0));
+      expect(outBuf[6], equals(45.0));
+      expect(outBuf[7], equals(45.0));
     });
 
     test('samples on both rising and falling edges', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 6);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
       final processor = SahProcessor(
         numChannels: 1,
         threshold: 0.0,
@@ -138,7 +140,7 @@ void main() {
       );
 
       // Trigger transitions: 0->1 (rising @ 1), 1->-1 (falling @ 3), -1->1 (rising @ 5)
-      final trigBuf = Float32List.fromList([-1.0, 1.0, 1.0, -1.0, -1.0, 1.0]);
+      final trigBuf = Float32List.fromList([-1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0]);
       final inBuf = Float32List.fromList([
         100.0,
         200.0,
@@ -146,8 +148,10 @@ void main() {
         400.0,
         500.0,
         600.0,
+        700.0,
+        800.0,
       ]);
-      final outBuf = Float32List(6);
+      final outBuf = Float32List(8);
 
       processor.process(
         context,
@@ -167,10 +171,12 @@ void main() {
       expect(outBuf[4], equals(400.0));
       // index 5: rising edge (-1.0 -> 1.0 > 0.0), latches 600.0
       expect(outBuf[5], equals(600.0));
+      expect(outBuf[6], equals(600.0));
+      expect(outBuf[7], equals(600.0));
     });
 
     test('retains trigger state across block boundaries', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 3);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
       final processor = SahProcessor(
         numChannels: 1,
         threshold: 0.5,
@@ -178,22 +184,23 @@ void main() {
       );
 
       // Block 1: trigger stays low (0.0)
-      final trig1 = Float32List.fromList([0.0, 0.0, 0.0]);
-      final in1 = Float32List.fromList([1.0, 2.0, 3.0]);
-      final out1 = Float32List(3);
+      final trig1 = Float32List.fromList([0.0, 0.0, 0.0, 0.0]);
+      final in1 = Float32List.fromList([1.0, 2.0, 3.0, 4.0]);
+      final out1 = Float32List(4);
       processor.process(context, [trig1, in1], [out1]);
-      expect(out1, equals([0.0, 0.0, 0.0]));
+      expect(out1, equals([0.0, 0.0, 0.0, 0.0]));
 
       // Block 2: trigger immediately rises on sample 0 (0.0 -> 1.0)
-      final trig2 = Float32List.fromList([1.0, 1.0, 1.0]);
-      final in2 = Float32List.fromList([99.0, 100.0, 101.0]);
-      final out2 = Float32List(3);
+      final trig2 = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final in2 = Float32List.fromList([99.0, 100.0, 101.0, 102.0]);
+      final out2 = Float32List(4);
       processor.process(context, [trig2, in2], [out2]);
 
       // Sample 0 must fire because _prevTrigger was 0.0 from Block 1
       expect(out2[0], equals(99.0));
       expect(out2[1], equals(99.0));
       expect(out2[2], equals(99.0));
+      expect(out2[3], equals(99.0));
     });
 
     test('samples multi-channel audio independently with shared trigger', () {

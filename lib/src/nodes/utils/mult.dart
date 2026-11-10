@@ -93,6 +93,13 @@ class MultProcessor implements AudioProcessor {
   // To prevent 'zipper' noises when adjusting value sharply
   late final SmoothedValue _smoother = SmoothedValue(value ?? 0.0);
 
+  // Cached SIMD vector views
+  // TODO: harden with engine epochs once available
+  Float32List? _lastOut;
+  List<Float32x4List>? _out4;
+  List<Float32x4List>? _in4;
+  Float32x4List? _val4;
+
   @override
   void update(Object params) {
     final p = params as MultParams;
@@ -115,7 +122,38 @@ class MultProcessor implements AudioProcessor {
     List<Float32List> inputs,
     List<Float32List> outputs,
   ) {
+    if (numChannels == 0) return;
+
     final value = this.value;
+    final vs = context.vectorSize;
+    final simdLength = vs >> 2;
+
+    // Lazy initialization, happens in first block
+    // TODO: harden with engine epochs once available
+    if (!identical(_lastOut, outputs[0])) {
+      _lastOut = outputs[0];
+      _out4 = [
+        for (int c = 0; c < numChannels; c++)
+          outputs[c].buffer.asFloat32x4List(
+            outputs[c].offsetInBytes,
+            simdLength,
+          ),
+      ];
+      _in4 = [
+        for (int c = 0; c < numChannels; c++)
+          inputs[c + 1].buffer.asFloat32x4List(
+            inputs[c + 1].offsetInBytes,
+            simdLength,
+          ),
+      ];
+      _val4 = inputs[Mult.valueInlet].buffer.asFloat32x4List(
+        inputs[Mult.valueInlet].offsetInBytes,
+        simdLength,
+      );
+    }
+
+    final out4 = _out4!;
+    final in4 = _in4!;
 
     if (value != null) {
       _smoother.configure(
@@ -124,20 +162,13 @@ class MultProcessor implements AudioProcessor {
       );
 
       if (_smoother.isSettled) {
-        // Normal branch
-        final gain = _smoother.current;
+        final gain4 = Float32x4.splat(_smoother.current);
         for (int c = 0; c < numChannels; c++) {
-          final output = outputs[c];
-          final input = inputs[c + 1];
-
-          for (int i = 0; i < context.vectorSize; i++) {
-            output[i] = input[i] * gain;
-          }
+          SIMD.scale(out4[c], in4[c], gain4, simdLength);
         }
       } else {
-        // 'Currently interpolating' branch
-        final length = context.vectorSize;
-        for (int i = 0; i < length; i++) {
+        // 'Currently interpolating' transient branch (~20ms) - kept scalar
+        for (int i = 0; i < vs; i++) {
           final gain = _smoother.next();
           for (int c = 0; c < numChannels; c++) {
             outputs[c][i] = inputs[c + 1][i] * gain;
@@ -145,15 +176,9 @@ class MultProcessor implements AudioProcessor {
         }
       }
     } else {
-      final multBuffer = inputs[Mult.valueInlet];
-
+      final val4 = _val4!;
       for (int c = 0; c < numChannels; c++) {
-        final output = outputs[c];
-        final input = inputs[c + 1];
-
-        for (int i = 0; i < context.vectorSize; i++) {
-          output[i] = input[i] * multBuffer[i];
-        }
+        SIMD.multiply(out4[c], in4[c], val4, simdLength);
       }
     }
   }

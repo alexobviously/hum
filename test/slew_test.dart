@@ -78,12 +78,12 @@ void main() {
 
     test('limits linear rise rate correctly', () {
       // sampleRate: 100 Hz, rise: 1.0 s -> maxRise = 1.0 / (1.0 * 100) = 0.01 per sample
-      final context = ProcessContext(sampleRate: 100, vectorSize: 5);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 4);
       final processor = SlewProcessor(numChannels: 1, rise: 1.0, fall: 0.0);
 
       // Input step jump to 1.0
-      final inBuf = Float32List.fromList([1.0, 1.0, 1.0, 1.0, 1.0]);
-      final outBuf = Float32List(5);
+      final inBuf = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final outBuf = Float32List(4);
 
       processor.process(context, [inBuf], [outBuf]);
 
@@ -91,27 +91,26 @@ void main() {
       expect(outBuf[1], closeTo(0.02, 1e-6));
       expect(outBuf[2], closeTo(0.03, 1e-6));
       expect(outBuf[3], closeTo(0.04, 1e-6));
-      expect(outBuf[4], closeTo(0.05, 1e-6));
     });
 
     test('limits linear fall rate correctly', () {
       // sampleRate: 100 Hz, fall: 0.5 s -> maxFall = 1.0 / (0.5 * 100) = 0.02 per sample
-      final context = ProcessContext(sampleRate: 100, vectorSize: 5);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 4);
       final processor = SlewProcessor(numChannels: 1, rise: 0.0, fall: 0.5);
 
       // Start by jumping to 1.0 with no rise limiting
-      final stepUp = Float32List.fromList([1.0]);
-      final stepUpOut = Float32List(1);
+      final stepUp = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final stepUpOut = Float32List(4);
       processor.process(
-        ProcessContext(sampleRate: 100, vectorSize: 1),
+        ProcessContext(sampleRate: 100, vectorSize: 4),
         [stepUp],
         [stepUpOut],
       );
       expect(stepUpOut[0], closeTo(1.0, 1e-6));
 
       // Now fall to 0.0 with fall limiting
-      final inBuf = Float32List.fromList([0.0, 0.0, 0.0, 0.0, 0.0]);
-      final outBuf = Float32List(5);
+      final inBuf = Float32List.fromList([0.0, 0.0, 0.0, 0.0]);
+      final outBuf = Float32List(4);
 
       processor.process(context, [inBuf], [outBuf]);
 
@@ -119,16 +118,15 @@ void main() {
       expect(outBuf[1], closeTo(0.96, 1e-6));
       expect(outBuf[2], closeTo(0.94, 1e-6));
       expect(outBuf[3], closeTo(0.92, 1e-6));
-      expect(outBuf[4], closeTo(0.90, 1e-6));
     });
 
     test('handles asymmetric rise and fall times', () {
       // sampleRate: 100 Hz, rise: 0.5 s (0.02/sample), fall: 1.0 s (0.01/sample)
-      final context = ProcessContext(sampleRate: 100, vectorSize: 6);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 8);
       final processor = SlewProcessor(numChannels: 1, rise: 0.5, fall: 1.0);
 
-      final inBuf = Float32List.fromList([1.0, 1.0, 1.0, -1.0, -1.0, -1.0]);
-      final outBuf = Float32List(6);
+      final inBuf = Float32List.fromList([1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0]);
+      final outBuf = Float32List(8);
 
       processor.process(context, [inBuf], [outBuf]);
 
@@ -136,53 +134,61 @@ void main() {
       expect(outBuf[0], closeTo(0.02, 1e-6));
       expect(outBuf[1], closeTo(0.04, 1e-6));
       expect(outBuf[2], closeTo(0.06, 1e-6));
-      // Falling by 0.01 from 0.06 towards -1.0
-      expect(outBuf[3], closeTo(0.05, 1e-6));
-      expect(outBuf[4], closeTo(0.04, 1e-6));
-      expect(outBuf[5], closeTo(0.03, 1e-6));
+      expect(outBuf[3], closeTo(0.08, 1e-6));
+      // Falling by 0.01 from 0.08 towards -1.0
+      expect(outBuf[4], closeTo(0.07, 1e-6));
+      expect(outBuf[5], closeTo(0.06, 1e-6));
+      expect(outBuf[6], closeTo(0.05, 1e-6));
+      expect(outBuf[7], closeTo(0.04, 1e-6));
     });
 
     test('preserves state across block boundaries', () {
-      final context = ProcessContext(sampleRate: 100, vectorSize: 2);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 4);
       final processor = SlewProcessor(numChannels: 1, rise: 1.0, fall: 1.0);
 
-      final block1In = Float32List.fromList([1.0, 1.0]);
-      final block1Out = Float32List(2);
+      final block1In = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final block1Out = Float32List(4);
       processor.process(context, [block1In], [block1Out]);
 
       expect(block1Out[0], closeTo(0.01, 1e-6));
       expect(block1Out[1], closeTo(0.02, 1e-6));
+      expect(block1Out[2], closeTo(0.03, 1e-6));
+      expect(block1Out[3], closeTo(0.04, 1e-6));
 
-      final block2In = Float32List.fromList([1.0, 1.0]);
-      final block2Out = Float32List(2);
+      final block2In = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final block2Out = Float32List(4);
       processor.process(context, [block2In], [block2Out]);
 
-      expect(block2Out[0], closeTo(0.03, 1e-6));
-      expect(block2Out[1], closeTo(0.04, 1e-6));
+      expect(block2Out[0], closeTo(0.05, 1e-6));
+      expect(block2Out[1], closeTo(0.06, 1e-6));
+      expect(block2Out[2], closeTo(0.07, 1e-6));
+      expect(block2Out[3], closeTo(0.08, 1e-6));
     });
 
     test('processes multiple channels independently', () {
-      final context = ProcessContext(sampleRate: 100, vectorSize: 3);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 4);
       final processor = SlewProcessor(numChannels: 2, rise: 1.0, fall: 1.0);
 
-      final leftIn = Float32List.fromList([1.0, 1.0, 1.0]);
-      final rightIn = Float32List.fromList([-1.0, -1.0, -1.0]);
-      final leftOut = Float32List(3);
-      final rightOut = Float32List(3);
+      final leftIn = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final rightIn = Float32List.fromList([-1.0, -1.0, -1.0, -1.0]);
+      final leftOut = Float32List(4);
+      final rightOut = Float32List(4);
 
       processor.process(context, [leftIn, rightIn], [leftOut, rightOut]);
 
       expect(leftOut[0], closeTo(0.01, 1e-6));
       expect(leftOut[1], closeTo(0.02, 1e-6));
       expect(leftOut[2], closeTo(0.03, 1e-6));
+      expect(leftOut[3], closeTo(0.04, 1e-6));
 
       expect(rightOut[0], closeTo(-0.01, 1e-6));
       expect(rightOut[1], closeTo(-0.02, 1e-6));
       expect(rightOut[2], closeTo(-0.03, 1e-6));
+      expect(rightOut[3], closeTo(-0.04, 1e-6));
     });
 
     test('supports audio-rate modulation of slew rates', () {
-      final context = ProcessContext(sampleRate: 100, vectorSize: 3);
+      final context = ProcessContext(sampleRate: 100, vectorSize: 4);
       // null static rise/fall indicates control by audio inlets
       final processor = SlewProcessor(numChannels: 1, rise: null, fall: null);
 
@@ -190,10 +196,11 @@ void main() {
       // sample 0: 1.0 s -> maxRise = 0.01
       // sample 1: 0.5 s -> maxRise = 0.02
       // sample 2: 0.25 s -> maxRise = 0.04
-      final riseBuf = Float32List.fromList([1.0, 0.5, 0.25]);
-      final fallBuf = Float32List.fromList([0.0, 0.0, 0.0]);
-      final audioIn = Float32List.fromList([10.0, 10.0, 10.0]);
-      final outBuf = Float32List(3);
+      // sample 3: 0.10 s -> maxRise = 0.10
+      final riseBuf = Float32List.fromList([1.0, 0.5, 0.25, 0.10]);
+      final fallBuf = Float32List.fromList([0.0, 0.0, 0.0, 0.0]);
+      final audioIn = Float32List.fromList([10.0, 10.0, 10.0, 10.0]);
+      final outBuf = Float32List(4);
 
       processor.process(
         context,
@@ -204,6 +211,7 @@ void main() {
       expect(outBuf[0], closeTo(0.01, 1e-6));
       expect(outBuf[1], closeTo(0.03, 1e-6)); // 0.01 + 0.02
       expect(outBuf[2], closeTo(0.07, 1e-6)); // 0.03 + 0.04
+      expect(outBuf[3], closeTo(0.17, 1e-6)); // 0.07 + 0.10
     });
 
     test('AudioPipeline correctly processes signal-modulated slew', () {

@@ -36,19 +36,19 @@ void main() {
     });
 
     test('processor clamps two-sided bounds accurately', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 5);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
       final processor = ClampProcessor(
         numChannels: 1,
         min: -0.5,
         max: 0.5,
       );
 
-      final inBuf = Float32List.fromList([-1.2, -0.5, 0.0, 0.5, 1.2]);
-      final outBuf = Float32List(5);
+      final inBuf = Float32List.fromList([-1.2, -0.5, 0.0, 0.5, 1.2, -2.0, 2.0, 0.2]);
+      final outBuf = Float32List(8);
 
       processor.process(
         context,
-        [Float32List(5), Float32List(5), inBuf],
+        [Float32List(8), Float32List(8), inBuf],
         [outBuf],
       );
 
@@ -57,6 +57,9 @@ void main() {
       expect(outBuf[2], closeTo(0.0, 1e-6));
       expect(outBuf[3], closeTo(0.5, 1e-6));
       expect(outBuf[4], closeTo(0.5, 1e-6));
+      expect(outBuf[5], closeTo(-0.5, 1e-6));
+      expect(outBuf[6], closeTo(0.5, 1e-6));
+      expect(outBuf[7], closeTo(0.2, 1e-6));
     });
 
     test(

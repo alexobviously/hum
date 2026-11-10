@@ -91,7 +91,7 @@ void main() {
     });
 
     test('Max.of and Min.of compute extreme across 3 or more signals', () {
-      const vs = 3;
+      const vs = 4;
       final context = const ProcessContext(sampleRate: 44100, vectorSize: vs);
 
       final maxProc = MaxProcessor(
@@ -105,9 +105,9 @@ void main() {
         numChannels: 3,
       );
 
-      final inA = Float32List.fromList([0.1, 0.9, -0.5]);
-      final inB = Float32List.fromList([0.8, 0.2, -0.2]);
-      final inC = Float32List.fromList([0.4, 0.5, -0.9]);
+      final inA = Float32List.fromList([0.1, 0.9, -0.5, 0.2]);
+      final inB = Float32List.fromList([0.8, 0.2, -0.2, -0.1]);
+      final inC = Float32List.fromList([0.4, 0.5, -0.9, 0.7]);
 
       final outMax = Float32List(vs);
       final outMin = Float32List(vs);
@@ -118,10 +118,12 @@ void main() {
       expect(outMax[0], closeTo(0.8, 1e-5)); // max(0.1, 0.8, 0.4)
       expect(outMax[1], closeTo(0.9, 1e-5)); // max(0.9, 0.2, 0.5)
       expect(outMax[2], closeTo(-0.2, 1e-5)); // max(-0.5, -0.2, -0.9)
+      expect(outMax[3], closeTo(0.7, 1e-5)); // max(0.2, -0.1, 0.7)
 
       expect(outMin[0], closeTo(0.1, 1e-5)); // min(0.1, 0.8, 0.4)
       expect(outMin[1], closeTo(0.2, 1e-5)); // min(0.9, 0.2, 0.5)
       expect(outMin[2], closeTo(-0.9, 1e-5)); // min(-0.5, -0.2, -0.9)
+      expect(outMin[3], closeTo(-0.1, 1e-5)); // min(0.2, -0.1, 0.7)
     });
 
     test(
@@ -167,7 +169,7 @@ void main() {
     );
 
     test('Max and Min support signal-modulated value comparison', () {
-      const vs = 3;
+      const vs = 4;
       final context = const ProcessContext(sampleRate: 44100, vectorSize: vs);
 
       final proc = MaxProcessor(
@@ -180,8 +182,9 @@ void main() {
         0.2,
         0.5,
         -0.1,
+        0.0,
       ]); // threshold signal
-      final audioBuffer = Float32List.fromList([0.1, 0.8, -0.3]);
+      final audioBuffer = Float32List.fromList([0.1, 0.8, -0.3, 0.4]);
       final out = Float32List(vs);
 
       proc.process(context, [valBuffer, audioBuffer], [out]);
@@ -189,6 +192,7 @@ void main() {
       expect(out[0], closeTo(0.2, 1e-5)); // max(0.1, 0.2)
       expect(out[1], closeTo(0.8, 1e-5)); // max(0.8, 0.5)
       expect(out[2], closeTo(-0.1, 1e-5)); // max(-0.3, -0.1)
+      expect(out[3], closeTo(0.4, 1e-5)); // max(0.4, 0.0)
     });
 
     test('Outlet and List<Outlet> extension methods work seamlessly', () {

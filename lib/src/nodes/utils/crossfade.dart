@@ -172,6 +172,13 @@ class CrossfadeProcessor implements AudioProcessor {
   // To prevent 'zipper' noises when adjusting position sharply
   late final SmoothedValue _posSmoother = SmoothedValue(position ?? 0.0);
 
+  // Cached SIMD vector views
+  // TODO: harden with engine epochs once available
+  Float32List? _lastOut;
+  List<Float32x4List>? _out4;
+  List<Float32x4List>? _inA4;
+  List<Float32x4List>? _inB4;
+
   @override
   void update(Object params) {
     final p = params as CrossfadeParams;
@@ -195,11 +202,41 @@ class CrossfadeProcessor implements AudioProcessor {
     List<Float32List> inputs,
     List<Float32List> outputs,
   ) {
+    if (numChannels == 0) return;
+
     final length = context.vectorSize;
+    final simdLength = length >> 2;
     final position = this.position;
     final audioOffset = inputs.length > numChannels * 2
         ? Crossfade.audioInletOffset
         : 0;
+
+    // Lazy initialization, happens in first block
+    // TODO: harden with engine epochs once available
+    if (!identical(_lastOut, outputs[0])) {
+      _lastOut = outputs[0];
+      _out4 = [
+        for (int c = 0; c < numChannels; c++)
+          outputs[c].buffer.asFloat32x4List(
+            outputs[c].offsetInBytes,
+            simdLength,
+          ),
+      ];
+      _inA4 = [
+        for (int c = 0; c < numChannels; c++)
+          inputs[audioOffset + c].buffer.asFloat32x4List(
+            inputs[audioOffset + c].offsetInBytes,
+            simdLength,
+          ),
+      ];
+      _inB4 = [
+        for (int c = 0; c < numChannels; c++)
+          inputs[audioOffset + numChannels + c].buffer.asFloat32x4List(
+            inputs[audioOffset + numChannels + c].offsetInBytes,
+            simdLength,
+          ),
+      ];
+    }
 
     if (position != null) {
       _posSmoother.configure(
@@ -214,17 +251,24 @@ class CrossfadeProcessor implements AudioProcessor {
           .linear => linearGains(_posSmoother.current),
         };
 
-        for (int c = 0; c < numChannels; c++) {
-          final inA = inputs[audioOffset + c];
-          final inB = inputs[audioOffset + numChannels + c];
-          final out = outputs[c];
+        final gainA4 = Float32x4.splat(gainA);
+        final gainB4 = Float32x4.splat(gainB);
+        final out4 = _out4!;
+        final inA4 = _inA4!;
+        final inB4 = _inB4!;
 
-          for (int i = 0; i < length; i++) {
-            out[i] = inA[i] * gainA + inB[i] * gainB;
-          }
+        for (int c = 0; c < numChannels; c++) {
+          SIMD.linearBlend(
+            out4[c],
+            inA4[c],
+            gainA4,
+            inB4[c],
+            gainB4,
+            simdLength,
+          );
         }
       } else {
-        // Interpolating position per frame across channels
+        // Interpolating position per frame across channels (~20ms transient, kept scalar)
         for (int i = 0; i < length; i++) {
           final pos = _posSmoother.next();
           final double gainA = switch (mode) {

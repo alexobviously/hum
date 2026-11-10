@@ -248,13 +248,13 @@ void main() {
         knee: 0.0,
       );
 
-      const vectorSize = 1;
+      const vectorSize = 4;
       final context = ProcessContext(sampleRate: 44100, vectorSize: vectorSize);
-      final inBuf = Float32List(1);
-      final outBuf = Float32List(1);
+      final inBuf = Float32List(vectorSize);
+      final outBuf = Float32List(vectorSize);
 
       // Case A: At -22 dB (inside knee, 2 dB below threshold)
-      inBuf[0] = dbToGain(-22.0);
+      inBuf.fillRange(0, vectorSize, dbToGain(-22.0));
       hardComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final hardReductionA = hardComp.gainReductionDb;
 
@@ -268,7 +268,7 @@ void main() {
       expect(softReductionA, lessThan(0.2));
 
       // Case B: Exactly at threshold (-20 dB)
-      inBuf[0] = dbToGain(-20.0);
+      inBuf.fillRange(0, vectorSize, dbToGain(-20.0));
       hardComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final hardReductionB = hardComp.gainReductionDb;
 
@@ -280,7 +280,7 @@ void main() {
       expect(softReductionB, closeTo(0.5625, 1e-3));
 
       // Case C: At -17 dB (top of knee, +3 dB above threshold)
-      inBuf[0] = dbToGain(-17.0);
+      inBuf.fillRange(0, vectorSize, dbToGain(-17.0));
       hardComp.process(context, _compressorInputs(inBuf), [outBuf]);
       final hardReductionC = hardComp.gainReductionDb;
 
@@ -321,8 +321,8 @@ void main() {
 
   group('Compressor dynamic ballistics (Attack & Release)', () {
     test('smooths gain reduction according to attack time constant', () {
-      const sampleRate = 44100;
-      const attackSeconds = 0.010; // 10 ms = 441 samples
+      const sampleRate = 40000;
+      const attackSeconds = 0.010; // 10 ms = 400 samples
       final processor = CompressorProcessor(
         numChannels: 1,
         threshold: -20.0,
@@ -332,7 +332,7 @@ void main() {
         knee: 0.0,
       );
 
-      const vectorSize = 441;
+      const vectorSize = 400;
       final context = ProcessContext(
         sampleRate: sampleRate,
         vectorSize: vectorSize,
@@ -347,7 +347,7 @@ void main() {
       // At sample 0, gain reduction just started (low reduction)
       expect(outBuffer[0], closeTo(1.0, 0.05));
 
-      // After 1 time constant (441 samples), reduction should reach ~63.2% of 15 dB = ~9.48 dB
+      // After 1 time constant (400 samples), reduction should reach ~63.2% of 15 dB = ~9.48 dB
       expect(
         processor.gainReductionDb,
         closeTo(15.0 * (1.0 - 1.0 / 2.71828), 0.5),

@@ -100,7 +100,7 @@ void main() {
     });
 
     test('supports inverted activeHigh polarity (tracks when low, holds when high)', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 6);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
       final processor = TahProcessor(
         numChannels: 1,
         threshold: 0.5,
@@ -110,10 +110,10 @@ void main() {
       // Gate:
       // i=0,1: low (<= 0.5) -> tracking
       // i=2,3: high (> 0.5) -> holding last sample from i=1
-      // i=4,5: low (<= 0.5) -> tracking resumed
-      final gateBuf = Float32List.fromList([0.0, 0.0, 1.0, 1.0, 0.0, 0.0]);
-      final inBuf = Float32List.fromList([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-      final outBuf = Float32List(6);
+      // i=4,5,6,7: low (<= 0.5) -> tracking resumed
+      final gateBuf = Float32List.fromList([0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0]);
+      final inBuf = Float32List.fromList([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+      final outBuf = Float32List(8);
 
       processor.process(
         context,
@@ -129,29 +129,31 @@ void main() {
       // Gate went low: resumes tracking live input
       expect(outBuf[4], equals(5.0));
       expect(outBuf[5], equals(6.0));
+      expect(outBuf[6], equals(7.0));
+      expect(outBuf[7], equals(8.0));
     });
 
     test('retains held value across block boundaries', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 3);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
       final processor = TahProcessor(
         numChannels: 1,
         threshold: 0.5,
         activeHigh: true,
       );
 
-      // Block 1: tracks, ends with 77.0
-      final gate1 = Float32List.fromList([1.0, 1.0, 1.0]);
-      final in1 = Float32List.fromList([55.0, 66.0, 77.0]);
-      final out1 = Float32List(3);
+      // Block 1: tracks, ends with 88.0
+      final gate1 = Float32List.fromList([1.0, 1.0, 1.0, 1.0]);
+      final in1 = Float32List.fromList([55.0, 66.0, 77.0, 88.0]);
+      final out1 = Float32List(4);
       processor.process(context, [gate1, in1], [out1]);
-      expect(out1, equals([55.0, 66.0, 77.0]));
+      expect(out1, equals([55.0, 66.0, 77.0, 88.0]));
 
-      // Block 2: gate drops to 0.0 for entire block -> continues holding 77.0
-      final gate2 = Float32List.fromList([0.0, 0.0, 0.0]);
-      final in2 = Float32List.fromList([100.0, 200.0, 300.0]);
-      final out2 = Float32List(3);
+      // Block 2: gate drops to 0.0 for entire block -> continues holding 88.0
+      final gate2 = Float32List.fromList([0.0, 0.0, 0.0, 0.0]);
+      final in2 = Float32List.fromList([100.0, 200.0, 300.0, 400.0]);
+      final out2 = Float32List(4);
       processor.process(context, [gate2, in2], [out2]);
-      expect(out2, equals([77.0, 77.0, 77.0]));
+      expect(out2, equals([88.0, 88.0, 88.0, 88.0]));
     });
 
     test('tracks and holds multi-channel audio independently', () {

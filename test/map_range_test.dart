@@ -29,17 +29,16 @@ void main() {
         outHigh: 500.0,
       );
 
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 5);
-      final inBuf = Float32List.fromList([-1.0, -0.5, 0.0, 0.5, 1.0]);
-      final outBuf = Float32List(5);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+      final inBuf = Float32List.fromList([-1.0, 0.0, 0.5, 1.0]);
+      final outBuf = Float32List(4);
 
       proc.process(context, [inBuf], [outBuf]);
 
       expect(outBuf[0], closeTo(100.0, 1e-4));
-      expect(outBuf[1], closeTo(200.0, 1e-4));
-      expect(outBuf[2], closeTo(300.0, 1e-4));
-      expect(outBuf[3], closeTo(400.0, 1e-4));
-      expect(outBuf[4], closeTo(500.0, 1e-4));
+      expect(outBuf[1], closeTo(300.0, 1e-4));
+      expect(outBuf[2], closeTo(400.0, 1e-4));
+      expect(outBuf[3], closeTo(500.0, 1e-4));
     });
 
     test('MapRange.bipolar factory maps [-1.0, 1.0] to target range', () {
@@ -89,18 +88,22 @@ void main() {
         outHigh: 10.0,
       );
 
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 2);
-      final inBuf = Float32List.fromList([0.0, 1.0]);
-      final outBuf = Float32List(2);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+      final inBuf = Float32List.fromList([0.0, 0.5, 1.0, 0.0]);
+      final outBuf = Float32List(4);
 
       proc.process(context, [inBuf], [outBuf]);
       expect(outBuf[0], equals(0.0));
-      expect(outBuf[1], equals(10.0));
+      expect(outBuf[1], equals(5.0));
+      expect(outBuf[2], equals(10.0));
+      expect(outBuf[3], equals(0.0));
 
       proc.update((inLow: 0.0, inHigh: 1.0, outLow: 100.0, outHigh: 200.0));
       proc.process(context, [inBuf], [outBuf]);
       expect(outBuf[0], equals(100.0));
-      expect(outBuf[1], equals(200.0));
+      expect(outBuf[1], equals(150.0));
+      expect(outBuf[2], equals(200.0));
+      expect(outBuf[3], equals(100.0));
     });
 
     test('compiles and renders inside AudioPipeline', () {

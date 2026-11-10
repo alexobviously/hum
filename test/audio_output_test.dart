@@ -48,21 +48,21 @@ void main() {
       final pipedOutput = PipedAudioOutput(
         sink: ioSink,
         numChannels: 2,
-        vectorSize: 2,
+        vectorSize: 4,
       );
 
-      final left = Float32List.fromList([1.0, 3.0]);
-      final right = Float32List.fromList([2.0, 4.0]);
+      final left = Float32List.fromList([1.0, 3.0, 5.0, 7.0]);
+      final right = Float32List.fromList([2.0, 4.0, 6.0, 8.0]);
 
       pipedOutput.write([left, right]);
       await pipedOutput.close();
 
-      // 2 samples * 2 channels * 4 bytes = 16 bytes
-      expect(accumulatedBytes.length, equals(16));
+      // 4 samples * 2 channels * 4 bytes = 32 bytes
+      expect(accumulatedBytes.length, equals(32));
 
       final floats = Uint8List.fromList(accumulatedBytes).buffer
           .asFloat32List();
-      expect(floats, equals([1.0, 2.0, 3.0, 4.0]));
+      expect(floats, equals([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]));
     });
 
     test('Out.stereo routes graph outputs to AudioOutput at engine level', () {

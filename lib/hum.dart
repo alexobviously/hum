@@ -68,3 +68,5 @@ export 'src/nodes/utils/stereo_split.dart';
 export 'src/nodes/utils/subtract.dart';
 export 'src/nodes/utils/sum.dart';
 export 'src/nodes/utils/tah.dart';
+export 'src/utils/deep_equality.dart';
+export 'src/utils/simd.dart';

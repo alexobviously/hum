@@ -70,7 +70,7 @@ void main() {
     });
 
     test('processor shapes cubic curve with zero corner derivative', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 5);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
       final processor = SaturatorProcessor(
         numChannels: 1,
         drive: 1.0,
@@ -79,8 +79,8 @@ void main() {
         mode: SaturationMode.cubic,
       );
 
-      final inBuf = Float32List.fromList([0.0, 0.5, 1.0, 2.0, -2.0]);
-      final outBuf = Float32List(5);
+      final inBuf = Float32List.fromList([0.0, 0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 0.0]);
+      final outBuf = Float32List(8);
 
       processor.process(context, _inlets(inBuf), [outBuf]);
 
@@ -92,10 +92,13 @@ void main() {
       // Beyond 1.0 is smoothly clamped to 1.0
       expect(outBuf[3], equals(1.0));
       expect(outBuf[4], equals(-1.0));
+      expect(outBuf[5], equals(-1.0));
+      expect(outBuf[6], closeTo(-0.6875, 1e-4));
+      expect(outBuf[7], closeTo(0.0, 1e-5));
     });
 
     test('processor shapes algebraic and atan curves', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 3);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
 
       final algProc = SaturatorProcessor(
         numChannels: 1,
@@ -106,9 +109,9 @@ void main() {
         mode: SaturationMode.atan,
       );
 
-      final inBuf = Float32List.fromList([0.0, 1.0, 50.0]);
-      final outAlg = Float32List(3);
-      final outAtan = Float32List(3);
+      final inBuf = Float32List.fromList([0.0, 1.0, 50.0, 0.0]);
+      final outAlg = Float32List(4);
+      final outAtan = Float32List(4);
 
       algProc.process(context, _inlets(inBuf), [outAlg]);
       atanProc.process(context, _inlets(inBuf), [outAtan]);
@@ -149,7 +152,7 @@ void main() {
     });
 
     test('asymmetric bias injects even harmonic asymmetry with zero DC offset on silence', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 3);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
       final processor = SaturatorProcessor(
         numChannels: 1,
         drive: 1.0,
@@ -157,8 +160,8 @@ void main() {
         mode: SaturationMode.tanh,
       );
 
-      final inBuf = Float32List.fromList([0.0, 0.5, -0.5]);
-      final outBuf = Float32List(3);
+      final inBuf = Float32List.fromList([0.0, 0.5, -0.5, 0.0]);
+      final outBuf = Float32List(4);
 
       processor.process(context, _inlets(inBuf), [outBuf]);
 
@@ -172,9 +175,9 @@ void main() {
     });
 
     test('mix parameter blends smoothly between dry and wet', () {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 1);
-      final inBuf = Float32List.fromList([0.5]);
-      final outBuf = Float32List(1);
+      final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+      final inBuf = Float32List.fromList([0.5, 0.5, 0.5, 0.5]);
+      final outBuf = Float32List(4);
 
       // 100% dry (mix = 0.0)
       final dryProc = SaturatorProcessor(
