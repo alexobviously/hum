@@ -55,8 +55,8 @@ class SumProcessor implements AudioProcessor {
 
   // Cached SIMD vector views
   Float32List? _lastOut;
-  Float32x4List? _out4;
-  List<Float32x4List>? _in4;
+  SimdList? _out4;
+  List<SimdList>? _in4;
 
   @override
   void update(Object params) {}
@@ -82,18 +82,12 @@ class SumProcessor implements AudioProcessor {
       return;
     }
 
-    final simdLength = vs >> 2; // length ~/ 4
-
     // lazy initialisation, happens in first block
     if (!identical(_lastOut, out)) {
       _lastOut = out;
-      _out4 = out.buffer.asFloat32x4List(out.offsetInBytes, simdLength);
+      _out4 = SIMD.view(out, vs);
       _in4 = [
-        for (int c = 0; c < numInputs; c++)
-          inputs[c].buffer.asFloat32x4List(
-            inputs[c].offsetInBytes,
-            simdLength,
-          ),
+        for (int c = 0; c < numInputs; c++) SIMD.view(inputs[c], vs),
       ];
     }
 
@@ -101,10 +95,10 @@ class SumProcessor implements AudioProcessor {
     final in4 = _in4!;
 
     // This is just an optimisation to avoid needlessly 'zeroing' the buffer.
-    SIMD.add(out4, in4[0], in4[1], simdLength);
+    SIMD.add(out4, in4[0], in4[1], vs);
 
     for (int c = 2; c < numInputs; c++) {
-      SIMD.accumulate(out4, in4[c], simdLength);
+      SIMD.accumulate(out4, in4[c], vs);
     }
 
     // Another, slightly less efficient, way to write this would be

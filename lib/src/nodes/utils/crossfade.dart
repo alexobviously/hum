@@ -175,9 +175,9 @@ class CrossfadeProcessor implements AudioProcessor {
   // Cached SIMD vector views
   // TODO: harden with engine epochs once available
   Float32List? _lastOut;
-  List<Float32x4List>? _out4;
-  List<Float32x4List>? _inA4;
-  List<Float32x4List>? _inB4;
+  List<SimdList>? _out4;
+  List<SimdList>? _inA4;
+  List<SimdList>? _inB4;
 
   @override
   void update(Object params) {
@@ -205,7 +205,6 @@ class CrossfadeProcessor implements AudioProcessor {
     if (numChannels == 0) return;
 
     final length = context.vectorSize;
-    final simdLength = length >> 2;
     final position = this.position;
     final audioOffset = inputs.length > numChannels * 2
         ? Crossfade.audioInletOffset
@@ -214,28 +213,7 @@ class CrossfadeProcessor implements AudioProcessor {
     // Lazy initialization, happens in first block
     // TODO: harden with engine epochs once available
     if (!identical(_lastOut, outputs[0])) {
-      _lastOut = outputs[0];
-      _out4 = [
-        for (int c = 0; c < numChannels; c++)
-          outputs[c].buffer.asFloat32x4List(
-            outputs[c].offsetInBytes,
-            simdLength,
-          ),
-      ];
-      _inA4 = [
-        for (int c = 0; c < numChannels; c++)
-          inputs[audioOffset + c].buffer.asFloat32x4List(
-            inputs[audioOffset + c].offsetInBytes,
-            simdLength,
-          ),
-      ];
-      _inB4 = [
-        for (int c = 0; c < numChannels; c++)
-          inputs[audioOffset + numChannels + c].buffer.asFloat32x4List(
-            inputs[audioOffset + numChannels + c].offsetInBytes,
-            simdLength,
-          ),
-      ];
+      _initViews(inputs, outputs, audioOffset, length);
     }
 
     if (position != null) {
@@ -246,13 +224,17 @@ class CrossfadeProcessor implements AudioProcessor {
 
       if (_posSmoother.isSettled) {
         // Constant position over the entire block
-        final (gainA, gainB) = switch (mode) {
-          .equalPower => equalPowerGains(_posSmoother.current),
-          .linear => linearGains(_posSmoother.current),
-        };
+        final pos = _posSmoother.current;
+        final double gainA;
+        final double gainB;
+        if (mode == .equalPower) {
+          gainA = equalPowerGainLeft(pos);
+          gainB = equalPowerGainRight(pos);
+        } else {
+          gainA = linearGainLeft(pos);
+          gainB = linearGainRight(pos);
+        }
 
-        final gainA4 = Float32x4.splat(gainA);
-        final gainB4 = Float32x4.splat(gainB);
         final out4 = _out4!;
         final inA4 = _inA4!;
         final inB4 = _inB4!;
@@ -261,63 +243,99 @@ class CrossfadeProcessor implements AudioProcessor {
           SIMD.linearBlend(
             out4[c],
             inA4[c],
-            gainA4,
+            gainA,
             inB4[c],
-            gainB4,
-            simdLength,
+            gainB,
+            length,
           );
         }
       } else {
-        // Interpolating position per frame across channels (~20ms transient, kept scalar)
-        for (int i = 0; i < length; i++) {
-          final pos = _posSmoother.next();
-          final double gainA = switch (mode) {
-            .equalPower => equalPowerGainLeft(pos),
-            .linear => linearGainLeft(pos),
-          };
-          final double gainB = switch (mode) {
-            .equalPower => equalPowerGainRight(pos),
-            .linear => linearGainRight(pos),
-          };
-
-          for (int c = 0; c < numChannels; c++) {
-            outputs[c][i] =
-                inputs[audioOffset + c][i] * gainA +
-                inputs[audioOffset + numChannels + c][i] * gainB;
-          }
-        }
+        _processInterpolating(inputs, outputs, audioOffset, length);
       }
     } else {
-      // Audio-rate signal modulation for position
-      final posBuf = inputs[Crossfade.positionInlet];
+      _processSignalModulated(inputs, outputs, audioOffset, length);
+    }
+  }
 
-      switch (mode) {
-        case .equalPower:
-          for (int c = 0; c < numChannels; c++) {
-            final inA = inputs[audioOffset + c];
-            final inB = inputs[audioOffset + numChannels + c];
-            final out = outputs[c];
+  void _initViews(
+    List<Float32List> inputs,
+    List<Float32List> outputs,
+    int audioOffset,
+    int length,
+  ) {
+    _lastOut = outputs[0];
+    _out4 = [
+      for (int c = 0; c < numChannels; c++) SIMD.view(outputs[c], length),
+    ];
+    _inA4 = [
+      for (int c = 0; c < numChannels; c++)
+        SIMD.view(inputs[audioOffset + c], length),
+    ];
+    _inB4 = [
+      for (int c = 0; c < numChannels; c++)
+        SIMD.view(inputs[audioOffset + numChannels + c], length),
+    ];
+  }
 
-            for (int i = 0; i < length; i++) {
-              final p = posBuf[i];
-              out[i] =
-                  inA[i] * equalPowerGainLeft(p) +
-                  inB[i] * equalPowerGainRight(p);
-            }
-          }
+  void _processInterpolating(
+    List<Float32List> inputs,
+    List<Float32List> outputs,
+    int audioOffset,
+    int length,
+  ) {
+    for (int i = 0; i < length; i++) {
+      final pos = _posSmoother.next();
+      final double gainA = switch (mode) {
+        .equalPower => equalPowerGainLeft(pos),
+        .linear => linearGainLeft(pos),
+      };
+      final double gainB = switch (mode) {
+        .equalPower => equalPowerGainRight(pos),
+        .linear => linearGainRight(pos),
+      };
 
-        case .linear:
-          for (int c = 0; c < numChannels; c++) {
-            final inA = inputs[audioOffset + c];
-            final inB = inputs[audioOffset + numChannels + c];
-            final out = outputs[c];
-
-            for (int i = 0; i < length; i++) {
-              final p = posBuf[i];
-              out[i] = inA[i] * linearGainLeft(p) + inB[i] * linearGainRight(p);
-            }
-          }
+      for (int c = 0; c < numChannels; c++) {
+        outputs[c][i] =
+            inputs[audioOffset + c][i] * gainA +
+            inputs[audioOffset + numChannels + c][i] * gainB;
       }
+    }
+  }
+
+  void _processSignalModulated(
+    List<Float32List> inputs,
+    List<Float32List> outputs,
+    int audioOffset,
+    int length,
+  ) {
+    final posBuf = inputs[Crossfade.positionInlet];
+
+    switch (mode) {
+      case .equalPower:
+        for (int c = 0; c < numChannels; c++) {
+          final inA = inputs[audioOffset + c];
+          final inB = inputs[audioOffset + numChannels + c];
+          final out = outputs[c];
+
+          for (int i = 0; i < length; i++) {
+            final p = posBuf[i];
+            out[i] =
+                inA[i] * equalPowerGainLeft(p) +
+                inB[i] * equalPowerGainRight(p);
+          }
+        }
+
+      case .linear:
+        for (int c = 0; c < numChannels; c++) {
+          final inA = inputs[audioOffset + c];
+          final inB = inputs[audioOffset + numChannels + c];
+          final out = outputs[c];
+
+          for (int i = 0; i < length; i++) {
+            final p = posBuf[i];
+            out[i] = inA[i] * linearGainLeft(p) + inB[i] * linearGainRight(p);
+          }
+        }
     }
   }
 }

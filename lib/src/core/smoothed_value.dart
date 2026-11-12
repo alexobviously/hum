@@ -26,15 +26,19 @@ class SmoothedValue {
       _target = initialValue;
 
   /// Current interpolated value.
+  @pragma('vm:prefer-inline')
   double get current => _current;
 
   /// Target value being glided towards.
+  @pragma('vm:prefer-inline')
   double get target => _target;
 
   /// Whether the smoother has completed its glide to the target value.
+  @pragma('vm:prefer-inline')
   bool get isSettled => _current == _target;
 
   /// Configures the sample rate and ramp time (in seconds).
+  @pragma('vm:prefer-inline')
   void configure({required double sampleRate, required double rampTime}) {
     if (_sampleRate == sampleRate && _rampTime == rampTime) return;
     _sampleRate = sampleRate;

@@ -96,9 +96,9 @@ class MultProcessor implements AudioProcessor {
   // Cached SIMD vector views
   // TODO: harden with engine epochs once available
   Float32List? _lastOut;
-  List<Float32x4List>? _out4;
-  List<Float32x4List>? _in4;
-  Float32x4List? _val4;
+  List<SimdList>? _out4;
+  List<SimdList>? _in4;
+  SimdList? _val4;
 
   @override
   void update(Object params) {
@@ -126,30 +126,18 @@ class MultProcessor implements AudioProcessor {
 
     final value = this.value;
     final vs = context.vectorSize;
-    final simdLength = vs >> 2;
 
     // Lazy initialization, happens in first block
     // TODO: harden with engine epochs once available
     if (!identical(_lastOut, outputs[0])) {
       _lastOut = outputs[0];
       _out4 = [
-        for (int c = 0; c < numChannels; c++)
-          outputs[c].buffer.asFloat32x4List(
-            outputs[c].offsetInBytes,
-            simdLength,
-          ),
+        for (int c = 0; c < numChannels; c++) SIMD.view(outputs[c], vs),
       ];
       _in4 = [
-        for (int c = 0; c < numChannels; c++)
-          inputs[c + 1].buffer.asFloat32x4List(
-            inputs[c + 1].offsetInBytes,
-            simdLength,
-          ),
+        for (int c = 0; c < numChannels; c++) SIMD.view(inputs[c + 1], vs),
       ];
-      _val4 = inputs[Mult.valueInlet].buffer.asFloat32x4List(
-        inputs[Mult.valueInlet].offsetInBytes,
-        simdLength,
-      );
+      _val4 = SIMD.view(inputs[Mult.valueInlet], vs);
     }
 
     final out4 = _out4!;
@@ -162,9 +150,9 @@ class MultProcessor implements AudioProcessor {
       );
 
       if (_smoother.isSettled) {
-        final gain4 = Float32x4.splat(_smoother.current);
+        final gain = _smoother.current;
         for (int c = 0; c < numChannels; c++) {
-          SIMD.scale(out4[c], in4[c], gain4, simdLength);
+          SIMD.scale(out4[c], in4[c], gain, vs);
         }
       } else {
         // 'Currently interpolating' transient branch (~20ms) - kept scalar
@@ -178,7 +166,7 @@ class MultProcessor implements AudioProcessor {
     } else {
       final val4 = _val4!;
       for (int c = 0; c < numChannels; c++) {
-        SIMD.multiply(out4[c], in4[c], val4, simdLength);
+        SIMD.multiply(out4[c], in4[c], val4, vs);
       }
     }
   }
