@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 /// A function that builds an audio graph for a demo.
 ///
@@ -355,7 +356,7 @@ Future<void> _runLivePlayback({
       sampleRate: sampleRate,
     );
 
-    host = await AudioHost.spawn(
+    host = await IsolateAudioHost.spawn(
       context: ProcessContext(
         sampleRate: sampleRate,
         vectorSize: vectorSize,

@@ -37,14 +37,6 @@ abstract class const AudioHost() {
   /// Renders [count] blocks of audio and returns the resulting channel buffers.
   Future<List<Float32List>> renderBlocks(int count);
 
-  /// Renders [duration] of audio offline at maximum CPU speed and writes to [path]
-  /// or returns the complete WAV byte buffer if [path] is null.
-  Future<Uint8List> exportWav({
-    String? path,
-    required Duration duration,
-    WavFormat format = .float32,
-  });
-
   /// Whether real-time playback is currently active.
   bool get isPlaying;
 
@@ -64,13 +56,6 @@ abstract class const AudioHost() {
 
   /// Disposes resources and terminates the background isolate worker if active.
   Future<void> dispose();
-
-  /// Spawns an [AudioHost] running inside a dedicated background worker isolate.
-  ///
-  /// This is the recommended mode for UI applications (Flutter, desktop) to ensure
-  /// real-time audio computation never blocks the main thread.
-  static Future<AudioHost> spawn({required ProcessContext context}) =>
-      IsolateAudioHost.spawn(context: context);
 
   /// Creates a synchronous [AudioHost] running directly on the caller thread.
   ///

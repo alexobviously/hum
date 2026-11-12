@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 import 'package:test/test.dart';
 
 void main() {

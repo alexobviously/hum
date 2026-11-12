@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 void main(List<String> args) async {
   const sampleRate = 44100;
@@ -63,7 +64,7 @@ void main(List<String> args) async {
     format: .float32,
   );
 
-  final host = await AudioHost.spawn(context: context);
+  final host = await IsolateAudioHost.spawn(context: context);
   final diagnostics = host.setGraph(root: sink);
   if (diagnostics.isNotEmpty) {
     stderr.writeln('Graph validation error: $diagnostics');

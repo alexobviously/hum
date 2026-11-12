@@ -4,6 +4,7 @@ import 'dart:io' show exit, stderr, stdin, stdout;
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 // TODO: clean this file up a bit, but tbh I might just make a TUI library and put some of this code there
 
@@ -169,7 +170,7 @@ void main(List<String> args) async {
   const sr = 44100;
   const vs = 64;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
-  final host = await AudioHost.spawn(context: context);
+  final host = await IsolateAudioHost.spawn(context: context);
 
   int currentChordIndex = 0;
   int octaveOffset = 0;

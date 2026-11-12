@@ -1,4 +1,5 @@
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -247,7 +248,7 @@ void main() {
       'spawns isolate, applies graph, and renders audio across boundary',
       () async {
         final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-        final host = await AudioHost.spawn(context: context);
+        final host = await IsolateAudioHost.spawn(context: context);
 
         final osc = SineOscillator(frequency: const .value(440));
         final mult = Mult.mono(value: const .value(0.5), input: osc.outlet);
@@ -284,7 +285,7 @@ void main() {
       'returns diagnostics on invalid graph without sending to worker',
       () async {
         final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-        final host = await AudioHost.spawn(context: context);
+        final host = await IsolateAudioHost.spawn(context: context);
 
         final invalidSum = Sum(inputs: const []);
         final diagnostics = host.setGraph(root: invalidSum);
@@ -301,7 +302,7 @@ void main() {
       'startPlayback and stopPlayback stream blocks across isolate boundary',
       () async {
         final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-        final host = await AudioHost.spawn(context: context);
+        final host = await IsolateAudioHost.spawn(context: context);
 
         final osc = SineOscillator(frequency: const .value(440));
         final dac = Dac.mono(osc.outlet);
@@ -327,7 +328,7 @@ void main() {
 
     test('exportWav bounces audio graph across isolate boundary', () async {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final host = await AudioHost.spawn(context: context);
+      final host = await IsolateAudioHost.spawn(context: context);
 
       final osc = SineOscillator(frequency: const .value(440));
       final out = Out.stereo(left: osc.outlet, right: osc.outlet);

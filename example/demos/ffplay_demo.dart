@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 TerminalNode _graph(double frequency) {
   final osc = SineOscillator(frequency: .value(frequency));
@@ -18,7 +19,7 @@ void main() async {
   );
 
   // Initialize AudioHost and compile the declarative graph
-  final host = await AudioHost.spawn(context: context);
+  final host = await IsolateAudioHost.spawn(context: context);
 
   void setGraph(double frequency) {
     final diagnostics = host.setGraph(root: _graph(frequency));

@@ -1,20 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-/// Asynchronously writes [bytes] to a file at [path], creating parent directories if needed.
-Future<void> writeBytesToFile(String path, Uint8List bytes) async {
-  final file = File(path);
-  await file.parent.create(recursive: true);
-  await file.writeAsBytes(bytes, flush: true);
-}
-
-/// Synchronously writes [bytes] to a file at [path], creating parent directories if needed.
-void writeBytesToFileSync(String path, Uint8List bytes) {
-  final file = File(path);
-  file.parent.createSync(recursive: true);
-  file.writeAsBytesSync(bytes, flush: true);
-}
-
 /// Streaming random-access file writer for [WavSink.file].
 class WavFileWriter {
   final RandomAccessFile _raf;
@@ -22,7 +8,7 @@ class WavFileWriter {
   WavFileWriter._(this._raf);
 
   /// Opens [path] for writing and reserves the initial 44-byte WAV header slot.
-  factory open(String path) {
+  factory WavFileWriter.open(String path) {
     final file = File(path);
     file.parent.createSync(recursive: true);
     final raf = file.openSync(mode: FileMode.write);

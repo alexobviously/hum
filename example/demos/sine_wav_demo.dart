@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 void main() {
   const sr = 44100;

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
-import '../io/file_io.dart';
 
 /// Synchronous single-threaded implementation of [AudioHost].
 class SyncAudioHost({
@@ -85,57 +84,6 @@ class SyncAudioHost({
       }
     }
     return totalBlocks;
-  }
-
-  @override
-  Future<Uint8List> exportWav({
-    String? path,
-    required Duration duration,
-    WavFormat format = .float32,
-  }) async {
-    if (numChannels == 0) {
-      throw StateError(
-        'No active audio graph to export. Call setGraph() first.',
-      );
-    }
-    final sampleRate = context.sampleRate;
-    final vectorSize = context.vectorSize;
-    final totalSamples = (sampleRate * duration.inMicroseconds) ~/ 1000000;
-    final totalBlocks = (totalSamples + vectorSize - 1) ~/ vectorSize;
-
-    final interleaver = BufferInterleaver(
-      numChannels: numChannels,
-      vectorSize: vectorSize,
-    );
-    final builder = BytesBuilder(copy: false);
-
-    for (int i = 0; i < totalBlocks; i++) {
-      _engine.process();
-      final byteView = switch (format) {
-        .float32 => interleaver.interleaveFloat32Bytes(_engine.outputs),
-        .pcm16 => interleaver.interleavePcm16Bytes(_engine.outputs),
-      };
-      builder.add(byteView);
-    }
-
-    final dataBytes = builder.takeBytes();
-    final header = buildWavHeader(
-      dataSize: dataBytes.length,
-      sampleRate: sampleRate,
-      numChannels: numChannels,
-      format: format,
-    );
-
-    final wavFileBytes = BytesBuilder(copy: false);
-    wavFileBytes.add(header.buffer.asUint8List(0, 44));
-    wavFileBytes.add(dataBytes);
-    final completeWav = wavFileBytes.takeBytes();
-
-    if (path != null) {
-      await writeBytesToFile(path, completeWav);
-    }
-
-    return completeWav;
   }
 
   @override

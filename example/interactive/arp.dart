@@ -3,6 +3,7 @@ import 'dart:io' show exit, stdin, stdout;
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 // You need ffmpeg installed with `ffplay` or SoX installed with `play` in path.
 
@@ -45,7 +46,7 @@ void main(List<String> args) async {
 
   final sr = 44100, vs = 64;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
-  final host = await AudioHost.spawn(context: context);
+  final host = await IsolateAudioHost.spawn(context: context);
   int currentScaleIndex = 0;
   Synth synth = Synth(
     scale: availableScales[currentScaleIndex].take(10),

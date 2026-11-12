@@ -1,8 +1,5 @@
 import 'dart:typed_data';
 
-import '../nodes/utils/clamp.dart';
-import 'file_io.dart';
-
 enum WavFormat {
   pcm16(code: 1, bitsPerSample: 16),
   float32(code: 3, bitsPerSample: 32);
@@ -11,53 +8,6 @@ enum WavFormat {
   final int bitsPerSample;
 
   const WavFormat({required this.code, required this.bitsPerSample});
-}
-
-/// Writes audio blocks to a WAV file as 16-bit integer PCM or 32-bit float PCM.
-void writeWav(
-  String path,
-  List<Float32List> audio, {
-  int sampleRate = 44100,
-  int numChannels = 1,
-  WavFormat format = .float32,
-}) {
-  int totalSamples = 0;
-  for (final block in audio) {
-    totalSamples += block.length;
-  }
-
-  final bytesPerSample = format.bitsPerSample ~/ 8;
-  final dataSize = totalSamples * bytesPerSample;
-
-  final header = buildWavHeader(
-    dataSize: dataSize,
-    sampleRate: sampleRate,
-    numChannels: numChannels,
-    format: format,
-  );
-
-  final builder = BytesBuilder(copy: false);
-  builder.add(header.buffer.asUint8List());
-
-  switch (format) {
-    case WavFormat.float32:
-      for (final block in audio) {
-        builder.add(
-          block.buffer.asUint8List(block.offsetInBytes, block.lengthInBytes),
-        );
-      }
-    case WavFormat.pcm16:
-      for (final block in audio) {
-        final pcm16 = Int16List(block.length);
-        for (int i = 0; i < block.length; i++) {
-          final sample = block[i].fastClamp(-1.0, 1.0);
-          pcm16[i] = (sample * 32767.0).round();
-        }
-        builder.add(pcm16.buffer.asUint8List());
-      }
-  }
-
-  writeBytesToFileSync(path, builder.takeBytes());
 }
 
 ByteData buildWavHeader({

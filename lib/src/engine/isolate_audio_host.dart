@@ -3,7 +3,6 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
-import '../io/file_io.dart';
 
 /// Messages sent from [IsolateAudioHost] to the background audio isolate.
 sealed class const HostToEngineMessage();
@@ -217,62 +216,6 @@ class IsolateAudioHost extends AudioHost {
     _engineSendPort.send(RenderBlocksMessage(count, replyPort.sendPort));
     final blocks = await replyPort.first as List<Float32List>;
     return blocks;
-  }
-
-  // TODO: DRY THIS, maybe rethink
-  @override
-  Future<Uint8List> exportWav({
-    String? path,
-    required Duration duration,
-    WavFormat format = .float32,
-  }) async {
-    if (numChannels == 0) {
-      throw StateError(
-        'No active audio graph to export. Call setGraph() first.',
-      );
-    }
-    final sampleRate = context.sampleRate;
-    final vectorSize = context.vectorSize;
-    final totalSamples = (sampleRate * duration.inMicroseconds) ~/ 1000000;
-    final totalBlocks = (totalSamples + vectorSize - 1) ~/ vectorSize;
-
-    final renderedBlocks = await renderBlocks(totalBlocks);
-    final interleaver = BufferInterleaver(
-      numChannels: numChannels,
-      vectorSize: vectorSize,
-    );
-    final builder = BytesBuilder(copy: false);
-
-    for (int i = 0; i < totalBlocks; i++) {
-      final blockChannels = <Float32List>[
-        for (int ch = 0; ch < numChannels; ch++)
-          renderedBlocks[i * numChannels + ch],
-      ];
-      final byteView = switch (format) {
-        .float32 => interleaver.interleaveFloat32Bytes(blockChannels),
-        .pcm16 => interleaver.interleavePcm16Bytes(blockChannels),
-      };
-      builder.add(byteView);
-    }
-
-    final dataBytes = builder.takeBytes();
-    final header = buildWavHeader(
-      dataSize: dataBytes.length,
-      sampleRate: sampleRate,
-      numChannels: numChannels,
-      format: format,
-    );
-
-    final wavFileBytes = BytesBuilder(copy: false);
-    wavFileBytes.add(header.buffer.asUint8List(0, 44));
-    wavFileBytes.add(dataBytes);
-    final completeWav = wavFileBytes.takeBytes();
-
-    if (path != null) {
-      await writeBytesToFile(path, completeWav);
-    }
-
-    return completeWav;
   }
 
   @override
