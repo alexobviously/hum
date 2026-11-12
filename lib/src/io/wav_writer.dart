@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import '../nodes/utils/clamp.dart';
+import 'file_io.dart';
 
 enum WavFormat {
   pcm16(code: 1, bitsPerSample: 16),
@@ -57,7 +57,7 @@ void writeWav(
       }
   }
 
-  File(path).writeAsBytesSync(builder.takeBytes());
+  writeBytesToFileSync(path, builder.takeBytes());
 }
 
 ByteData buildWavHeader({

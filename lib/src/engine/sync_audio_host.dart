@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+import '../io/file_io.dart';
 
 /// Synchronous single-threaded implementation of [AudioHost].
 class SyncAudioHost({
@@ -132,8 +132,7 @@ class SyncAudioHost({
     final completeWav = wavFileBytes.takeBytes();
 
     if (path != null) {
-      final file = File(path);
-      await file.writeAsBytes(completeWav, flush: true);
+      await writeBytesToFile(path, completeWav);
     }
 
     return completeWav;

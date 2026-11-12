@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+import '../io/file_io.dart';
 
 /// Messages sent from [IsolateAudioHost] to the background audio isolate.
 sealed class const HostToEngineMessage();
@@ -269,8 +269,7 @@ class IsolateAudioHost extends AudioHost {
     final completeWav = wavFileBytes.takeBytes();
 
     if (path != null) {
-      final file = File(path);
-      await file.writeAsBytes(completeWav, flush: true);
+      await writeBytesToFile(path, completeWav);
     }
 
     return completeWav;

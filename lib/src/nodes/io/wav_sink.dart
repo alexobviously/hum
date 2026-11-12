@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+import '../../io/file_io.dart';
 
 /// A terminal audio node that captures multi-channel audio blocks and writes
 /// them to a WAV file on disk or accumulates them in memory.
@@ -64,7 +64,7 @@ class WavSinkProcessor implements DisposableAudioProcessor {
     this.format = .float32,
   });
 
-  RandomAccessFile? _raf;
+  WavFileWriter? _fileWriter;
   BytesBuilder? _builder;
   int _sampleRate = 44100;
   int _totalDataBytes = 0;
@@ -100,13 +100,8 @@ class WavSinkProcessor implements DisposableAudioProcessor {
     final vectorSize = context.vectorSize;
 
     // Lazily open file if writing to disk
-    if (path != null && _raf == null) {
-      final file = File(path!);
-      file.parent.createSync(recursive: true);
-      final raf = file.openSync(mode: FileMode.write);
-      // Reserve 44 bytes for header to be written on close()
-      raf.setPositionSync(44);
-      _raf = raf;
+    if (path != null && _fileWriter == null) {
+      _fileWriter = WavFileWriter.open(path!);
     } else if (path == null && _builder == null) {
       _builder = BytesBuilder(copy: true);
     }
@@ -124,8 +119,8 @@ class WavSinkProcessor implements DisposableAudioProcessor {
       WavFormat.pcm16 => interleaver.interleavePcm16Bytes(inputs),
     };
 
-    if (_raf != null) {
-      _raf!.writeFromSync(byteView);
+    if (_fileWriter != null) {
+      _fileWriter!.writeChunk(byteView);
     } else if (_builder != null) {
       _builder!.add(byteView);
     }
@@ -145,11 +140,9 @@ class WavSinkProcessor implements DisposableAudioProcessor {
       format: format,
     );
 
-    if (_raf != null) {
-      _raf!.setPositionSync(0);
-      _raf!.writeFromSync(header.buffer.asUint8List(0, 44));
-      _raf!.closeSync();
-      _raf = null;
+    if (_fileWriter != null) {
+      _fileWriter!.finalizeAndClose(header.buffer.asUint8List(0, 44));
+      _fileWriter = null;
       return null;
     }
 
