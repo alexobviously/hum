@@ -189,6 +189,8 @@ class CombinedAudioOutputDriver({
         startedCount = i + 1;
       }
     } catch (_) {
+      // Roll back already-started child drivers in reverse order so a late
+      // failure does not leak an open subprocess or hardware device.
       for (int i = startedCount - 1; i >= 0; i--) {
         try {
           await drivers[i].close(waitForExit: false);

@@ -2,6 +2,20 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
+/// Error reported asynchronously during continuous real-time playback.
+///
+/// Emitted on [AudioHost.playbackErrors] when a runtime failure (such as a
+/// driver `write` exception or device disconnection) interrupts an already
+/// running playback loop. Startup failures are instead thrown directly by
+/// [AudioHost.startPlayback].
+class const AudioPlaybackError({
+  required final Object error,
+  final StackTrace? stackTrace,
+}) {
+  @override
+  String toString() => 'AudioPlaybackError($error)';
+}
+
 /// The main controller and coordinator for declarative audio graphs.
 ///
 /// Manages graph compilation, state snapshots, and communicates transactions
@@ -39,6 +53,9 @@ abstract class const AudioHost() {
 
   /// Whether real-time playback is currently active.
   bool get isPlaying;
+
+  /// Broadcast stream of asynchronous errors occurring during active playback.
+  Stream<AudioPlaybackError> get playbackErrors;
 
   /// Starts continuous real-time audio playback streaming graph outputs to [output].
   ///

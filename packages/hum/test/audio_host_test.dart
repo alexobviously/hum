@@ -224,6 +224,62 @@ void main() {
         await host.dispose();
       },
     );
+
+    test(
+      'startPlayback propagates driver.start error and resets isPlaying',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final failingOutput = _FailingDriverOutput(
+          numChannels: 1,
+          vectorSize: 64,
+          failOnStart: true,
+        );
+
+        await expectLater(
+          host.startPlayback(failingOutput),
+          throwsStateError,
+        );
+        expect(host.isPlaying, isFalse);
+
+        await host.dispose();
+      },
+    );
+
+    test(
+      'mid-playback driver.write error emits on playbackErrors and stops playback',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final errors = <AudioPlaybackError>[];
+        final sub = host.playbackErrors.listen(errors.add);
+
+        final failingOutput = _FailingDriverOutput(
+          numChannels: 1,
+          vectorSize: 64,
+          failOnWrite: true,
+        );
+
+        await host.startPlayback(failingOutput);
+        await Future.delayed(const Duration(milliseconds: 30));
+
+        expect(errors, hasLength(1));
+        expect(errors.single.error, isA<StateError>());
+        expect(host.isPlaying, isFalse);
+
+        await host.stopPlayback();
+        await sub.cancel();
+        await host.dispose();
+      },
+    );
   });
 
   group('AudioHost.spawn (isolate mode)', () {
@@ -500,6 +556,103 @@ void main() {
         await host.dispose();
       },
     );
+
+    test(
+      'startPlayback propagates worker driver.start error and resets isPlaying',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final failingOutput = _FailingDriverOutput(
+          numChannels: 1,
+          vectorSize: 64,
+          failOnStart: true,
+        );
+
+        await expectLater(
+          host.startPlayback(failingOutput),
+          throwsStateError,
+        );
+        expect(host.isPlaying, isFalse);
+
+        // Subsequent valid playback must still work cleanly.
+        final memory = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
+        await host.startPlayback(memory);
+        await Future.delayed(const Duration(milliseconds: 30));
+        await host.stopPlayback();
+        expect(memory.length, greaterThan(0));
+
+        await host.dispose();
+      },
+    );
+
+    test(
+      'mid-playback worker driver.write error emits on playbackErrors and stops playback',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final errors = <AudioPlaybackError>[];
+        final sub = host.playbackErrors.listen(errors.add);
+
+        final failingOutput = _FailingDriverOutput(
+          numChannels: 1,
+          vectorSize: 64,
+          failOnWrite: true,
+        );
+
+        await host.startPlayback(failingOutput);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(errors, hasLength(1));
+        expect(errors.single.error, isA<StateError>());
+        expect(host.isPlaying, isFalse);
+
+        await host.stopPlayback();
+        await sub.cancel();
+        await host.dispose();
+      },
+    );
+
+    test(
+      'mid-playback unsendable worker error falls back cleanly without crashing isolate',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final errors = <AudioPlaybackError>[];
+        final sub = host.playbackErrors.listen(errors.add);
+
+        final failingOutput = _FailingDriverOutput(
+          numChannels: 1,
+          vectorSize: 64,
+          failWithUnsendable: true,
+        );
+
+        await host.startPlayback(failingOutput);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        expect(errors, hasLength(1));
+        expect(errors.single.error.toString(), contains('unsendable boom'));
+        expect(host.isPlaying, isFalse);
+
+        // Worker isolate should still be alive and responsive.
+        final blocks = await host.renderBlocks(1);
+        expect(blocks, hasLength(1));
+
+        await sub.cancel();
+        await host.dispose();
+      },
+    );
   });
 }
 
@@ -665,4 +818,59 @@ class _LifecycleCountingDriver({
     }
     replyPort.send('$id:close');
   }
+}
+
+class const _FailingDriverOutput({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  final bool failOnStart = false,
+  final bool failOnWrite = false,
+  final bool failWithUnsendable = false,
+}) extends AudioOutput {
+  @override
+  bool get isIsolateSendable => true;
+
+  @override
+  AudioOutputDriver createDriver() => _FailingDriver(
+    numChannels: numChannels,
+    vectorSize: vectorSize,
+    failOnStart: failOnStart,
+    failOnWrite: failOnWrite,
+    failWithUnsendable: failWithUnsendable,
+  );
+}
+
+class _FailingDriver({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  required final bool failOnStart,
+  required final bool failOnWrite,
+  required final bool failWithUnsendable,
+}) extends AudioOutputDriver {
+  @override
+  Future<void> start(ProcessContext context) async {
+    if (failOnStart) {
+      throw StateError('simulated start failure');
+    }
+  }
+
+  @override
+  void write(List<Float32List> channels) {
+    if (failWithUnsendable) {
+      final port = ReceivePort()..close();
+      throw _UnsendableException('unsendable boom', port);
+    }
+    if (failOnWrite) {
+      throw StateError('simulated write failure');
+    }
+  }
+
+  @override
+  Future<void> close({bool waitForExit = true}) async {}
+}
+
+class _UnsendableException(final String message, final ReceivePort port)
+    implements Exception {
+  @override
+  String toString() => 'UnsendableException($message)';
 }

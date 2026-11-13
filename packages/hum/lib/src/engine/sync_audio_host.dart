@@ -14,6 +14,8 @@ class SyncAudioHost({
   int _playbackSession = 0;
   PlaybackPacer? _activePacer;
   Completer<void>? _playbackCompleter;
+  final StreamController<AudioPlaybackError> _errorController =
+      StreamController<AudioPlaybackError>.broadcast();
 
   /// The underlying [AudioEngine] instance.
   AudioEngine get engine => _engine;
@@ -30,6 +32,9 @@ class SyncAudioHost({
 
   @override
   bool get isPlaying => _isPlaying;
+
+  @override
+  Stream<AudioPlaybackError> get playbackErrors => _errorController.stream;
 
   @override
   List<NodeDiagnostic> setGraph({
@@ -114,9 +119,50 @@ class SyncAudioHost({
     }
 
     _isPlaying = true;
+    // Monotonic session token so a fast stop -> start sequence never lets an
+    // interrupted async driver.start() tear down or steal the newer session.
     final session = ++_playbackSession;
     final driver = output?.createDriver();
     final completer = _playbackCompleter = Completer<void>();
+
+    if (driver != null) {
+      try {
+        final startResult = driver.start(context);
+        if (startResult is Future<void>) {
+          await startResult;
+        }
+      } catch (_) {
+        if (session == _playbackSession) {
+          _isPlaying = false;
+        }
+        try {
+          await driver.close(waitForExit: false);
+        } catch (_) {}
+        if (identical(_playbackCompleter, completer)) {
+          _playbackCompleter = null;
+        }
+        // Unblock any concurrent stopPlayback() awaiting this session before rethrowing.
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+        rethrow;
+      }
+
+      // StopPlayback or dispose ran while awaiting driver.start().
+      if (session != _playbackSession || !_isPlaying || _isDisposed) {
+        try {
+          await driver.close(waitForExit: !_isDisposed);
+        } catch (_) {}
+        if (identical(_playbackCompleter, completer)) {
+          _playbackCompleter = null;
+        }
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+        return;
+      }
+    }
+
     _runPlaybackLoop(session, driver, completer);
   }
 
@@ -125,21 +171,11 @@ class SyncAudioHost({
     AudioOutputDriver? driver,
     Completer<void> completer,
   ) async {
-    PlaybackPacer? pacer;
+    final pacer = _activePacer =
+        driver?.createPacer(context) ??
+        StopwatchPlaybackPacer(context: context);
+    pacer.start();
     try {
-      if (driver != null) {
-        final startResult = driver.start(context);
-        if (startResult is Future<void>) {
-          await startResult;
-        }
-        if (session != _playbackSession || !_isPlaying || _isDisposed) return;
-      }
-
-      pacer = _activePacer =
-          driver?.createPacer(context) ??
-          StopwatchPlaybackPacer(context: context);
-      pacer.start();
-
       while (session == _playbackSession && _isPlaying && !_isDisposed) {
         final wait = pacer.waitForNextBlock();
         if (wait is Future<void>) {
@@ -152,15 +188,13 @@ class SyncAudioHost({
         pacer.onBlockProcessed();
       }
     } catch (e, st) {
-      if (session == _playbackSession) {
-        _isPlaying = false;
+      // Mid-loop failures cannot be thrown back from startPlayback() (it has
+      // already returned), so surface them on playbackErrors instead.
+      if (!_errorController.isClosed) {
+        _errorController.add(AudioPlaybackError(error: e, stackTrace: st));
       }
-      if (!completer.isCompleted) {
-        completer.completeError(e, st);
-      }
-      return;
     } finally {
-      pacer?.stop();
+      pacer.stop();
       if (identical(_activePacer, pacer)) {
         _activePacer = null;
       }
@@ -168,6 +202,8 @@ class SyncAudioHost({
         _isPlaying = false;
       }
       if (driver != null) {
+        // Ignore close() exceptions so _playbackCompleter always resolves and
+        // stopPlayback() never hangs waiting on a broken driver.
         try {
           await driver.close(waitForExit: !_isDisposed);
         } catch (_) {}
@@ -208,5 +244,6 @@ class SyncAudioHost({
     _isDisposed = true;
     await stopPlayback();
     await _engine.dispose();
+    await _errorController.close();
   }
 }
