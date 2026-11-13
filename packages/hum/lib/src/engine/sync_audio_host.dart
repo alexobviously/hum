@@ -10,6 +10,9 @@ class SyncAudioHost({
   final AudioEngine _engine = AudioEngine(context: context);
   GraphSnapshot _currentSnapshot = .empty;
   bool _isPlaying = false;
+  bool _isDisposed = false;
+  int _playbackSession = 0;
+  PlaybackPacer? _activePacer;
   Completer<void>? _playbackCompleter;
 
   /// The underlying [AudioEngine] instance.
@@ -88,6 +91,9 @@ class SyncAudioHost({
 
   @override
   Future<void> startPlayback([AudioOutput? output]) async {
+    if (_isDisposed) {
+      throw StateError('Cannot startPlayback on a disposed AudioHost.');
+    }
     if (_isPlaying) {
       throw StateError('Playback is already active.');
     }
@@ -108,57 +114,67 @@ class SyncAudioHost({
     }
 
     _isPlaying = true;
+    final session = ++_playbackSession;
+    final driver = output?.createDriver();
     final completer = _playbackCompleter = Completer<void>();
-    _runPlaybackLoop(output, completer);
+    _runPlaybackLoop(session, driver, completer);
   }
 
   void _runPlaybackLoop(
-    AudioOutput? output,
+    int session,
+    AudioOutputDriver? driver,
     Completer<void> completer,
   ) async {
-    final sampleRate = context.sampleRate;
-    final vectorSize = context.vectorSize;
-    final blockDurationUs = (vectorSize * 1000000) ~/ sampleRate;
-    final targetLeadUs = blockDurationUs * 2 > 25000
-        ? blockDurationUs * 2
-        : 25000;
-
-    final stopwatch = Stopwatch()..start();
-    int renderedSamples = 0;
-
+    PlaybackPacer? pacer;
     try {
-      while (_isPlaying) {
-        final renderedTimeUs = (renderedSamples * 1000000) ~/ sampleRate;
-        final elapsedUs = stopwatch.elapsedMicroseconds;
-
-        // Prevent burst rendering if clock desynchronizes (e.g. system sleep)
-        if (elapsedUs - renderedTimeUs > 100000) {
-          renderedSamples = (elapsedUs * sampleRate) ~/ 1000000;
+      if (driver != null) {
+        final startResult = driver.start(context);
+        if (startResult is Future<void>) {
+          await startResult;
         }
+        if (session != _playbackSession || !_isPlaying || _isDisposed) return;
+      }
 
-        final leadUs = ((renderedSamples * 1000000) ~/ sampleRate) - elapsedUs;
-        if (leadUs > targetLeadUs) {
-          final sleepUs = leadUs - targetLeadUs;
-          if (sleepUs >= 1000) {
-            await Future.delayed(Duration(microseconds: sleepUs));
-          } else {
-            await Future.delayed(Duration.zero);
-          }
-          if (!_isPlaying) break;
+      pacer = _activePacer =
+          driver?.createPacer(context) ??
+          StopwatchPlaybackPacer(context: context);
+      pacer.start();
+
+      while (session == _playbackSession && _isPlaying && !_isDisposed) {
+        final wait = pacer.waitForNextBlock();
+        if (wait is Future<void>) {
+          await wait;
+          if (session != _playbackSession || !_isPlaying || _isDisposed) break;
         }
 
         _engine.process();
-        output?.write(_engine.outputs);
-        renderedSamples += vectorSize;
+        driver?.write(_engine.outputs);
+        pacer.onBlockProcessed();
       }
     } catch (e, st) {
-      _isPlaying = false;
+      if (session == _playbackSession) {
+        _isPlaying = false;
+      }
       if (!completer.isCompleted) {
         completer.completeError(e, st);
       }
       return;
     } finally {
-      stopwatch.stop();
+      pacer?.stop();
+      if (identical(_activePacer, pacer)) {
+        _activePacer = null;
+      }
+      if (session == _playbackSession) {
+        _isPlaying = false;
+      }
+      if (driver != null) {
+        try {
+          await driver.close(waitForExit: !_isDisposed);
+        } catch (_) {}
+      }
+      if (identical(_playbackCompleter, completer)) {
+        _playbackCompleter = null;
+      }
       if (!completer.isCompleted) {
         completer.complete();
       }
@@ -169,11 +185,15 @@ class SyncAudioHost({
   Future<void> stopPlayback() async {
     if (!_isPlaying) return;
     _isPlaying = false;
+    ++_playbackSession;
+    _activePacer?.stop();
     final completer = _playbackCompleter;
     if (completer != null) {
       await completer.future;
     }
-    _playbackCompleter = null;
+    if (identical(_playbackCompleter, completer)) {
+      _playbackCompleter = null;
+    }
   }
 
   /// Retrieves the active processor for [node], or null if not registered.
@@ -184,6 +204,8 @@ class SyncAudioHost({
 
   @override
   Future<void> dispose() async {
+    if (_isDisposed) return;
+    _isDisposed = true;
     await stopPlayback();
     await _engine.dispose();
   }

@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:isolate';
+import 'dart:typed_data';
+
 import 'package:hum/hum.dart';
 import 'package:hum/io.dart';
 import 'package:test/test.dart';
@@ -87,9 +91,9 @@ void main() {
 
       await host.stopPlayback();
       expect(host.isPlaying, isFalse);
+      expect(output.isClosed, isTrue);
       expect(output.length, greaterThan(0));
 
-      await output.close();
       await host.dispose();
     });
 
@@ -197,6 +201,29 @@ void main() {
 
       await host.dispose();
     });
+
+    test(
+      'stopPlayback does not hang when driver.close throws an exception',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final failingOutput = _ThrowingCloseOutput(
+          numChannels: 1,
+          vectorSize: 64,
+        );
+        await host.startPlayback(failingOutput);
+        await Future.delayed(const Duration(milliseconds: 20));
+
+        await host.stopPlayback().timeout(const Duration(milliseconds: 500));
+        expect(host.isPlaying, isFalse);
+
+        await host.dispose();
+      },
+    );
   });
 
   group('AudioHost.spawn (isolate mode)', () {
@@ -275,9 +302,9 @@ void main() {
 
         await host.stopPlayback();
         expect(host.isPlaying, isFalse);
+        expect(output.isClosed, isTrue);
         expect(output.length, greaterThan(0));
 
-        await output.close();
         await host.dispose();
       },
     );
@@ -330,5 +357,312 @@ void main() {
         await host.dispose();
       },
     );
+
+    test(
+      'custom AudioOutput and PlaybackPacer run directly on worker isolate',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final events = <String>[];
+        final eventPort = ReceivePort();
+        final sub = eventPort.listen((msg) => events.add(msg as String));
+
+        final customOutput = _WorkerProbeAudioOutput(
+          numChannels: 1,
+          vectorSize: 64,
+          replyPort: eventPort.sendPort,
+        );
+
+        await host.startPlayback(customOutput);
+        await Future.delayed(const Duration(milliseconds: 25));
+        await host.stopPlayback();
+
+        expect(events, contains('driver.start:hum_engine'));
+        expect(events, contains('pacer.start:hum_engine'));
+        expect(events, contains('pacer.wait:hum_engine'));
+        expect(events, contains('driver.write:hum_engine'));
+        expect(events, contains('pacer.processed:hum_engine'));
+        expect(events, contains('pacer.stop:hum_engine'));
+        expect(events, contains('driver.close:hum_engine'));
+
+        await sub.cancel();
+        eventPort.close();
+        await host.dispose();
+      },
+    );
+
+    test(
+      'stopPlayback does not hang when worker driver.close throws an exception',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final failingOutput = _ThrowingCloseOutput(
+          numChannels: 1,
+          vectorSize: 64,
+        );
+        await host.startPlayback(failingOutput);
+        await Future.delayed(const Duration(milliseconds: 20));
+
+        await host.stopPlayback().timeout(const Duration(milliseconds: 500));
+        expect(host.isPlaying, isFalse);
+
+        await host.dispose();
+      },
+    );
+
+    test(
+      'dispose does not double-close active worker driver after unawaited stopPlayback',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final events = <String>[];
+        final eventPort = ReceivePort();
+        final sub = eventPort.listen((msg) => events.add(msg as String));
+
+        final output = _LifecycleCountingOutput(
+          id: 'single_close',
+          numChannels: 1,
+          vectorSize: 64,
+          replyPort: eventPort.sendPort,
+          startDelay: Duration.zero,
+          closeDelay: const Duration(milliseconds: 15),
+        );
+
+        await host.startPlayback(output);
+        await Future.delayed(const Duration(milliseconds: 15));
+
+        unawaited(host.stopPlayback());
+        await host.dispose();
+        await Future.delayed(const Duration(milliseconds: 30));
+
+        final closes = events.where((e) => e == 'single_close:close').length;
+        expect(closes, equals(1));
+
+        await sub.cancel();
+        eventPort.close();
+      },
+    );
+
+    test(
+      'start -> stop -> start race during slow driver.start ignores stale session',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final events = <String>[];
+        final eventPort = ReceivePort();
+        final sub = eventPort.listen((msg) => events.add(msg as String));
+
+        final slowOutput = _LifecycleCountingOutput(
+          id: 'slow',
+          numChannels: 1,
+          vectorSize: 64,
+          replyPort: eventPort.sendPort,
+          startDelay: const Duration(milliseconds: 40),
+        );
+        final fastOutput = _LifecycleCountingOutput(
+          id: 'fast',
+          numChannels: 1,
+          vectorSize: 64,
+          replyPort: eventPort.sendPort,
+          startDelay: Duration.zero,
+        );
+
+        unawaited(host.startPlayback(slowOutput));
+        unawaited(host.stopPlayback());
+        unawaited(host.startPlayback(fastOutput));
+
+        await Future.delayed(const Duration(milliseconds: 80));
+        await host.stopPlayback();
+
+        expect(events, contains('fast:write'));
+        expect(events, isNot(contains('slow:write')));
+        expect(events.where((e) => e == 'slow:close').length, equals(1));
+        expect(events.where((e) => e == 'fast:close').length, equals(1));
+
+        await sub.cancel();
+        eventPort.close();
+        await host.dispose();
+      },
+    );
   });
+}
+
+class const _WorkerProbeAudioOutput({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  required final SendPort replyPort,
+}) extends AudioOutput {
+  @override
+  bool get isIsolateSendable => true;
+
+  @override
+  AudioOutputDriver createDriver() => _WorkerProbeDriver(
+    numChannels: numChannels,
+    vectorSize: vectorSize,
+    replyPort: replyPort,
+  );
+}
+
+class _WorkerProbeDriver({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  required final SendPort replyPort,
+}) extends AudioOutputDriver {
+  final Set<String> _seen = {};
+
+  void _emitOnce(String name) {
+    if (_seen.add(name)) {
+      replyPort.send('$name:${Isolate.current.debugName}');
+    }
+  }
+
+  @override
+  Future<void> start(ProcessContext context) async {
+    _emitOnce('driver.start');
+  }
+
+  @override
+  PlaybackPacer createPacer(ProcessContext context) =>
+      _WorkerProbePacer(_emitOnce);
+
+  @override
+  void write(List<Float32List> channels) {
+    _emitOnce('driver.write');
+  }
+
+  @override
+  Future<void> close({bool waitForExit = true}) async {
+    _emitOnce('driver.close');
+  }
+}
+
+class _WorkerProbePacer(final void Function(String) emitOnce)
+    extends PlaybackPacer {
+  Timer? _timer;
+  Completer<void>? _completer;
+
+  @override
+  void start() => emitOnce('pacer.start');
+
+  @override
+  FutureOr<void> waitForNextBlock() {
+    emitOnce('pacer.wait');
+    final completer = _completer = Completer<void>();
+    _timer = Timer(const Duration(milliseconds: 5), () {
+      _timer = null;
+      _completer = null;
+      if (!completer.isCompleted) completer.complete();
+    });
+    return completer.future;
+  }
+
+  @override
+  void onBlockProcessed() => emitOnce('pacer.processed');
+
+  @override
+  void stop() {
+    emitOnce('pacer.stop');
+    _timer?.cancel();
+    _timer = null;
+    final completer = _completer;
+    _completer = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
+}
+
+class const _ThrowingCloseOutput({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+}) extends AudioOutput {
+  @override
+  bool get isIsolateSendable => true;
+
+  @override
+  AudioOutputDriver createDriver() => _ThrowingCloseDriver(
+    numChannels: numChannels,
+    vectorSize: vectorSize,
+  );
+}
+
+class _ThrowingCloseDriver({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+}) extends AudioOutputDriver {
+  @override
+  void write(List<Float32List> channels) {}
+
+  @override
+  Future<void> close({bool waitForExit = true}) async {
+    throw StateError('simulated close failure');
+  }
+}
+
+class const _LifecycleCountingOutput({
+  required final String id,
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  required final SendPort replyPort,
+  final Duration startDelay = Duration.zero,
+  final Duration closeDelay = Duration.zero,
+}) extends AudioOutput {
+  @override
+  bool get isIsolateSendable => true;
+
+  @override
+  AudioOutputDriver createDriver() => _LifecycleCountingDriver(
+    id: id,
+    numChannels: numChannels,
+    vectorSize: vectorSize,
+    replyPort: replyPort,
+    startDelay: startDelay,
+    closeDelay: closeDelay,
+  );
+}
+
+class _LifecycleCountingDriver({
+  required final String id,
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  required final SendPort replyPort,
+  required final Duration startDelay,
+  required final Duration closeDelay,
+}) extends AudioOutputDriver {
+  @override
+  Future<void> start(ProcessContext context) async {
+    if (startDelay > Duration.zero) {
+      await Future.delayed(startDelay);
+    }
+    replyPort.send('$id:start');
+  }
+
+  @override
+  void write(List<Float32List> channels) {
+    replyPort.send('$id:write');
+  }
+
+  @override
+  Future<void> close({bool waitForExit = true}) async {
+    if (closeDelay > Duration.zero) {
+      await Future.delayed(closeDelay);
+    }
+    replyPort.send('$id:close');
+  }
 }

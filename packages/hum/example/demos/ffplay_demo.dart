@@ -56,7 +56,6 @@ void main() async {
 
   // Stop playback and cleanly close ffplay
   await host.stopPlayback();
-  await output.close();
   await host.dispose();
 
   print('Playback finished.');

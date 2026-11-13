@@ -417,9 +417,6 @@ Future<void> _runLivePlayback({
       await host.stopPlayback();
       await host.dispose();
     }
-    if (output != null) {
-      await output.close();
-    }
   }
 }
 

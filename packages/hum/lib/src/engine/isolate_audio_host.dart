@@ -3,7 +3,6 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
-import 'package:hum/io.dart';
 
 /// Messages sent from [IsolateAudioHost] to the background audio isolate.
 sealed class const HostToEngineMessage();
@@ -38,62 +37,90 @@ void _audioWorkerEntry(
   final context = args.context;
 
   bool isPlaying = false;
-  AudioOutput? activeWorkerOutput;
+  bool isDisposed = false;
+  int playbackSession = 0;
+  AudioOutputDriver? activeWorkerDriver;
+  final Set<AudioOutputDriver> openDrivers = {};
+  final Map<AudioOutputDriver, Future<void>> closingDrivers = {};
+  PlaybackPacer? activePacer;
   SendPort? activeAudioPort;
-  SendPort? pendingStopReplyPort;
+  final Map<int, SendPort> pendingStopPorts = {};
 
-  void runPlaybackLoop() async {
-    final sampleRate = context.sampleRate;
-    final vectorSize = context.vectorSize;
-    final blockDurationUs = (vectorSize * 1000000) ~/ sampleRate;
-    final targetLeadUs = blockDurationUs * 2 > 25000
-        ? blockDurationUs * 2
-        : 25000;
+  Future<void> closeDriverOnce(
+    AudioOutputDriver? driver, {
+    required bool waitForExit,
+  }) async {
+    if (driver == null) return;
+    if (identical(activeWorkerDriver, driver)) {
+      activeWorkerDriver = null;
+    }
+    final existingClose = closingDrivers[driver];
+    if (existingClose != null) {
+      await existingClose;
+      return;
+    }
+    if (!openDrivers.remove(driver)) return;
+    final completer = Completer<void>();
+    closingDrivers[driver] = completer.future;
+    try {
+      await driver.close(waitForExit: waitForExit);
+    } catch (_) {
+    } finally {
+      closingDrivers.remove(driver);
+      completer.complete();
+    }
+  }
 
-    final stopwatch = Stopwatch()..start();
-    int renderedSamples = 0;
-
-    while (isPlaying) {
-      final renderedTimeUs = (renderedSamples * 1000000) ~/ sampleRate;
-      final elapsedUs = stopwatch.elapsedMicroseconds;
-
-      if (elapsedUs - renderedTimeUs > 100000) {
-        renderedSamples = (elapsedUs * sampleRate) ~/ 1000000;
+  void completeStopWaiters([int? session]) {
+    if (session != null) {
+      pendingStopPorts.remove(session)?.send(null);
+    } else if (pendingStopPorts.isNotEmpty) {
+      for (final port in pendingStopPorts.values) {
+        port.send(null);
       }
+      pendingStopPorts.clear();
+    }
+  }
 
-      final leadUs = ((renderedSamples * 1000000) ~/ sampleRate) - elapsedUs;
-      if (leadUs > targetLeadUs) {
-        final sleepUs = leadUs - targetLeadUs;
-        if (sleepUs >= 1000) {
-          await Future.delayed(Duration(microseconds: sleepUs));
-        } else {
-          await Future.delayed(Duration.zero);
+  void runPlaybackLoop(
+    int session,
+    AudioOutputDriver? driver,
+    PlaybackPacer pacer,
+  ) async {
+    pacer.start();
+    try {
+      while (session == playbackSession && isPlaying && !isDisposed) {
+        final wait = pacer.waitForNextBlock();
+        if (wait is Future<void>) {
+          await wait;
+          if (session != playbackSession || !isPlaying || isDisposed) break;
         }
-        if (!isPlaying) break;
-      }
 
-      engine.process();
-      if (activeWorkerOutput != null) {
-        activeWorkerOutput!.write(engine.outputs);
-      } else if (activeAudioPort != null) {
-        final numChannels = engine.numChannels;
-        final channelCopies = <Float32List>[
-          for (int ch = 0; ch < numChannels; ch++)
-            .fromList(engine.outputs[ch]),
-        ];
-        activeAudioPort!.send(channelCopies);
+        engine.process();
+        if (driver != null) {
+          driver.write(engine.outputs);
+        } else if (activeAudioPort != null) {
+          final numChannels = engine.numChannels;
+          final channelCopies = <Float32List>[
+            for (int ch = 0; ch < numChannels; ch++)
+              .fromList(engine.outputs[ch]),
+          ];
+          activeAudioPort!.send(channelCopies);
+        }
+        pacer.onBlockProcessed();
       }
-      renderedSamples += vectorSize;
+    } finally {
+      pacer.stop();
+      if (identical(activePacer, pacer)) {
+        activePacer = null;
+      }
+      if (session == playbackSession) {
+        isPlaying = false;
+        activeAudioPort = null;
+      }
+      await closeDriverOnce(driver, waitForExit: !isDisposed);
+      completeStopWaiters(session);
     }
-
-    stopwatch.stop();
-    if (activeWorkerOutput != null) {
-      await activeWorkerOutput!.close();
-      activeWorkerOutput = null;
-    }
-    activeAudioPort = null;
-    pendingStopReplyPort?.send(null);
-    pendingStopReplyPort = null;
   }
 
   workerReceivePort.listen((message) async {
@@ -113,28 +140,67 @@ void _audioWorkerEntry(
         }
         replyPort.send(totalBlocks);
       case StartPlaybackMessage(:final workerOutput, :final audioDataPort):
-        if (!isPlaying) {
+        if (!isPlaying && !isDisposed) {
           isPlaying = true;
-          activeWorkerOutput = workerOutput;
+          final session = ++playbackSession;
           activeAudioPort = audioDataPort;
-          runPlaybackLoop();
+          final driver = workerOutput?.createDriver();
+          if (driver != null) {
+            openDrivers.add(driver);
+            activeWorkerDriver = driver;
+            try {
+              final startResult = driver.start(context);
+              if (startResult is Future<void>) {
+                await startResult;
+              }
+            } catch (_) {
+              await closeDriverOnce(driver, waitForExit: false);
+              if (session == playbackSession) {
+                isPlaying = false;
+                activeAudioPort = null;
+              }
+              completeStopWaiters(session);
+              return;
+            }
+            if (session != playbackSession || !isPlaying || isDisposed) {
+              await closeDriverOnce(driver, waitForExit: !isDisposed);
+              completeStopWaiters(session);
+              return;
+            }
+          }
+          if (session != playbackSession || !isPlaying || isDisposed) {
+            await closeDriverOnce(driver, waitForExit: !isDisposed);
+            completeStopWaiters(session);
+            return;
+          }
+          final pacer = activePacer =
+              driver?.createPacer(context) ??
+              StopwatchPlaybackPacer(context: context);
+          runPlaybackLoop(session, driver, pacer);
         }
       case StopPlaybackMessage(:final replyPort):
         if (isPlaying) {
+          final stoppedSession = playbackSession;
+          ++playbackSession;
           isPlaying = false;
-          pendingStopReplyPort = replyPort;
+          pendingStopPorts[stoppedSession] = replyPort;
+          activePacer?.stop();
         } else {
           replyPort.send(null);
         }
       case DisposeMessage(:final replyPort):
+        isDisposed = true;
         isPlaying = false;
-        if (activeWorkerOutput case final PipedAudioOutput piped) {
-          await piped.close(waitForExit: false);
-          activeWorkerOutput = null;
-        } else if (activeWorkerOutput != null) {
-          await activeWorkerOutput!.close();
-          activeWorkerOutput = null;
+        ++playbackSession;
+        activePacer?.stop();
+        await closeDriverOnce(activeWorkerDriver, waitForExit: false);
+        for (final driver in openDrivers.toList()) {
+          await closeDriverOnce(driver, waitForExit: false);
         }
+        if (closingDrivers.isNotEmpty) {
+          await Future.wait(closingDrivers.values.toList());
+        }
+        completeStopWaiters();
         await engine.dispose();
         replyPort?.send(null);
         workerReceivePort.close();
@@ -143,22 +209,19 @@ void _audioWorkerEntry(
 }
 
 /// Multi-threaded isolate implementation of [AudioHost].
-class IsolateAudioHost extends AudioHost {
-  @override
-  final ProcessContext context;
-
+class IsolateAudioHost._({
+  @override required final ProcessContext context,
+  required this._isolate,
+  required this._engineSendPort,
+}) extends AudioHost {
   final Isolate _isolate;
   final SendPort _engineSendPort;
   GraphSnapshot _currentSnapshot = .empty;
   bool _isDisposed = false;
   bool _isPlaying = false;
+  int _playbackSession = 0;
   ReceivePort? _audioReceivePort;
-
-  IsolateAudioHost._({
-    required this.context,
-    required this._isolate,
-    required this._engineSendPort,
-  });
+  AudioOutputDriver? _hostOutputDriver;
 
   /// Spawns a new background worker isolate running [AudioEngine].
   static Future<IsolateAudioHost> spawn({
@@ -268,22 +331,39 @@ class IsolateAudioHost extends AudioHost {
     }
 
     _isPlaying = true;
+    final session = ++_playbackSession;
 
-    // TODO: refactor(AudioOutput): Once AudioOutput is split into a declarative
-    // descriptor vs. worker-side runtime driver, always send the descriptor to
-    // the worker isolate to instantiate and own its runtime driver, rather than
-    // branching between worker-cloned AudioOutputs and main-isolate audioDataPort
-    // streaming.
     if (output == null) {
       _engineSendPort.send(const StartPlaybackMessage());
-    } else if ((output is PipedAudioOutput && output.isIsolateSendable) ||
-        output is NullAudioOutput) {
+    } else if (output.isIsolateSendable) {
       _engineSendPort.send(StartPlaybackMessage(workerOutput: output));
     } else {
+      final driver = output.createDriver();
+      try {
+        final startResult = driver.start(context);
+        if (startResult is Future<void>) {
+          await startResult;
+        }
+      } catch (_) {
+        if (session == _playbackSession) {
+          _isPlaying = false;
+        }
+        try {
+          await driver.close(waitForExit: false);
+        } catch (_) {}
+        rethrow;
+      }
+      if (session != _playbackSession || !_isPlaying || _isDisposed) {
+        try {
+          await driver.close(waitForExit: !_isDisposed);
+        } catch (_) {}
+        return;
+      }
+      _hostOutputDriver = driver;
       final audioReceivePort = _audioReceivePort = ReceivePort();
       audioReceivePort.listen((message) {
         if (message is List<Float32List>) {
-          output.write(message);
+          driver.write(message);
         }
       });
       _engineSendPort.send(
@@ -292,22 +372,35 @@ class IsolateAudioHost extends AudioHost {
     }
   }
 
+  Future<void> _closeHostDriver({required bool waitForExit}) async {
+    final hostDriver = _hostOutputDriver;
+    _hostOutputDriver = null;
+    if (hostDriver != null) {
+      try {
+        await hostDriver.close(waitForExit: waitForExit);
+      } catch (_) {}
+    }
+  }
+
   @override
   Future<void> stopPlayback() async {
     if (!_isPlaying) return;
     _isPlaying = false;
+    ++_playbackSession;
     final stopReplyPort = ReceivePort();
     _engineSendPort.send(StopPlaybackMessage(stopReplyPort.sendPort));
     await stopReplyPort.first;
     stopReplyPort.close();
     _audioReceivePort?.close();
     _audioReceivePort = null;
+    await _closeHostDriver(waitForExit: true);
   }
 
   @override
   Future<void> dispose() async {
     if (_isDisposed) return;
     _isDisposed = true;
+    ++_playbackSession;
     if (_isPlaying) {
       await stopPlayback();
     }
@@ -315,6 +408,9 @@ class IsolateAudioHost extends AudioHost {
     _engineSendPort.send(DisposeMessage(replyPort.sendPort));
     await replyPort.first;
     replyPort.close();
-    _isolate.kill(priority: Isolate.immediate);
+    _audioReceivePort?.close();
+    _audioReceivePort = null;
+    await _closeHostDriver(waitForExit: false);
+    _isolate.kill();
   }
 }

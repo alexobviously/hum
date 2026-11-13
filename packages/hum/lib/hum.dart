@@ -12,6 +12,7 @@ export 'src/core/smoothed_value.dart';
 export 'src/core/terminal_node.dart';
 export 'src/engine/audio_engine.dart';
 export 'src/engine/audio_host.dart';
+export 'src/engine/playback_pacer.dart';
 export 'src/engine/sync_audio_host.dart';
 export 'src/io/audio_output.dart';
 export 'src/io/buffer_interleave.dart';

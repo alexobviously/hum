@@ -8,30 +8,35 @@ import 'package:test/test.dart';
 
 void main() {
   group('AudioOutput & Dac', () {
-    test('MemoryAudioOutput accumulates float32 blocks in memory', () {
+    test('MemoryAudioOutput accumulates float32 blocks in memory', () async {
       final output = MemoryAudioOutput(numChannels: 2, vectorSize: 4);
+      final driver = output.createDriver();
 
       final left = Float32List.fromList([1.0, 3.0, 5.0, 7.0]);
       final right = Float32List.fromList([2.0, 4.0, 6.0, 8.0]);
 
-      output.write([left, right]);
+      driver.write([left, right]);
+      await driver.close();
 
       // 4 samples * 2 channels * 4 bytes = 32 bytes
       expect(output.length, equals(32));
+      expect(output.isClosed, isTrue);
 
       final floats = output.bytes.buffer.asFloat32List(0, 8);
       expect(floats, equals([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]));
     });
 
-    test('MemoryAudioOutput accumulates pcm16 blocks in memory', () {
+    test('MemoryAudioOutput accumulates pcm16 blocks in memory', () async {
       final output = MemoryAudioOutput(
         numChannels: 1,
         vectorSize: 4,
         format: WavFormat.pcm16,
       );
+      final driver = output.createDriver();
 
       final ch0 = Float32List.fromList([0.0, 1.0, -1.0, 0.5]);
-      output.write([ch0]);
+      driver.write([ch0]);
+      await driver.close();
 
       // 4 samples * 1 channel * 2 bytes = 8 bytes
       expect(output.length, equals(8));
@@ -51,12 +56,17 @@ void main() {
         numChannels: 2,
         vectorSize: 4,
       );
+      expect(pipedOutput.isIsolateSendable, isFalse);
+
+      final driver = pipedOutput.createDriver() as PipedAudioOutputDriver;
 
       final left = Float32List.fromList([1.0, 3.0, 5.0, 7.0]);
       final right = Float32List.fromList([2.0, 4.0, 6.0, 8.0]);
 
-      pipedOutput.write([left, right]);
-      await pipedOutput.close();
+      driver.write([left, right]);
+      await driver.close();
+
+      expect(driver.isClosed, isTrue);
 
       // 4 samples * 2 channels * 4 bytes = 32 bytes
       expect(accumulatedBytes.length, equals(32));
@@ -68,6 +78,7 @@ void main() {
 
     test('Out.stereo routes graph outputs to AudioOutput at engine level', () {
       final memoryOutput = MemoryAudioOutput(numChannels: 2, vectorSize: 4);
+      final driver = memoryOutput.createDriver();
       final osc1 = SineOscillator(frequency: .value(440));
       final osc2 = SineOscillator(frequency: .value(880));
 
@@ -80,7 +91,7 @@ void main() {
       expect(pipeline.outputs.length, equals(2));
 
       pipeline.process();
-      memoryOutput.write(pipeline.outputs);
+      driver.write(pipeline.outputs);
 
       // 4 samples * 2 channels * 4 bytes = 32 bytes
       expect(memoryOutput.length, equals(32));
@@ -117,17 +128,19 @@ void main() {
 
         expect(combined.numChannels, equals(2));
         expect(combined.vectorSize, equals(4));
+        expect(combined.isIsolateSendable, isFalse);
 
+        final driver = combined.createDriver();
         final channels = [
           Float32List.fromList([1.0, 2.0, 3.0, 4.0]),
           Float32List.fromList([5.0, 6.0, 7.0, 8.0]),
         ];
-        combined.write(channels);
+        driver.write(channels);
 
         expect(out1.length, equals(32));
         expect(out2.length, equals(32));
 
-        await combined.close();
+        await driver.close();
         expect(out1.isClosed, isTrue);
         expect(out2.isClosed, isTrue);
       },
@@ -137,13 +150,15 @@ void main() {
       final nullOutput = AudioOutput.none(numChannels: 2, vectorSize: 4);
       expect(nullOutput.numChannels, equals(2));
       expect(nullOutput.vectorSize, equals(4));
+      expect(nullOutput.isIsolateSendable, isTrue);
 
-      nullOutput.write([
+      final driver = nullOutput.createDriver();
+      driver.write([
         Float32List.fromList([1.0, 2.0, 3.0, 4.0]),
         Float32List.fromList([5.0, 6.0, 7.0, 8.0]),
       ]);
 
-      await nullOutput.close();
+      await driver.close();
     });
 
     test(
@@ -224,38 +239,44 @@ void main() {
     });
 
     test(
-      'PipedAudioOutput.close does not hang when called while Process.start is in flight',
+      'PipedAudioOutputDriver.close does not hang when called while Process.start is in flight',
       () async {
         final output = PipedAudioOutput(
           executable: 'cat',
           numChannels: 1,
           vectorSize: 4,
         );
+        expect(output.isIsolateSendable, isTrue);
+
+        final driver = output.createDriver() as PipedAudioOutputDriver;
 
         // Trigger lazy Process.start('cat') without awaiting event loop
-        output.write([Float32List(4)]);
+        driver.write([Float32List(4)]);
 
         // Immediately close while Process.start is still in flight
-        await output.close(waitForExit: false).timeout(
-          const Duration(milliseconds: 500),
-        );
-        expect(output.isClosed, isTrue);
+        await driver
+            .close(waitForExit: false)
+            .timeout(
+              const Duration(milliseconds: 500),
+            );
+        expect(driver.isClosed, isTrue);
       },
     );
 
     test(
-      'PipedAudioOutput marks itself closed on Process.start failure to prevent retry storm',
+      'PipedAudioOutputDriver marks itself closed on Process.start failure to prevent retry storm',
       () async {
         final output = PipedAudioOutput(
           executable: '__nonexistent_hum_executable__',
           numChannels: 1,
           vectorSize: 4,
         );
+        final driver = output.createDriver() as PipedAudioOutputDriver;
 
-        output.write([Float32List(4)]);
+        driver.write([Float32List(4)]);
         await Future.delayed(const Duration(milliseconds: 50));
 
-        expect(output.isClosed, isTrue);
+        expect(driver.isClosed, isTrue);
       },
     );
 
@@ -273,9 +294,11 @@ void main() {
         proc.process(context, [Float32List(4)], const []);
 
         // Immediately close while Process.start is still in flight
-        await proc.close(waitForExit: false).timeout(
-          const Duration(milliseconds: 500),
-        );
+        await proc
+            .close(waitForExit: false)
+            .timeout(
+              const Duration(milliseconds: 500),
+            );
         expect(proc.isClosed, isTrue);
       },
     );
@@ -296,5 +319,72 @@ void main() {
         expect(proc.isClosed, isTrue);
       },
     );
+
+    test(
+      'AudioOutput.combine validates matching numChannels and vectorSize',
+      () {
+        final stereo4 = AudioOutput.none(numChannels: 2, vectorSize: 4);
+        final mono4 = AudioOutput.none(numChannels: 1, vectorSize: 4);
+        final stereo8 = AudioOutput.none(numChannels: 2, vectorSize: 8);
+
+        expect(
+          () => AudioOutput.combine([stereo4, mono4]),
+          throwsArgumentError,
+        );
+        expect(
+          () => AudioOutput.combine([stereo4, stereo8]),
+          throwsArgumentError,
+        );
+      },
+    );
+
+    test(
+      'CombinedAudioOutputDriver.start closes already-started drivers if a later driver throws',
+      () async {
+        final okDriver = _SpyDriver(numChannels: 2, vectorSize: 4);
+        final failingDriver = _SpyDriver(
+          numChannels: 2,
+          vectorSize: 4,
+          failOnStart: true,
+        );
+        final combined = CombinedAudioOutputDriver(
+          drivers: [okDriver, failingDriver],
+        );
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+
+        await expectLater(
+          () => combined.start(context),
+          throwsStateError,
+        );
+        expect(okDriver.started, isTrue);
+        expect(okDriver.closeCalls, equals(1));
+        expect(okDriver.lastWaitForExit, isFalse);
+      },
+    );
   });
+}
+
+class _SpyDriver({
+  @override required final int numChannels,
+  @override required final int vectorSize,
+  final bool failOnStart = false,
+}) extends AudioOutputDriver {
+  bool started = false;
+  int closeCalls = 0;
+  bool? lastWaitForExit;
+
+  @override
+  Future<void> start(ProcessContext context) async {
+    if (failOnStart) throw StateError('simulated start failure');
+    started = true;
+  }
+
+  @override
+  void write(List<Float32List> channels) {}
+
+  @override
+  Future<void> close({bool waitForExit = true}) async {
+    closeCalls++;
+    lastWaitForExit = waitForExit;
+  }
 }
