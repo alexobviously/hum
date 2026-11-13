@@ -51,7 +51,7 @@ TARGET_FILES=()
 if [ ${#CUSTOM_TARGETS[@]} -gt 0 ]; then
   TARGET_FILES=("${CUSTOM_TARGETS[@]}")
 elif [ "$ALL" = true ]; then
-  TARGET_FILES=(lib test bin example)
+  TARGET_FILES=(packages bin)
 else
   if [ -n "$GITHUB_BASE_REF" ]; then
     # In GitHub Actions PRs (with fetch-depth: 2), HEAD^1 is the target base branch

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -e
+
+# Runs `dart test` across all workspace packages that contain a `test/` directory.
+#
+# Usage:
+#   bin/test                                      # Run tests in all workspace packages
+#   bin/test -n "Freeverb"                        # Forward flags to `dart test` in each package
+#   bin/test packages/hum/test/abs_test.dart      # Run specific test file/dir in its package
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  echo "Usage:"
+  echo "  bin/test [dart test args...]                  Run tests across all packages in packages/*"
+  echo "  bin/test packages/<pkg>/test/... [args...]    Run targeted test path in a single package"
+  exit 0
+fi
+
+if command -v fvm >/dev/null 2>&1; then
+  DART_CMD=(fvm dart)
+else
+  DART_CMD=(dart)
+fi
+
+# If a path inside a specific package was provided, route directly to that package.
+TARGET_PKG=""
+FORWARD_ARGS=()
+for arg in "$@"; do
+  if [ -z "$TARGET_PKG" ] && [[ "$arg" == packages/*/* ]] && [ -e "$arg" ]; then
+    pkg_part="${arg#packages/}"
+    TARGET_PKG="packages/${pkg_part%%/*}"
+    rel_arg="${arg#"$TARGET_PKG"/}"
+    FORWARD_ARGS+=("$rel_arg")
+  elif [ -n "$TARGET_PKG" ] && [[ "$arg" == "$TARGET_PKG/"* ]] && [ -e "$arg" ]; then
+    FORWARD_ARGS+=("${arg#"$TARGET_PKG"/}")
+  else
+    FORWARD_ARGS+=("$arg")
+  fi
+done
+
+if [ -n "$TARGET_PKG" ]; then
+  echo "==> Running tests in $TARGET_PKG"
+  (cd "$TARGET_PKG" && "${DART_CMD[@]}" test "${FORWARD_ARGS[@]}")
+  exit 0
+fi
+
+TEST_PKGS=()
+for pkg_dir in packages/*; do
+  if [ -d "$pkg_dir/test" ]; then
+    TEST_PKGS+=("$pkg_dir")
+  fi
+done
+
+if [ ${#TEST_PKGS[@]} -eq 0 ]; then
+  echo "No workspace packages with a test/ directory found."
+  exit 1
+fi
+
+for pkg_dir in "${TEST_PKGS[@]}"; do
+  echo "==> Running tests in $pkg_dir"
+  (cd "$pkg_dir" && "${DART_CMD[@]}" test "$@")
+done
+

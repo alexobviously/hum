@@ -16,6 +16,8 @@ formatter:
   trailing_commas: preserve
 
 analyzer:
+  exclude:
+    - tmp/**
   errors:
     constant_identifier_names: ignore
 

@@ -36,4 +36,4 @@ jobs:
         run: dart analyze
 
       - name: Run unit tests
-        run: dart test
+        run: ./bin/test

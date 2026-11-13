@@ -1,0 +1,13 @@
+name: hum
+description: High performance, modular audio graph and DSP engine.
+version: 0.0.1
+repository: https://github.com/alexobviously/hum
+
+environment:
+  sdk: ^3.13.4
+
+resolution: workspace
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

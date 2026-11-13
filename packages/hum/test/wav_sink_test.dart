@@ -49,8 +49,11 @@ void main() {
     });
 
     test('WavSink.file streams audio directly to a file', () {
-      final tmpFile = File('tmp/test_sink.wav');
-      if (tmpFile.existsSync()) tmpFile.deleteSync();
+      final tempDir = Directory.systemTemp.createTempSync('hum_wav_sink_test_');
+      addTearDown(() {
+        if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+      });
+      final tmpFile = File('${tempDir.path}/test_sink.wav');
 
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final sine = SineOscillator(frequency: .value(440));
@@ -87,9 +90,6 @@ void main() {
         byteData.getUint32(40, Endian.little),
         equals(2560),
       ); // Data length
-
-      // Clean up
-      tmpFile.deleteSync();
     });
   });
 }

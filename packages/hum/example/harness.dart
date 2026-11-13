@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
@@ -497,8 +498,13 @@ Future<void> _runBenchmark({
                 flag != '--verbose_gc')
               flag,
         ];
+        final packageConfigUri = await Isolate.packageConfig;
+        final packageConfigPath =
+            packageConfigUri != null && packageConfigUri.scheme == 'file'
+            ? packageConfigUri.toFilePath()
+            : '.dart_tool/package_config.json';
         final workerArgs = <String>[
-          '--packages=.dart_tool/package_config.json',
+          '--packages=$packageConfigPath',
           '--verbose_gc',
           ...forwardedVmFlags,
           scriptUri.toFilePath(),
@@ -709,8 +715,8 @@ void _displayBenchmarkReport({
     final avgStr = steadyPauseAvgMs < 0.01
         ? '<0.01 ms'
         : (steadyPauseAvgMs < 0.1
-            ? '${steadyPauseAvgMs.toStringAsFixed(2)} ms'
-            : '${steadyPauseAvgMs.toStringAsFixed(1)} ms');
+              ? '${steadyPauseAvgMs.toStringAsFixed(2)} ms'
+              : '${steadyPauseAvgMs.toStringAsFixed(1)} ms');
     stdout.writeln(
       '${'║ Pause Duration: avg: $avgStr | min: $minStr | max: $maxStr'.padRight(67)}║',
     );
