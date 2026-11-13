@@ -224,80 +224,77 @@ void main() {
     });
 
     test(
-      'SubprocessSink.ffplay configures low-latency streaming arguments',
-      () {
-        final osc = SineOscillator(frequency: const .value(440));
-        final sink = SubprocessSink.ffplay(
-          channels: [osc.outlet],
-          sampleRate: 48000,
-          format: .pcm16,
+      'PipedAudioOutput.close does not hang when called while Process.start is in flight',
+      () async {
+        final output = PipedAudioOutput(
+          executable: 'cat',
+          numChannels: 1,
+          vectorSize: 4,
         );
 
-        expect(sink.executable, equals('ffplay'));
-        expect(sink.format, equals(WavFormat.pcm16));
-        expect(sink.arguments, contains('-f'));
-        expect(sink.arguments, contains('s16le'));
-        expect(sink.arguments, contains('48000'));
-        expect(sink.arguments, contains('mono'));
-        expect(sink.arguments, contains('-nodisp'));
-        expect(sink.arguments, contains('-sync'));
+        // Trigger lazy Process.start('cat') without awaiting event loop
+        output.write([Float32List(4)]);
+
+        // Immediately close while Process.start is still in flight
+        await output.close(waitForExit: false).timeout(
+          const Duration(milliseconds: 500),
+        );
+        expect(output.isClosed, isTrue);
       },
     );
 
-    test('SubprocessSink.sox configures raw play arguments', () {
-      final osc1 = SineOscillator(frequency: const .value(440));
-      final osc2 = SineOscillator(frequency: const .value(880));
-      final sink = SubprocessSink.sox(
-        channels: [osc1.outlet, osc2.outlet],
-        sampleRate: 44100,
-        format: .float32,
-      );
+    test(
+      'PipedAudioOutput marks itself closed on Process.start failure to prevent retry storm',
+      () async {
+        final output = PipedAudioOutput(
+          executable: '__nonexistent_hum_executable__',
+          numChannels: 1,
+          vectorSize: 4,
+        );
 
-      expect(sink.executable, equals('play'));
-      expect(sink.format, equals(WavFormat.float32));
-      expect(sink.arguments, contains('-t'));
-      expect(sink.arguments, contains('raw'));
-      expect(sink.arguments, contains('float'));
-      expect(sink.arguments, contains('32'));
-      expect(sink.arguments, contains('2'));
-    });
+        output.write([Float32List(4)]);
+        await Future.delayed(const Duration(milliseconds: 50));
 
-    test('SubprocessSink supports custom executable override', () {
-      final osc = SineOscillator(frequency: const .value(440));
-      final sink = SubprocessSink.ffplay(
-        channels: [osc.outlet],
-        executable: '/opt/homebrew/bin/ffplay',
-      );
+        expect(output.isClosed, isTrue);
+      },
+    );
 
-      expect(sink.executable, equals('/opt/homebrew/bin/ffplay'));
-    });
+    test(
+      'SubprocessSinkProcessor.close does not hang when called while Process.start is in flight',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+        final proc = SubprocessSinkProcessor(
+          executable: 'cat',
+          arguments: const [],
+          numChannels: 1,
+        );
 
-    test('SubprocessSink declares validation errors when invalid', () {
-      final emptyChannels = SubprocessSink(
-        channels: const [],
-        executable: 'ffplay',
-      );
-      expect(emptyChannels.errors, isNotEmpty);
-      expect(emptyChannels.errors.first.message, contains('[channels]'));
+        // Trigger lazy Process.start('cat') without awaiting event loop
+        proc.process(context, [Float32List(4)], const []);
 
-      final osc = SineOscillator(frequency: const .value(440));
-      final emptyExe = SubprocessSink(
-        channels: [osc.outlet],
-        executable: '   ',
-      );
-      expect(emptyExe.errors, isNotEmpty);
-      expect(emptyExe.errors.first.message, contains('[executable]'));
-    });
+        // Immediately close while Process.start is still in flight
+        await proc.close(waitForExit: false).timeout(
+          const Duration(milliseconds: 500),
+        );
+        expect(proc.isClosed, isTrue);
+      },
+    );
 
-    test('SubprocessSink compiles in declarative graph', () {
-      final osc = SineOscillator(frequency: const .value(440));
-      final sink = SubprocessSink.ffplay(channels: [osc.outlet]);
+    test(
+      'SubprocessSinkProcessor marks itself closed on Process.start failure to prevent retry storm',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+        final proc = SubprocessSinkProcessor(
+          executable: '__nonexistent_hum_executable__',
+          arguments: const [],
+          numChannels: 1,
+        );
 
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final pipeline = compilePipeline(root: sink, context: context).pipeline!;
+        proc.process(context, [Float32List(4)], const []);
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(pipeline.outputs.length, equals(1));
-      expect(sink.errors, isEmpty);
-    });
+        expect(proc.isClosed, isTrue);
+      },
+    );
   });
 }

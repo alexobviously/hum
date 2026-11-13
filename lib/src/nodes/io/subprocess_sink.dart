@@ -125,13 +125,14 @@ class SubprocessSinkProcessor({
     _isSpawning = true;
     Process.start(executable, arguments)
         .then((p) {
+          _isSpawning = false;
           if (_isClosed) {
+            _pendingBuffer.clear();
             p.kill();
             return;
           }
           _process = p;
           _stdin = p.stdin;
-          _isSpawning = false;
           for (final pending in _pendingBuffer) {
             _stdin!.add(pending);
           }
@@ -139,6 +140,7 @@ class SubprocessSinkProcessor({
         })
         .catchError((_) {
           _isSpawning = false;
+          _isClosed = true;
           _pendingBuffer.clear();
         });
   }

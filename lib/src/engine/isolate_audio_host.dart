@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+import 'package:hum/io.dart';
 
 /// Messages sent from [IsolateAudioHost] to the background audio isolate.
 sealed class const HostToEngineMessage();
@@ -15,8 +16,10 @@ class const UpdateParamMessage(final int nodeId, final Object params)
 class const RenderBlocksMessage(final int count, final SendPort replyPort)
     extends HostToEngineMessage;
 
-class const StartPlaybackMessage(final SendPort audioDataPort)
-    extends HostToEngineMessage;
+class const StartPlaybackMessage({
+  final AudioOutput? workerOutput,
+  final SendPort? audioDataPort,
+}) extends HostToEngineMessage;
 
 class const StopPlaybackMessage(final SendPort replyPort)
     extends HostToEngineMessage;
@@ -35,6 +38,7 @@ void _audioWorkerEntry(
   final context = args.context;
 
   bool isPlaying = false;
+  AudioOutput? activeWorkerOutput;
   SendPort? activeAudioPort;
   SendPort? pendingStopReplyPort;
 
@@ -69,15 +73,25 @@ void _audioWorkerEntry(
       }
 
       engine.process();
-      final numChannels = engine.numChannels;
-      final channelCopies = <Float32List>[
-        for (int ch = 0; ch < numChannels; ch++) .fromList(engine.outputs[ch]),
-      ];
-      activeAudioPort?.send(channelCopies);
+      if (activeWorkerOutput != null) {
+        activeWorkerOutput!.write(engine.outputs);
+      } else if (activeAudioPort != null) {
+        final numChannels = engine.numChannels;
+        final channelCopies = <Float32List>[
+          for (int ch = 0; ch < numChannels; ch++)
+            .fromList(engine.outputs[ch]),
+        ];
+        activeAudioPort!.send(channelCopies);
+      }
       renderedSamples += vectorSize;
     }
 
     stopwatch.stop();
+    if (activeWorkerOutput != null) {
+      await activeWorkerOutput!.close();
+      activeWorkerOutput = null;
+    }
+    activeAudioPort = null;
     pendingStopReplyPort?.send(null);
     pendingStopReplyPort = null;
   }
@@ -98,9 +112,10 @@ void _audioWorkerEntry(
           }
         }
         replyPort.send(totalBlocks);
-      case StartPlaybackMessage(:final audioDataPort):
+      case StartPlaybackMessage(:final workerOutput, :final audioDataPort):
         if (!isPlaying) {
           isPlaying = true;
+          activeWorkerOutput = workerOutput;
           activeAudioPort = audioDataPort;
           runPlaybackLoop();
         }
@@ -113,6 +128,13 @@ void _audioWorkerEntry(
         }
       case DisposeMessage(:final replyPort):
         isPlaying = false;
+        if (activeWorkerOutput case final PipedAudioOutput piped) {
+          await piped.close(waitForExit: false);
+          activeWorkerOutput = null;
+        } else if (activeWorkerOutput != null) {
+          await activeWorkerOutput!.close();
+          activeWorkerOutput = null;
+        }
         await engine.dispose();
         replyPort?.send(null);
         workerReceivePort.close();
@@ -246,14 +268,28 @@ class IsolateAudioHost extends AudioHost {
     }
 
     _isPlaying = true;
-    final audioReceivePort = _audioReceivePort = ReceivePort();
-    audioReceivePort.listen((message) {
-      if (message is List<Float32List>) {
-        output?.write(message);
-      }
-    });
 
-    _engineSendPort.send(StartPlaybackMessage(audioReceivePort.sendPort));
+    // TODO: refactor(AudioOutput): Once AudioOutput is split into a declarative
+    // descriptor vs. worker-side runtime driver, always send the descriptor to
+    // the worker isolate to instantiate and own its runtime driver, rather than
+    // branching between worker-cloned AudioOutputs and main-isolate audioDataPort
+    // streaming.
+    if (output == null) {
+      _engineSendPort.send(const StartPlaybackMessage());
+    } else if ((output is PipedAudioOutput && output.isIsolateSendable) ||
+        output is NullAudioOutput) {
+      _engineSendPort.send(StartPlaybackMessage(workerOutput: output));
+    } else {
+      final audioReceivePort = _audioReceivePort = ReceivePort();
+      audioReceivePort.listen((message) {
+        if (message is List<Float32List>) {
+          output.write(message);
+        }
+      });
+      _engineSendPort.send(
+        StartPlaybackMessage(audioDataPort: audioReceivePort.sendPort),
+      );
+    }
   }
 
   @override

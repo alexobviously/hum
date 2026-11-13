@@ -2,6 +2,14 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
+// TODO: refactor(AudioOutput): Separate AudioOutput into an immutable,
+// isolate-sendable configuration descriptor (analogous to AudioNode on the host
+// thread) and a runtime sink/driver instance (analogous to AudioProcessor on the
+// audio thread). Currently AudioOutput mixes host-side configuration with
+// audio-thread mutable state (write/close), which means passing a sendable
+// AudioOutput to IsolateAudioHost.startPlayback clones the instance onto the
+// worker isolate while leaving an unstarted shell on the main isolate.
+
 /// An abstraction for audio output destinations (subprocesses, native DAC, memory).
 abstract interface class AudioOutput {
   /// The number of audio channels.

@@ -32,7 +32,7 @@ void main() async {
   setGraph(440);
 
   // Create ffplay audio output destination
-  final output = await PipedAudioOutput.ffplay(
+  final output = PipedAudioOutput.ffplay(
     numChannels: 2,
     vectorSize: vectorSize,
     sampleRate: sampleRate,

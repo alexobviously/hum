@@ -374,8 +374,13 @@ Future<void> _runLivePlayback({
     }
 
     final durationSeconds = tempo.bar * bars;
+    final playerName = switch (output.executable) {
+      'play' => 'sox',
+      final exe? => exe,
+      null => 'audio output',
+    };
     stdout.writeln(
-      '🔊 [hum] Playing $bars bars of "$name" (${tempo.bpm.toStringAsFixed(0)} BPM) via ${output.process != null ? 'subprocess' : 'audio output'}...',
+      '🔊 [hum] Playing $bars bars of "$name" (${tempo.bpm.toStringAsFixed(0)} BPM) via $playerName...',
     );
     stdout.writeln('   Press Ctrl+C to abort playback.');
 

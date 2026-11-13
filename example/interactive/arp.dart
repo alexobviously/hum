@@ -57,12 +57,12 @@ void main(List<String> args) async {
   updateGraph();
 
   final output = switch (player) {
-    'sox' => await PipedAudioOutput.sox(
+    'sox' => PipedAudioOutput.sox(
       numChannels: 2,
       vectorSize: vs,
       sampleRate: sr,
     ),
-    _ => await PipedAudioOutput.ffplay(
+    _ => PipedAudioOutput.ffplay(
       numChannels: 2,
       vectorSize: vs,
       sampleRate: sr,

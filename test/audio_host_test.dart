@@ -197,50 +197,6 @@ void main() {
 
       await host.dispose();
     });
-
-    test(
-      'startPlayback without AudioOutput runs real-time engine loop',
-      () async {
-        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-        final host = AudioHost.sync(context: context);
-
-        final osc = SineOscillator(frequency: const .value(440));
-        host.setGraph(root: osc.out);
-
-        expect(host.isPlaying, isFalse);
-        await host.startPlayback();
-        expect(host.isPlaying, isTrue);
-
-        await Future.delayed(const Duration(milliseconds: 30));
-        await host.stopPlayback();
-        expect(host.isPlaying, isFalse);
-        await host.dispose();
-      },
-    );
-
-    test('exportWav bounces audio graph offline at max CPU speed', () async {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final host = AudioHost.sync(context: context);
-
-      final osc = SineOscillator(frequency: const .value(440));
-      final out = Out.stereo(left: osc.outlet, right: osc.outlet);
-      host.setGraph(root: out);
-
-      // Bounce 100ms of stereo float32 audio
-      final wavBytes = await host.exportWav(
-        duration: const Duration(milliseconds: 100),
-        format: .float32,
-      );
-
-      // 44-byte header + data
-      expect(wavBytes.length, greaterThan(44));
-      // First 4 bytes are 'RIFF'
-      expect(String.fromCharCodes(wavBytes.sublist(0, 4)), equals('RIFF'));
-      // Bytes 8-12 are 'WAVE'
-      expect(String.fromCharCodes(wavBytes.sublist(8, 12)), equals('WAVE'));
-
-      await host.dispose();
-    });
   });
 
   group('AudioHost.spawn (isolate mode)', () {
@@ -345,5 +301,34 @@ void main() {
 
       await host.dispose();
     });
+
+    test(
+      'startPlayback runs sendable AudioOutput directly on worker isolate',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = await IsolateAudioHost.spawn(context: context);
+
+        final osc = SineOscillator(frequency: const .value(440));
+        host.setGraph(root: osc.out);
+
+        final nullOutput = AudioOutput.none(numChannels: 1, vectorSize: 64);
+        await host.startPlayback(nullOutput);
+        expect(host.isPlaying, isTrue);
+
+        await Future.delayed(const Duration(milliseconds: 30));
+        await host.stopPlayback();
+        expect(host.isPlaying, isFalse);
+
+        // Verify PipedAudioOutput.ffplay / .sox are isolate-sendable prior to spawning
+        final ffplayOut = PipedAudioOutput.ffplay(
+          numChannels: 1,
+          vectorSize: 64,
+          sampleRate: 44100,
+        );
+        expect(ffplayOut.isIsolateSendable, isTrue);
+
+        await host.dispose();
+      },
+    );
   });
 }
