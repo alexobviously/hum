@@ -423,6 +423,7 @@ void main(List<String> args) async {
   }
 
   void handleInput(List<int> bytes) {
+    if (completer.isCompleted) return;
     final text = utf8.decode(bytes, allowMalformed: true);
 
     // 1. Mouse Input Handling (SGR 1006)
@@ -480,7 +481,7 @@ void main(List<String> args) async {
     if (cleanText.contains('q') ||
         cleanText.contains('Q') ||
         cleanText.contains('\x03')) {
-      completer.complete();
+      if (!completer.isCompleted) completer.complete();
       return;
     }
 
@@ -541,10 +542,11 @@ void main(List<String> args) async {
 
   render();
 
+  final stdinSub = stdin.listen(handleInput);
   try {
-    stdin.listen(handleInput);
     await completer.future;
   } finally {
+    await stdinSub.cancel();
     await host.stopPlayback();
     await host.dispose();
     stdout.write(

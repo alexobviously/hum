@@ -118,9 +118,11 @@ void main(List<String> args) async {
   }
 
   void handleInput(List<int> codeUnits) {
+    if (completer.isCompleted) return;
     switch (codeUnits) {
-      case [113]: // q: exit
+      case [113] || [81]: // q/Q: exit
         completer.complete();
+        return;
       case [61]: // plus: tempo +5 (actually equals)
         synth.bpm = (synth.bpm + 5).clamp(10, 300);
       case [45]: // minus: tempo -5
@@ -167,10 +169,11 @@ void main(List<String> args) async {
   }
 
   render();
+  final stdinSub = stdin.listen(handleInput);
   try {
-    stdin.listen(handleInput);
     await completer.future;
   } finally {
+    await stdinSub.cancel();
     await host.stopPlayback();
     await host.dispose();
     stdin.lineMode = oldLineMode;
