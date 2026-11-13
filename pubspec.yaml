@@ -7,4 +7,4 @@ environment:
 workspace:
   - packages/hum
   - packages/hum/example
-
+  - packages/hum_miniaudio
