@@ -1,5 +1,10 @@
 {
     "rust-analyzer.linkedProjects": [
         "packages/hum_cpal/rust/Cargo.toml"
-    ]
+    ],
+    "[rust]": {
+        "editor.rulers": [
+            80
+        ]
+    }
 }

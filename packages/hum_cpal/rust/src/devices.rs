@@ -1,5 +1,8 @@
 use cpal::traits::{DeviceTrait, HostTrait};
-use cpal::{SampleFormat, SupportedBufferSize, SupportedStreamConfig, SupportedStreamConfigRange};
+use cpal::{
+    SampleFormat, SupportedBufferSize, SupportedStreamConfig,
+    SupportedStreamConfigRange,
+};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -91,8 +94,10 @@ fn map_config_range(range: &SupportedStreamConfigRange) -> ConfigRange {
 /// Probes the default cpal host and serializes all device capabilities as JSON.
 pub fn probe_devices_json() -> Result<String, serde_json::Error> {
     let host = cpal::default_host();
-    let default_output_id = host.default_output_device().and_then(|d| d.id().ok());
-    let default_input_id = host.default_input_device().and_then(|d| d.id().ok());
+    let default_output_id =
+        host.default_output_device().and_then(|d| d.id().ok());
+    let default_input_id =
+        host.default_input_device().and_then(|d| d.id().ok());
 
     let mut devices = Vec::new();
     if let Ok(iter) = host.devices() {
@@ -108,7 +113,8 @@ pub fn probe_devices_json() -> Result<String, serde_json::Error> {
             devices.push(DeviceInfo {
                 id: device_id.to_string(),
                 name,
-                is_default_output: default_output_id.as_ref() == Some(&device_id),
+                is_default_output: default_output_id.as_ref()
+                    == Some(&device_id),
                 is_default_input: default_input_id.as_ref() == Some(&device_id),
                 default_output: device
                     .default_output_config()
@@ -142,7 +148,8 @@ mod tests {
 
     #[test]
     fn probes_host_snapshot_json() {
-        let json = probe_devices_json().expect("JSON serialization should succeed");
+        let json =
+            probe_devices_json().expect("JSON serialization should succeed");
         let parsed: serde_json::Value =
             serde_json::from_str(&json).expect("valid JSON payload");
         assert!(parsed["hostName"].is_string());
