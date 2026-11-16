@@ -2,7 +2,7 @@ import 'package:hum/hum.dart';
 
 // Go and look at example/demos/ for more!
 
-void main() async {
+void main() {
   print('=== hum DSP Synth Demo ===');
   const sampleRate = 44100;
   const vectorSize = 64;

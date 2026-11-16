@@ -137,7 +137,7 @@ void _audioWorkerEntry(
       await driver.close(waitForExit: waitForExit);
     } catch (_) {
     } finally {
-      closingDrivers.remove(driver);
+      unawaited(closingDrivers.remove(driver));
       completer.complete();
     }
   }
@@ -342,6 +342,8 @@ class IsolateAudioHost._({
 
     final readyCompleter = Completer<SendPort>();
     late final IsolateAudioHost host;
+    // Subscription is cancelled in `dispose()`
+    // ignore: cancel_subscriptions
     late final StreamSubscription<Object?> hostPortSub;
     hostPortSub = hostReceivePort.listen((message) {
       switch (message) {

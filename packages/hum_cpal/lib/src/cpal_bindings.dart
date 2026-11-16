@@ -6,7 +6,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 /// Opaque handle representing an active Rust cpal playback stream.
-final class HumPlaybackHandle extends Opaque {}
+final class HumPlaybackHandle extends Opaque;
 
 /// Probes the default cpal host and returns a UTF-8 JSON string pointer.
 ///

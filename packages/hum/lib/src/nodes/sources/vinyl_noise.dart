@@ -344,8 +344,8 @@ class VinylNoiseProcessor implements AudioProcessor {
       _clickS2R = 2.0 * v2R - _clickS2R;
 
       // Sum everything together into Left and Right channels
-      outL[i] = (finalHissL + v1L + rumble).toDouble();
-      outR[i] = (finalHissR + v1R + rumble).toDouble();
+      outL[i] = (finalHissL + v1L + rumble);
+      outR[i] = (finalHissR + v1R + rumble);
     }
 
     // Anti-denormal flushing

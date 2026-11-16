@@ -485,8 +485,8 @@ class ResonatorBankProcessor({
           final g = gCoeffs[k];
           final kDamp = kCoeffs[k];
 
-          double state1 = s1[k];
-          double state2 = s2[k];
+          final state1 = s1[k];
+          final state2 = s2[k];
 
           final v1 = a1 * state1 + a2 * (x - state2);
           final v2 = state2 + g * v1;
@@ -501,8 +501,8 @@ class ResonatorBankProcessor({
         }
 
         // Dry/wet blend
-        outL[i] = (inL[i] * dryGain + accumL * wetGain).toDouble();
-        outR[i] = (inR[i] * dryGain + accumR * wetGain).toDouble();
+        outL[i] = (inL[i] * dryGain + accumL * wetGain);
+        outR[i] = (inR[i] * dryGain + accumR * wetGain);
       }
     } else {
       // Audio-rate modulated path
@@ -534,8 +534,8 @@ class ResonatorBankProcessor({
           final a1 = 1.0 / (1.0 + g * (g + kDamp));
           final a2 = g * a1;
 
-          double state1 = s1[k];
-          double state2 = s2[k];
+          final state1 = s1[k];
+          final state2 = s2[k];
 
           final v1 = a1 * state1 + a2 * (x - state2);
           final v2 = state2 + g * v1;
@@ -553,8 +553,8 @@ class ResonatorBankProcessor({
           accumR += bp * (pR * modeGain);
         }
 
-        outL[i] = (inL[i] * dryGain + accumL * wetGain).toDouble();
-        outR[i] = (inR[i] * dryGain + accumR * wetGain).toDouble();
+        outL[i] = (inL[i] * dryGain + accumL * wetGain);
+        outR[i] = (inR[i] * dryGain + accumR * wetGain);
       }
     }
 

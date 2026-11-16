@@ -97,7 +97,7 @@ void main() {
       await host.dispose();
     });
 
-    test('startPlayback validates channel count and vector size', () async {
+    test('startPlayback validates channel count and vector size', () {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
       final host = AudioHost.sync(context: context);
 
@@ -763,7 +763,7 @@ class _ThrowingCloseDriver({
   void write(List<Float32List> channels) {}
 
   @override
-  Future<void> close({bool waitForExit = true}) async {
+  Future<void> close({bool waitForExit = true}) {
     throw StateError('simulated close failure');
   }
 }

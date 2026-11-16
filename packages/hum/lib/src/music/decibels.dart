@@ -19,7 +19,7 @@ double dbToGain(num db) => math.pow(10.0, db / 20.0).toDouble();
 /// to prevent negative infinity.
 double gainToDb(num gain, {double floor = 1e-6, double minDb = -120.0}) {
   if (gain <= floor) return minDb;
-  return (20.0 * (math.log(gain) / math.ln10)).toDouble();
+  return (20.0 * (math.log(gain) / math.ln10));
 }
 
 /// Fluent extension on numbers for decibel conversions.

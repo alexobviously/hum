@@ -1,13 +1,11 @@
 import 'dart:typed_data';
 
-enum WavFormat {
+enum WavFormat({
+  required final int code,
+  required final int bitsPerSample,
+}) {
   pcm16(code: 1, bitsPerSample: 16),
-  float32(code: 3, bitsPerSample: 32);
-
-  final int code;
-  final int bitsPerSample;
-
-  const WavFormat({required this.code, required this.bitsPerSample});
+  float32(code: 3, bitsPerSample: 32),
 }
 
 ByteData buildWavHeader({

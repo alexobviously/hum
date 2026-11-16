@@ -48,7 +48,7 @@ void main(List<String> args) async {
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await IsolateAudioHost.spawn(context: context);
   int currentScaleIndex = 0;
-  Synth synth = Synth(
+  final synth = Synth(
     scale: availableScales[currentScaleIndex].take(10),
     activeSteps: {for (int i = 0; i < 10; i++) i: true},
   );
