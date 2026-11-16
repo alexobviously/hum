@@ -17,6 +17,21 @@ jobs:
         with:
           fetch-depth: 2
 
+        # We need the ALSA and rust stuff for rust tests but also dart cpal tests.
+        # Could consider breaking this into a separate workflow but it's fine for now.
+      - name: Install Linux audio development headers (ALSA)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/hum_cpal/rust
+
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
@@ -29,11 +44,20 @@ jobs:
         if: github.event_name == 'pull_request'
         run: ./bin/format
 
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path packages/hum_cpal/rust/Cargo.toml --check
+
       - name: Register Dart problem matcher
         run: echo "::add-matcher::.github/dart-problem-matcher.json"
 
       - name: Analyze project
         run: dart analyze
+
+      - name: Run Rust Clippy
+        run: cargo clippy --manifest-path packages/hum_cpal/rust/Cargo.toml --all-targets -- -D warnings
+
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path packages/hum_cpal/rust/Cargo.toml
 
       - name: Run unit tests
         run: ./bin/test
