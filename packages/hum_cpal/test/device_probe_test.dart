@@ -4,10 +4,6 @@ import 'package:test/test.dart';
 
 void main() {
   group('hum_cpal native bindings', () {
-    test('hello-world symbol works', () {
-      expect(humCpalAdd(69, 420), 489);
-    });
-
     test('probes live cpal host and devices', () {
       final snapshot = CpalHostSnapshot.probe();
 
