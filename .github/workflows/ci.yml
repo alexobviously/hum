@@ -23,8 +23,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        # This is master for the action, not rust master
+        uses: dtolnay/rust-toolchain@master
         with:
+          # Keep in sync with rust-toolchain.toml
+          toolchain: 1.100.0
           components: rustfmt, clippy
 
       - name: Cache Cargo dependencies
