@@ -8,10 +8,6 @@ import 'package:ffi/ffi.dart';
 /// Opaque handle representing an active Rust cpal playback stream.
 final class HumPlaybackHandle extends Opaque {}
 
-/// Adds two signed 32-bit integers via the native Rust `hum_cpal_add` symbol.
-@Native<Int32 Function(Int32, Int32)>(symbol: 'hum_cpal_add')
-external int humCpalAdd(int a, int b);
-
 /// Probes the default cpal host and returns a UTF-8 JSON string pointer.
 ///
 /// Callers must free non-null pointers with [humCpalFreeString].

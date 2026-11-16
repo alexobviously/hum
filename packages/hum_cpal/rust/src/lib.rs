@@ -8,11 +8,6 @@ mod devices;
 mod ffi;
 mod playback;
 
-#[unsafe(no_mangle)]
-pub extern "C" fn hum_cpal_add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
 /// Probes the default cpal host and returns a newly allocated UTF-8 JSON string.
 ///
 /// The returned pointer must be freed with [hum_cpal_free_string]. Returns null
