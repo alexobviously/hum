@@ -1,0 +1,13 @@
+[package]
+name = "hum_cpal"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+cpal = "0.18.2"
+rtrb = "0.4.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"

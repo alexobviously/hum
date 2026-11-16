@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import '../nodes/utils/clamp.dart';
 
+// TODO: look at doing SIMD for all this stuff
+
 /// Interleaves multi-channel audio from [channels] into the pre-allocated [target] buffer.
 ///
 /// If [vectorSize] is omitted, it defaults to the length of the first channel.
