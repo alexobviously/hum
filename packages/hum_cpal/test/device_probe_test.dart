@@ -1,5 +1,4 @@
 import 'package:hum_cpal/hum_cpal.dart';
-import 'package:hum_cpal/src/cpal_bindings.dart';
 import 'package:test/test.dart';
 
 void main() {
