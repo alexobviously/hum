@@ -83,7 +83,7 @@ void main() {
       await session.dispose();
       expect(session.isDisposed, isTrue);
       expect(onDisposeCalled, isTrue);
-      expect(() => session.start(), throwsStateError);
+      expect(session.start, throwsStateError);
     });
   });
 

@@ -91,7 +91,8 @@ class SequencerState {
 
   void randomizeSettings() {
     final rng = math.Random();
-    double range(double min, double max) => min + rng.nextDouble() * (max - min);
+    double range(double min, double max) =>
+        min + rng.nextDouble() * (max - min);
 
     rootKey = availableKeys[rng.nextInt(availableKeys.length)];
     scalePattern = availableScales[rng.nextInt(availableScales.length)];
@@ -109,8 +110,8 @@ class SequencerState {
     cutoff = range(400, 9000);
     resonance = range(0.7, 4.5);
     delayMix = range(0.0, 0.55);
-    delayFeedback = range(0.1, 0.7);
-    reverbMix = range(0.05, 0.65);
+    delayFeedback = range(0.1, 0.95);
+    reverbMix = range(0.05, 0.9);
 
     bitcrushEnabled = rng.nextDouble() < 0.35;
     if (bitcrushEnabled) {

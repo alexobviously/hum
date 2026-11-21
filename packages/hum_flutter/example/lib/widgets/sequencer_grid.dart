@@ -2,20 +2,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../sequencer_state.dart';
 
-class SequencerGrid extends StatelessWidget {
-  const SequencerGrid({
-    super.key,
-    required this.state,
-    required this.onToggleCell,
-    required this.onRandomize,
-    required this.onClear,
-  });
-
-  final SequencerState state;
-  final void Function(int step, int noteIdx) onToggleCell;
-  final VoidCallback onRandomize;
-  final VoidCallback onClear;
-
+class const SequencerGrid({
+  super.key,
+  required final SequencerState state,
+  required final void Function(int step, int noteIdx) onToggleCell,
+  required final VoidCallback onRandomize,
+  required final VoidCallback onClear,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -74,7 +67,11 @@ class SequencerGrid extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: gap),
-                  for (int step = 0; step < SequencerState.numSteps; step++) ...[
+                  for (
+                    int step = 0;
+                    step < SequencerState.numSteps;
+                    step++
+                  ) ...[
                     _StepPad(
                       size: cellSize,
                       active: state.steps[step] == row,
@@ -89,17 +86,17 @@ class SequencerGrid extends StatelessWidget {
             ],
             const SizedBox(height: 14),
             Row(
+              spacing: 8,
               children: [
                 const SizedBox(width: 52 + gap),
-                IconButton.outlined(
+                OutlinedButton.icon(
                   onPressed: onRandomize,
-                  tooltip: 'Randomize sequence',
+                  label: const Text('Randomize'),
                   icon: const Icon(Icons.casino_outlined),
                 ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
+                OutlinedButton.icon(
                   onPressed: onClear,
-                  tooltip: 'Clear sequence',
+                  label: const Text('Clear'),
                   icon: const Icon(Icons.close),
                 ),
               ],
@@ -111,17 +108,11 @@ class SequencerGrid extends StatelessWidget {
   }
 }
 
-class _StepPad extends StatelessWidget {
-  const _StepPad({
-    required this.size,
-    required this.active,
-    required this.onTap,
-  });
-
-  final double size;
-  final bool active;
-  final VoidCallback onTap;
-
+class const _StepPad({
+  required final double size,
+  required final bool active,
+  required final VoidCallback onTap,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;

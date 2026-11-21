@@ -16,7 +16,10 @@ class const HumSequencerApp({super.key}) extends StatelessWidget {
       title: 'Hum Step Sequencer',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.orange, brightness: .light),
+        colorScheme: .fromSeed(
+          seedColor: const Color(0xff564D65),
+          brightness: .light,
+        ),
         useMaterial3: true,
       ),
       home: const SequencerPage(),
