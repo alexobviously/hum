@@ -42,6 +42,7 @@ pub unsafe extern "C" fn hum_cpal_playback_create(
     sample_rate: u32,
     channels: u32,
     buffer_frames: u32,
+    hardware_buffer_frames: u32,
     out_error: *mut *mut c_char,
 ) -> *mut HumPlaybackHandle {
     unsafe { ffi::clear_out_error(out_error) };
@@ -60,6 +61,7 @@ pub unsafe extern "C" fn hum_cpal_playback_create(
             sample_rate,
             channels,
             buffer_frames,
+            hardware_buffer_frames,
         )
     })) {
         Ok(Ok(handle)) => Box::into_raw(Box::new(handle)),
@@ -196,6 +198,7 @@ pub unsafe extern "C" fn hum_cpal_capture_create(
     sample_rate: u32,
     channels: u32,
     buffer_frames: u32,
+    hardware_buffer_frames: u32,
     out_error: *mut *mut c_char,
 ) -> *mut HumCaptureHandle {
     unsafe { ffi::clear_out_error(out_error) };
@@ -214,6 +217,7 @@ pub unsafe extern "C" fn hum_cpal_capture_create(
             sample_rate,
             channels,
             buffer_frames,
+            hardware_buffer_frames,
         )
     })) {
         Ok(Ok(handle)) => Box::into_raw(Box::new(handle)),
@@ -360,8 +364,14 @@ mod tests {
     fn reports_error_over_ffi_and_cleans_up_nulls() {
         let mut out_err: *mut c_char = ptr::null_mut();
         unsafe {
-            let handle =
-                hum_cpal_playback_create(ptr::null(), 0, 2, 1024, &mut out_err);
+            let handle = hum_cpal_playback_create(
+                ptr::null(),
+                0,
+                2,
+                1024,
+                0,
+                &mut out_err,
+            );
             assert!(handle.is_null());
             assert!(!out_err.is_null());
 
@@ -385,8 +395,14 @@ mod tests {
     fn reports_capture_error_over_ffi_and_cleans_up_nulls() {
         let mut out_err: *mut c_char = ptr::null_mut();
         unsafe {
-            let handle =
-                hum_cpal_capture_create(ptr::null(), 0, 1, 1024, &mut out_err);
+            let handle = hum_cpal_capture_create(
+                ptr::null(),
+                0,
+                1,
+                1024,
+                0,
+                &mut out_err,
+            );
             assert!(handle.is_null());
             assert!(!out_err.is_null());
 

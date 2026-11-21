@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, SampleFormat, StreamConfig};
+use cpal::{BufferSize, SampleFormat, StreamConfig, SupportedBufferSize};
 
 /// Active playback stream and lock-free ring buffer producer handle.
 pub struct HumPlaybackHandle {
@@ -42,10 +42,26 @@ fn find_output_device(
     }
 }
 
+fn buffer_size_supported(
+    supported: &SupportedBufferSize,
+    hardware_buffer_frames: u32,
+) -> bool {
+    if hardware_buffer_frames == 0 {
+        return true;
+    }
+    match supported {
+        SupportedBufferSize::Range { min, max } => {
+            *min <= hardware_buffer_frames && hardware_buffer_frames <= *max
+        }
+        SupportedBufferSize::Unknown => true,
+    }
+}
+
 fn validate_output_config(
     device: &cpal::Device,
     sample_rate: u32,
     channels: u16,
+    hardware_buffer_frames: u32,
 ) -> Result<(), String> {
     let device_name = device
         .description()
@@ -61,24 +77,39 @@ fn validate_output_config(
             && range.channels() == channels
             && range.min_sample_rate() <= sample_rate
             && sample_rate <= range.max_sample_rate()
+            && buffer_size_supported(
+                range.buffer_size(),
+                hardware_buffer_frames,
+            )
         {
             return Ok(());
         }
     }
 
-    Err(format!(
-        "Device '{device_name}' does not support f32 {channels}ch audio at {sample_rate}Hz"
-    ))
+    if hardware_buffer_frames > 0 {
+        Err(format!(
+            "Device '{device_name}' does not support f32 {channels}ch audio at {sample_rate}Hz with hardwareBufferFrames={hardware_buffer_frames}"
+        ))
+    } else {
+        Err(format!(
+            "Device '{device_name}' does not support f32 {channels}ch audio at {sample_rate}Hz"
+        ))
+    }
 }
 
 impl HumPlaybackHandle {
     /// Opens and starts a cpal float32 playback stream backed by an `rtrb`
     /// ring buffer.
+    ///
+    /// Pass `hardware_buffer_frames == 0` to use the OS default period size
+    /// (`BufferSize::Default`), or a positive frame count for
+    /// `BufferSize::Fixed(n)`.
     pub fn create(
         device_id: Option<&str>,
         sample_rate: u32,
         channels: u32,
         buffer_frames: u32,
+        hardware_buffer_frames: u32,
     ) -> Result<Self, String> {
         if sample_rate == 0 {
             return Err(String::from("sampleRate must be positive"));
@@ -98,7 +129,12 @@ impl HumPlaybackHandle {
 
         let host = cpal::default_host();
         let device = find_output_device(&host, device_id)?;
-        validate_output_config(&device, sample_rate, channels_u16)?;
+        validate_output_config(
+            &device,
+            sample_rate,
+            channels_u16,
+            hardware_buffer_frames,
+        )?;
 
         let (producer, mut consumer) =
             rtrb::RingBuffer::<f32>::new(ring_capacity);
@@ -113,7 +149,11 @@ impl HumPlaybackHandle {
         let config = StreamConfig {
             channels: channels_u16,
             sample_rate,
-            buffer_size: BufferSize::Default,
+            buffer_size: if hardware_buffer_frames == 0 {
+                BufferSize::Default
+            } else {
+                BufferSize::Fixed(hardware_buffer_frames)
+            },
         };
 
         let stream = device
@@ -215,15 +255,16 @@ mod tests {
 
     #[test]
     fn rejects_invalid_parameters() {
-        assert!(HumPlaybackHandle::create(None, 0, 2, 1024).is_err());
-        assert!(HumPlaybackHandle::create(None, 48000, 0, 1024).is_err());
-        assert!(HumPlaybackHandle::create(None, 48000, 2, 0).is_err());
+        assert!(HumPlaybackHandle::create(None, 0, 2, 1024, 0).is_err());
+        assert!(HumPlaybackHandle::create(None, 48000, 0, 1024, 0).is_err());
+        assert!(HumPlaybackHandle::create(None, 48000, 2, 0, 0).is_err());
         assert!(
             HumPlaybackHandle::create(
                 Some("nonexistent-device-id"),
                 48000,
                 2,
-                1024
+                1024,
+                0
             )
             .is_err()
         );
@@ -238,8 +279,8 @@ mod tests {
 
         // Unlikely 99 channels / 12345 Hz should be explicitly rejected instead
         // of silently converted.
-        assert!(HumPlaybackHandle::create(None, 48000, 99, 1024).is_err());
-        assert!(HumPlaybackHandle::create(None, 12345, 2, 1024).is_err());
+        assert!(HumPlaybackHandle::create(None, 48000, 99, 1024, 0).is_err());
+        assert!(HumPlaybackHandle::create(None, 12345, 2, 1024, 0).is_err());
     }
 
     #[test]
@@ -256,9 +297,14 @@ mod tests {
         }
 
         let channels = u32::from(cfg.channels());
-        let mut handle =
-            HumPlaybackHandle::create(None, cfg.sample_rate(), channels, 2048)
-                .expect("default output config should open");
+        let mut handle = HumPlaybackHandle::create(
+            None,
+            cfg.sample_rate(),
+            channels,
+            2048,
+            0,
+        )
+        .expect("default output config should open");
 
         assert!(!handle.is_stopped());
         assert!(handle.available_write_frames() >= 512);
@@ -267,5 +313,47 @@ mod tests {
         let written = handle.write_frames(&silent);
         assert_eq!(written, 512);
         assert!(handle.take_error().is_none());
+    }
+
+    #[test]
+    fn supports_fixed_hardware_buffer_frames_and_rejects_out_of_range() {
+        let host = cpal::default_host();
+        let Some(device) = host.default_output_device() else {
+            return;
+        };
+        let Ok(cfg) = device.default_output_config() else {
+            return;
+        };
+        if cfg.sample_format() != SampleFormat::F32 {
+            return;
+        }
+        let SupportedBufferSize::Range { min, max } = *cfg.buffer_size() else {
+            return;
+        };
+
+        let channels = u32::from(cfg.channels());
+        let target = 64_u32.clamp(min, max);
+        let handle = HumPlaybackHandle::create(
+            None,
+            cfg.sample_rate(),
+            channels,
+            512,
+            target,
+        )
+        .expect("fixed hardwareBufferFrames within range should open");
+        assert!(!handle.is_stopped());
+        drop(handle);
+
+        // Out-of-range hardware buffer size should be rejected cleanly.
+        assert!(
+            HumPlaybackHandle::create(
+                None,
+                cfg.sample_rate(),
+                channels,
+                512,
+                max.saturating_add(1_000_000),
+            )
+            .is_err()
+        );
     }
 }

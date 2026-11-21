@@ -6,6 +6,7 @@ use std::sync::{
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
     BufferSize, FromSample, Sample, SampleFormat, SizedSample, StreamConfig,
+    SupportedBufferSize,
 };
 
 /// Active capture stream and lock-free ring buffer consumer handle.
@@ -44,6 +45,21 @@ fn find_input_device(
     }
 }
 
+fn buffer_size_supported(
+    supported: &SupportedBufferSize,
+    hardware_buffer_frames: u32,
+) -> bool {
+    if hardware_buffer_frames == 0 {
+        return true;
+    }
+    match supported {
+        SupportedBufferSize::Range { min, max } => {
+            *min <= hardware_buffer_frames && hardware_buffer_frames <= *max
+        }
+        SupportedBufferSize::Unknown => true,
+    }
+}
+
 /// Validates that `device` supports the requested `(sample_rate, channels)`
 /// configuration and picks the best supported sample format:
 /// `F32` preferred, falling back to `I32`, `I16`, then `U16`.
@@ -51,6 +67,7 @@ fn select_input_sample_format(
     device: &cpal::Device,
     sample_rate: u32,
     channels: u16,
+    hardware_buffer_frames: u32,
 ) -> Result<SampleFormat, String> {
     let device_name = device
         .description()
@@ -66,6 +83,10 @@ fn select_input_sample_format(
         if range.channels() != channels
             || sample_rate < range.min_sample_rate()
             || sample_rate > range.max_sample_rate()
+            || !buffer_size_supported(
+                range.buffer_size(),
+                hardware_buffer_frames,
+            )
         {
             continue;
         }
@@ -85,9 +106,15 @@ fn select_input_sample_format(
     }
 
     best_format.map(|(_, fmt)| fmt).ok_or_else(|| {
-        format!(
-            "Device '{device_name}' does not support {channels}ch input audio at {sample_rate}Hz (f32/i32/i16/u16)"
-        )
+        if hardware_buffer_frames > 0 {
+            format!(
+                "Device '{device_name}' does not support {channels}ch input audio at {sample_rate}Hz with hardwareBufferFrames={hardware_buffer_frames} (f32/i32/i16/u16)"
+            )
+        } else {
+            format!(
+                "Device '{device_name}' does not support {channels}ch input audio at {sample_rate}Hz (f32/i32/i16/u16)"
+            )
+        }
     })
 }
 
@@ -201,11 +228,16 @@ impl HumCaptureHandle {
     /// Prefers `f32` native capture and falls back to zero-allocation `i32`,
     /// `i16`, or `u16` -> `f32` conversion when the device does not advertise
     /// `f32` for the requested `(sample_rate, channels)`.
+    ///
+    /// Pass `hardware_buffer_frames == 0` to use the OS default period size
+    /// (`BufferSize::Default`), or a positive frame count for
+    /// `BufferSize::Fixed(n)`.
     pub fn create(
         device_id: Option<&str>,
         sample_rate: u32,
         channels: u32,
         buffer_frames: u32,
+        hardware_buffer_frames: u32,
     ) -> Result<Self, String> {
         if sample_rate == 0 {
             return Err(String::from("sampleRate must be positive"));
@@ -225,8 +257,12 @@ impl HumCaptureHandle {
 
         let host = cpal::default_host();
         let device = find_input_device(&host, device_id)?;
-        let sample_format =
-            select_input_sample_format(&device, sample_rate, channels_u16)?;
+        let sample_format = select_input_sample_format(
+            &device,
+            sample_rate,
+            channels_u16,
+            hardware_buffer_frames,
+        )?;
 
         let (mut producer, consumer) =
             rtrb::RingBuffer::<f32>::new(ring_capacity);
@@ -241,7 +277,11 @@ impl HumCaptureHandle {
         let config = StreamConfig {
             channels: channels_u16,
             sample_rate,
-            buffer_size: BufferSize::Default,
+            buffer_size: if hardware_buffer_frames == 0 {
+                BufferSize::Default
+            } else {
+                BufferSize::Fixed(hardware_buffer_frames)
+            },
         };
 
         let stream = match sample_format {
@@ -369,15 +409,16 @@ mod tests {
 
     #[test]
     fn rejects_invalid_parameters() {
-        assert!(HumCaptureHandle::create(None, 0, 1, 1024).is_err());
-        assert!(HumCaptureHandle::create(None, 48000, 0, 1024).is_err());
-        assert!(HumCaptureHandle::create(None, 48000, 1, 0).is_err());
+        assert!(HumCaptureHandle::create(None, 0, 1, 1024, 0).is_err());
+        assert!(HumCaptureHandle::create(None, 48000, 0, 1024, 0).is_err());
+        assert!(HumCaptureHandle::create(None, 48000, 1, 0, 0).is_err());
         assert!(
             HumCaptureHandle::create(
                 Some("nonexistent-device-id"),
                 48000,
                 1,
-                1024
+                1024,
+                0
             )
             .is_err()
         );
@@ -390,8 +431,8 @@ mod tests {
             return;
         }
 
-        assert!(HumCaptureHandle::create(None, 48000, 99, 1024).is_err());
-        assert!(HumCaptureHandle::create(None, 12345, 1, 1024).is_err());
+        assert!(HumCaptureHandle::create(None, 48000, 99, 1024, 0).is_err());
+        assert!(HumCaptureHandle::create(None, 12345, 1, 1024, 0).is_err());
     }
 
     #[test]
@@ -431,14 +472,57 @@ mod tests {
         };
 
         let channels = u32::from(cfg.channels());
-        let mut handle =
-            HumCaptureHandle::create(None, cfg.sample_rate(), channels, 2048)
-                .expect("default input config should open");
+        let mut handle = HumCaptureHandle::create(
+            None,
+            cfg.sample_rate(),
+            channels,
+            2048,
+            0,
+        )
+        .expect("default input config should open");
 
         assert!(!handle.is_stopped());
 
         let mut buf = vec![0.0_f32; 128 * channels as usize];
         let _read = handle.read_frames(&mut buf);
         assert!(handle.take_error().is_none());
+    }
+
+    #[test]
+    fn supports_fixed_hardware_buffer_frames_and_rejects_out_of_range() {
+        let host = cpal::default_host();
+        let Some(device) = host.default_input_device() else {
+            return;
+        };
+        let Ok(cfg) = device.default_input_config() else {
+            return;
+        };
+        let SupportedBufferSize::Range { min, max } = *cfg.buffer_size() else {
+            return;
+        };
+
+        let channels = u32::from(cfg.channels());
+        let target = 64_u32.clamp(min, max);
+        let handle = HumCaptureHandle::create(
+            None,
+            cfg.sample_rate(),
+            channels,
+            512,
+            target,
+        )
+        .expect("fixed hardwareBufferFrames within range should open");
+        assert!(!handle.is_stopped());
+        drop(handle);
+
+        assert!(
+            HumCaptureHandle::create(
+                None,
+                cfg.sample_rate(),
+                channels,
+                512,
+                max.saturating_add(1_000_000),
+            )
+            .is_err()
+        );
     }
 }

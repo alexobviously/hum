@@ -53,6 +53,50 @@ void main() {
     });
 
     test(
+      'supports fixed hardwareBufferFrames and rejects non-positive',
+      () async {
+        final invalidDriver = CpalAudioInputDriver(
+          numChannels: 1,
+          vectorSize: 64,
+          bufferFrames: 256,
+          hardwareBufferFrames: 0,
+        );
+        expect(
+          () => invalidDriver.start(
+            const ProcessContext(sampleRate: 48000, vectorSize: 64),
+          ),
+          throwsArgumentError,
+        );
+        await invalidDriver.close();
+
+        final snapshot = CpalHostSnapshot.probe();
+        final defaultIn = snapshot.defaultInputDevice;
+        final cfg = defaultIn?.defaultInput;
+        final range = cfg?.bufferSize;
+        if (defaultIn == null || cfg == null || range == null) {
+          return;
+        }
+
+        final target = 64.clamp(range.min, range.max);
+        final driver = CpalAudioInputDriver(
+          numChannels: cfg.channels,
+          vectorSize: 64,
+          bufferFrames: 256,
+          hardwareBufferFrames: target,
+        );
+        try {
+          driver.start(
+            ProcessContext(sampleRate: cfg.sampleRate, vectorSize: 64),
+          );
+          expect(driver.isOpen, isTrue);
+          expect(driver.isStopped, isFalse);
+        } finally {
+          await driver.close();
+        }
+      },
+    );
+
+    test(
       'read() zero-fills channels when driver is not started or closed',
       () async {
         final driver = CpalAudioInputDriver(
