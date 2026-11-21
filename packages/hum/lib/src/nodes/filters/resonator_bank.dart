@@ -57,7 +57,7 @@ typedef ResonatorBankParams = ({
 ///
 /// https://www.soundonsound.com/techniques/formant-synthesis
 /// https://en.wikipedia.org/wiki/Filter_bank
-class const ResonatorBank({
+class ResonatorBank({
   required final List<Outlet> channels,
   required final List<double> frequencies,
   final List<double>? gains,

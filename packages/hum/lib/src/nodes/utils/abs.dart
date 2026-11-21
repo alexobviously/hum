@@ -9,7 +9,7 @@ typedef AbsParams = ();
 ///
 /// Flips negative excursions positive, converting bipolar audio into unipolar pulses.
 /// Useful for frequency doubling, waveshaping distortion, and envelope detection.
-class const Abs({required final List<Outlet> channels})
+class Abs({required final List<Outlet> channels})
     extends AudioNode<AbsProcessor> {
   factory mono(Outlet input) => Abs(channels: [input]);
 

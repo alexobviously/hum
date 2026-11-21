@@ -8,7 +8,7 @@ typedef SineOscillatorParams = ({double? frequency});
 class SineOscillator extends OscillatorNode<SineOscillatorProcessor> {
   @override
   final ControlParam<double> frequency;
-  const SineOscillator({required this.frequency});
+  SineOscillator({required this.frequency});
 
   static const freqInlet = 0;
 

@@ -14,7 +14,7 @@ typedef SubtractParams = ({double? value});
 ///   decoding (`Left - Right = Side`), or differential signal analysis.
 ///
 /// You could also just use [Add] and [Invert], but this is nicer.
-class const Subtract({
+class Subtract({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
 }) extends AudioNode<SubtractProcessor> {

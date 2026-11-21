@@ -5,7 +5,7 @@ import 'package:hum/hum.dart';
 class StereoSplit extends AudioNode<StereoSplitProcessor> {
   final Outlet input;
 
-  const StereoSplit({required this.input});
+  StereoSplit({required this.input});
 
   static const inputInlet = 0;
   static const leftOutlet = 0;

@@ -55,7 +55,7 @@ typedef SaturatorParams = ({
 /// - **Multiple Modes**: [SaturationMode.tanh], [SaturationMode.cubic],
 ///   [SaturationMode.algebraic], [SaturationMode.atan], and [SaturationMode.wavefold].
 /// - Audio-rate modulation for [drive], [bias], and [mix].
-class const Saturator({
+class Saturator({
   required final List<Outlet> channels,
   final ControlParam<double> drive = const .value(1.0),
   final ControlParam<double> bias = const .value(0.0),

@@ -16,7 +16,7 @@ typedef TrackAndHold = Tah;
 /// If [activeHigh] is false, the logic is inverted (tracks while low, holds while high).
 ///
 /// Prior to any tracking, the initial held value is 0.0.
-class const Tah({
+class Tah({
   required final Outlet gate,
   required final List<Outlet> channels,
   final double threshold = 0.5,

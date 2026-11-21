@@ -35,7 +35,7 @@ typedef CompressorParams = ({
 /// 5. **VCA & Makeup Gain**:
 ///    Converts smoothed reduction plus [makeupGain] to linear gain factor and multiplies
 ///    each audio channel.
-class const Compressor({
+class Compressor({
   required final List<Outlet> channels,
   final Outlet? sidechain,
   final ControlParam<double> threshold = const .value(-18.0),

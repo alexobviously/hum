@@ -12,7 +12,7 @@ class OnePoleFilter extends AudioNode<OnePoleProcessor> {
   final OnePoleType type;
   final Outlet input;
 
-  const OnePoleFilter({
+  OnePoleFilter({
     required this.cutoff,
     required this.input,
     this.type = .lowpass,

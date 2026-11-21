@@ -43,9 +43,9 @@ void main() {
     });
 
     test('named constructors configure rpm correctly', () {
-      const vinyl33 = VinylNoise.rpm33();
-      const vinyl45 = VinylNoise.rpm45();
-      const vinyl78 = VinylNoise.rpm78();
+      final vinyl33 = VinylNoise.rpm33();
+      final vinyl45 = VinylNoise.rpm45();
+      final vinyl78 = VinylNoise.rpm78();
 
       expect(vinyl33.params.rpm, closeTo(33.333333, 1e-4));
       expect(vinyl45.params.rpm, equals(45.0));

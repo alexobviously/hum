@@ -8,7 +8,7 @@ typedef AddParams = ({double? value});
 ///
 /// If [value] is a static number, this applies a constant DC offset.
 /// If [value] is an [Outlet], this performs audio-rate vector addition.
-class const Add({
+class Add({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
 }) extends AudioNode<AddProcessor> {

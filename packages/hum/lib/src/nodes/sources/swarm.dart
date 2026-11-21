@@ -37,7 +37,7 @@ class Swarm {
   /// All internal graph nodes instantiated by this composite.
   final List<AudioNode> nodes;
 
-  const Swarm._({
+  Swarm._({
     required this.left,
     required this.right,
     required this.outlet,

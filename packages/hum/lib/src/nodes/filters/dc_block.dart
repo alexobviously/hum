@@ -109,7 +109,7 @@ typedef DCBlockParams = ({double? cutoffHz});
 /// - Re-centering waveforms after asymmetric waveshaping or half-wave rectification.
 /// - Cleaning microphone inputs before dynamic compression or speech recognition.
 /// - Placing at master bus outputs before speakers to protect voice coils and maximize headroom.
-class const DCBlock({
+class DCBlock({
   required final List<Outlet> channels,
   final double cutoffHz = 5.0,
 }) extends AudioNode<DCBlockProcessor> {

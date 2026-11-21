@@ -11,7 +11,7 @@ class SawtoothOscillator extends OscillatorNode<SawtoothOscillatorProcessor> {
   final ControlParam<double> frequency;
   final bool usePolyBlep;
 
-  const SawtoothOscillator({required this.frequency, this.usePolyBlep = true});
+  SawtoothOscillator({required this.frequency, this.usePolyBlep = true});
 
   static const freqInlet = 0;
 

@@ -22,7 +22,7 @@ class SvfFilter extends AudioNode<SvfFilterProcessor> {
   final ControlParam<double> cutoff;
   final ControlParam<double> resonance;
 
-  const SvfFilter({
+  SvfFilter({
     required this.input,
     required this.cutoff,
     this.resonance = const .value(0.7071),

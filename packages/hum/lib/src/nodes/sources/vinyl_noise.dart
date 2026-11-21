@@ -21,7 +21,7 @@ typedef VinylNoiseParams = ({
 ///   placement.
 /// - **Rotational Warp / Wow**: Cyclic rotational amplitude modulation and
 ///   sub-bass motor rumble swell.
-class const VinylNoise({
+class VinylNoise({
   final ControlParam<double> crackle = const .value(0.3),
   final ControlParam<double> hiss = const .value(0.15),
   final ControlParam<double> warp = const .value(0.2),
@@ -29,7 +29,7 @@ class const VinylNoise({
   final double rpm = 33.333333333333336,
   final int? seed,
 }) extends AudioNode<VinylNoiseProcessor> {
-  const VinylNoise.rpm33({
+  VinylNoise.rpm33({
     ControlParam<double> crackle = const .value(0.3),
     ControlParam<double> hiss = const .value(0.15),
     ControlParam<double> warp = const .value(0.2),
@@ -44,7 +44,7 @@ class const VinylNoise({
          seed: seed,
        );
 
-  const VinylNoise.rpm45({
+  VinylNoise.rpm45({
     ControlParam<double> crackle = const .value(0.3),
     ControlParam<double> hiss = const .value(0.15),
     ControlParam<double> warp = const .value(0.2),
@@ -59,7 +59,7 @@ class const VinylNoise({
          seed: seed,
        );
 
-  const VinylNoise.rpm78({
+  VinylNoise.rpm78({
     ControlParam<double> crackle = const .value(0.3),
     ControlParam<double> hiss = const .value(0.15),
     ControlParam<double> warp = const .value(0.2),

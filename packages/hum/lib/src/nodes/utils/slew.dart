@@ -20,7 +20,7 @@ typedef Lag = Slew;
 /// - **Portamento / Glide**: Smoothly gliding pitch between musical notes.
 /// - **CV Smoothing**: Smoothing stepped signals from [Sah] or sequencers.
 /// - **Transient De-harshing**: Rounding off square waves or sharp clicks.
-class const Slew({
+class Slew({
   required final List<Outlet> channels,
   final ControlParam<double> rise = const .value(0.0),
   final ControlParam<double> fall = const .value(0.0),

@@ -19,7 +19,7 @@ typedef SampleAndHold = Sah;
 /// [channels]: The input channels to sample.
 /// [threshold]: The threshold to trigger on.
 /// [triggerEdge]: The direction of the trigger edge.
-class const Sah({
+class Sah({
   required final Outlet trigger,
   required final List<Outlet> channels,
   final double threshold = 0.5,

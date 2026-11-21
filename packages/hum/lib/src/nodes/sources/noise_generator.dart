@@ -6,11 +6,11 @@ enum NoiseType { white, pink, brown }
 
 typedef NoiseGeneratorParams = ({NoiseType type});
 
-class const NoiseGenerator({final NoiseType type = .white, final int? seed})
+class NoiseGenerator({final NoiseType type = .white, final int? seed})
     extends AudioNode<NoiseGeneratorProcessor> {
-  const NoiseGenerator.white({int? seed}) : this(type: .white, seed: seed);
-  const NoiseGenerator.pink({int? seed}) : this(type: .pink, seed: seed);
-  const NoiseGenerator.brown({int? seed}) : this(type: .brown, seed: seed);
+  NoiseGenerator.white({int? seed}) : this(type: .white, seed: seed);
+  NoiseGenerator.pink({int? seed}) : this(type: .pink, seed: seed);
+  NoiseGenerator.brown({int? seed}) : this(type: .brown, seed: seed);
 
   @override
   List<Inlet> get inlets => const [];

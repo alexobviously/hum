@@ -9,7 +9,7 @@ typedef MultParams = ({double? value, double interpTime});
 /// If [value] is a static number, this scales the signal amplitude.
 /// If [value] is an [Outlet], this performs audio-rate vector multiplication
 /// (4-quadrant ring modulation / amplitude modulation).
-class const Mult({
+class Mult({
   required final ControlParam<double> value,
   required final List<Outlet> channels,
   final double interpTime = 0.02,

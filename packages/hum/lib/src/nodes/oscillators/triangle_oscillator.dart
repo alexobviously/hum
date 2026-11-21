@@ -11,7 +11,7 @@ class TriangleOscillator extends OscillatorNode<TriangleOscillatorProcessor> {
   final ControlParam<double> frequency;
   final bool usePolyBlep;
 
-  const TriangleOscillator({
+  TriangleOscillator({
     required this.frequency,
     this.usePolyBlep = true,
   });

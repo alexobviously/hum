@@ -11,7 +11,7 @@ class SquareOscillator extends OscillatorNode<SquareOscillatorProcessor> {
   final ControlParam<double> frequency;
   final bool usePolyBlep;
 
-  const SquareOscillator({required this.frequency, this.usePolyBlep = true});
+  SquareOscillator({required this.frequency, this.usePolyBlep = true});
 
   static const freqInlet = 0;
 

@@ -11,14 +11,14 @@ class WavSink extends TerminalNode<WavSinkProcessor> {
   final WavFormat format;
 
   /// Creates a sink that writes audio directly to a file at [path].
-  const WavSink.file({
+  WavSink.file({
     required this.channels,
     required this.path,
     this.format = .float32,
   });
 
   /// Creates a sink that accumulates audio blocks in memory.
-  const WavSink.memory({
+  WavSink.memory({
     required this.channels,
     this.format = .float32,
   }) : path = null;

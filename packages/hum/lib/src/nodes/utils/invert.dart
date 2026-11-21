@@ -6,7 +6,7 @@ import 'package:hum/hum.dart';
 ///
 /// Useful for: phase cancellation, differential signal routing,
 /// mid/side matrixing, and feedback comb filter inversion.
-class const Invert({required final List<Outlet> channels})
+class Invert({required final List<Outlet> channels})
     extends AudioNode<InvertProcessor> {
   factory mono(Outlet input) => Invert(channels: [input]);
 

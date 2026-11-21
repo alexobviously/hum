@@ -10,7 +10,7 @@ class StereoPan extends AudioNode<StereoPanProcessor> {
   /// Pan position from -1.0 (hard left) to +1.0 (hard right). 0.0 is centre.
   final ControlParam<double> pan;
 
-  const StereoPan({
+  StereoPan({
     required this.input,
     this.pan = const ControlParam.value(0.0),
   });

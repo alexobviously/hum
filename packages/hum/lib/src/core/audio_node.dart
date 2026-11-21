@@ -2,9 +2,9 @@ import 'package:hum/hum.dart';
 
 part 'audio_node_error.dart';
 
-// TODO: do we need something like `bool needsUpdate()` or equality? for non equatable params (e.g. list in record)
+// Note: nodes cannot be const because we use identity for comparison in graph.
 
-abstract class const AudioNode<T extends AudioProcessor>() {
+abstract class AudioNode<T extends AudioProcessor>() {
   List<Inlet> get inlets;
   List<Outlet> get outlets;
 

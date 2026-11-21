@@ -11,7 +11,7 @@ typedef ClampParams = ({double? min, double? max});
 /// - **Ceiling-only** (`min == null && max != null`): Peak ceiling / positive peak limiter.
 /// - **Floor-only** (`min != null && max == null`): Half-wave rectifier / diode floor.
 /// - **Dynamic audio-rate bounds**: [min] and [max] can be modulated via [ControlParam.signal].
-class const Clamp({
+class Clamp({
   required final List<Outlet> channels,
   final ControlParam<double>? min,
   final ControlParam<double>? max,
