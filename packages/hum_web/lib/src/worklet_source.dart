@@ -104,3 +104,65 @@ if (!globalThis.__humRingBufferRegistered) {
   registerProcessor('hum-ring-buffer-processor', HumRingBufferProcessor);
 }
 ''';
+
+/// Registered `AudioWorkletProcessor` name used by `WebAudioInputDriver`.
+const String humCaptureWorkletProcessorName = 'hum-capture-processor';
+
+/// Plain-JS `AudioWorkletProcessor` that captures multi-channel audio blocks
+/// from its input bus, interleaves them, and posts them to Dart over
+/// `MessagePort`.
+const String humCaptureWorkletJsSource = r'''
+class HumCaptureProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    const opts = (options && options.processorOptions) || {};
+    this.numChannels = Math.max(1, opts.numChannels | 0);
+    this.scratch = new Float32Array(128 * this.numChannels);
+    this.running = true;
+
+    this.port.onmessage = (event) => {
+      const msg = event.data;
+      if (msg && msg.type === 'stop') {
+        this.running = false;
+      }
+    };
+  }
+
+  process(inputs) {
+    if (!this.running) return false;
+
+    const input = inputs[0];
+    if (!input || input.length === 0) return true;
+
+    const frameCount = input[0].length;
+    if (frameCount === 0) return true;
+
+    const ch = this.numChannels;
+    const needed = frameCount * ch;
+    if (this.scratch.length !== needed) {
+      this.scratch = new Float32Array(needed);
+    }
+
+    const out = this.scratch;
+    for (let f = 0; f < frameCount; f++) {
+      const dstBase = f * ch;
+      for (let c = 0; c < ch; c++) {
+        out[dstBase + c] = c < input.length ? input[c][f] : 0.0;
+      }
+    }
+
+    this.port.postMessage({
+      type: 'audio',
+      data: out,
+      frames: frameCount,
+    });
+
+    return true;
+  }
+}
+
+if (!globalThis.__humCaptureRegistered) {
+  globalThis.__humCaptureRegistered = true;
+  registerProcessor('hum-capture-processor', HumCaptureProcessor);
+}
+''';

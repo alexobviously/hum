@@ -3,13 +3,59 @@ import 'dart:io';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 
+/// Compiles and serves a `hum_web` Wasm demo locally.
+///
+/// Usage:
+/// - `dart run packages/hum_web/example/serve.dart` (default sine demo, port 8080)
+/// - `dart run packages/hum_web/example/serve.dart mic_fx` (mic_fx demo, port 8080)
+/// - `dart run packages/hum_web/example/serve.dart mic_fx 9000` (custom port)
+/// - `dart run packages/hum_web/example/serve.dart 9000` (default demo, custom port)
 Future<void> main(List<String> args) async {
-  final port = args.isNotEmpty ? int.tryParse(args.first) ?? 8080 : 8080;
-  final exampleDir = File.fromUri(Platform.script).parent;
-  final buildDir = Directory('${exampleDir.path}${Platform.pathSeparator}build')
+  final rootExampleDir = File.fromUri(Platform.script).parent;
+  String? demoName;
+  int port = 8080;
+
+  if (args.isNotEmpty) {
+    final parsedPort = int.tryParse(args[0]);
+    if (parsedPort != null) {
+      port = parsedPort;
+    } else {
+      demoName = args[0];
+      if (args.length > 1) {
+        port = int.tryParse(args[1]) ?? 8080;
+      }
+    }
+  }
+
+  final targetDir = demoName == null
+      ? rootExampleDir
+      : Directory('${rootExampleDir.path}${Platform.pathSeparator}$demoName');
+
+  final mainDartFile = File(
+    '${targetDir.path}${Platform.pathSeparator}main.dart',
+  );
+  if (!targetDir.existsSync() || !mainDartFile.existsSync()) {
+    final available = rootExampleDir
+        .listSync()
+        .whereType<Directory>()
+        .where(
+          (d) => File('${d.path}${Platform.pathSeparator}main.dart').existsSync(),
+        )
+        .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
+        .toList();
+    stderr.writeln('Demo "$demoName" not found in ${rootExampleDir.path}.');
+    if (available.isNotEmpty) {
+      stderr.writeln('Available demos: default (no arg), ${available.join(', ')}');
+    }
+    exitCode = 64;
+    return;
+  }
+
+  final buildDir = Directory('${targetDir.path}${Platform.pathSeparator}build')
     ..createSync(recursive: true);
 
-  stdout.writeln('Compiling example/main.dart to Wasm...');
+  final label = demoName ?? 'default';
+  stdout.writeln('Compiling $label demo to Wasm...');
   final compileResult = await Process.run(
     Platform.resolvedExecutable,
     [
@@ -17,7 +63,7 @@ Future<void> main(List<String> args) async {
       'wasm',
       '-o',
       '${buildDir.path}${Platform.pathSeparator}main.wasm',
-      '${exampleDir.path}${Platform.pathSeparator}main.dart',
+      mainDartFile.path,
     ],
   );
 
@@ -30,7 +76,7 @@ Future<void> main(List<String> args) async {
   }
 
   final handler = createStaticHandler(
-    exampleDir.path,
+    targetDir.path,
     defaultDocument: 'index.html',
   );
   final server = await shelf_io.serve(
@@ -38,7 +84,7 @@ Future<void> main(List<String> args) async {
     InternetAddress.loopbackIPv4,
     port,
   );
-  stdout.writeln('Serving hum_web demo at http://localhost:$port');
+  stdout.writeln('Serving hum_web ($label) at http://localhost:$port');
   stdout.writeln('Press Ctrl+C to stop.');
 
   await ProcessSignal.sigint.watch().first;
