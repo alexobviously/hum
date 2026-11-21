@@ -160,6 +160,23 @@ class HumAudioController extends ChangeNotifier {
     if (!_isDisposed) notifyListeners();
   }
 
+  /// Compiles, validates, and swaps the active audio graph in place.
+  ///
+  /// Returns an empty list when no session is currently active.
+  List<NodeDiagnostic> setGraph({
+    AudioNode? root,
+    List<AudioNode>? roots,
+    List<Outlet>? targetOutputs,
+  }) {
+    final active = _session;
+    if (active == null || active.isDisposed) return const [];
+    return active.setGraph(
+      root: root,
+      roots: roots,
+      targetOutputs: targetOutputs,
+    );
+  }
+
   /// Forwards a fast-path parameter update to the active session.
   void update(AudioNode node, Object params) {
     _session?.update(node, params);

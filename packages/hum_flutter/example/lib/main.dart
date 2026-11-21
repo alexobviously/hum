@@ -45,8 +45,8 @@ class _SequencerPageState extends State<SequencerPage> {
   void _syncGraph() {
     setState(() {});
     final session = _audio.session;
-    if (session == null || session.isDisposed) return;
-    session.setGraph(root: _state.buildGraph(session));
+    if (session == null) return;
+    _audio.setGraph(root: _state.buildGraph(session));
   }
 
   Future<void> _togglePlay() async {

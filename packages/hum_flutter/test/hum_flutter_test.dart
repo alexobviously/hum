@@ -132,6 +132,13 @@ void main() {
       expect(controller.session, isNotNull);
 
       controller.update(osc, (frequency: 440.0));
+      final osc2 = SineOscillator(frequency: const .value(660));
+      expect(
+        controller.setGraph(
+          root: Out.stereo(left: osc2.outlet, right: osc2.outlet),
+        ),
+        isEmpty,
+      );
 
       await controller.stop();
       expect(controller.isPlaying, isFalse);

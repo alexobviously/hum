@@ -1,39 +1,85 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# hum_flutter
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Cross-platform Flutter integration for the [`hum`](https://github.com/alexobviously/hum) audio DSP engine across **macOS, Linux, Windows, iOS, and Web (Wasm/JS)**.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+`hum_flutter` automatically selects the right host and audio I/O backend per platform via conditional imports:
 
-## Features
+- **Desktop & iOS:** `IsolateAudioHost` + `hum_cpal` (Rust CPAL over Dart FFI)
+- **Web:** `AudioHost.sync` + `hum_web` (`AudioWorklet`, Wasm-ready, no `SharedArrayBuffer` / COOP+COEP headers required)
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+ANDROID IS COMING SOON! I just need to spend a bit of time figuring out the ndk context thing.  
 
-## Getting started
+For desktop, I've only tested macos so far. In theory it works on linux and windows but lmk if it doesn't (make an issue on gh).
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+## Quick Start
 
-## Usage
+### Using `HumAudioController` (recommended for widgets)
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+`HumAudioController` is a `ChangeNotifier` that manages opening/closing a `HumAudioSession` and automatically pauses playback when the app backgrounds or detaches via `AppLifecycleListener`.
 
 ```dart
-const like = 'sample';
+import 'package:hum/hum.dart';
+import 'package:hum_flutter/hum_flutter.dart';
+
+final controller = HumAudioController();
+
+// Call inside a button press so Web Audio unlocks within a user gesture.
+await controller.start(
+  buildGraph: (session) {
+    final osc = SineOscillator(frequency: const .value(440));
+    final gain = Mult.mono(input: osc.outlet, value: const .value(0.2));
+    return Out.stereo(left: gain.outlet, right: gain.outlet);
+  },
+);
+
+// Stop & clean up when done (or in State.dispose()).
+await controller.stop();
+controller.dispose();
 ```
 
-## Additional information
+### Using `HumAudioSession` directly
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+If you manage lifecycle yourself (e.g. Riverpod, Bloc, or background audio), use `HumAudioSession` directly:
+
+```dart
+final session = await HumAudioSession.open(
+  enableOutput: true,
+  enableInput: false,
+);
+
+final osc = SineOscillator(frequency: const .value(220));
+session.setGraph(root: Out.stereo(left: osc.outlet, right: osc.outlet));
+await session.start();
+
+// Fast-path live parameter updates:
+session.update(osc, (frequency: 330.0));
+
+await session.dispose();
+```
+
+## Platform Setup
+
+### macOS
+- **Playback only:** works out of the box.
+- **Audio input / microphone:**
+  1. Add `<key>com.apple.security.device.audio-input</key><true/>` to `macos/Runner/DebugProfile.entitlements` and `macos/Runner/Release.entitlements`.
+  2. Add `NSMicrophoneUsageDescription` to `macos/Runner/Info.plist`.
+
+### iOS
+- **Playback only:** works out of the box (uses iOS's default `soloAmbient` session).
+- **Playing with the mute switch on, background audio, or microphone input:**
+  1. For microphone input, add `NSMicrophoneUsageDescription` to `ios/Runner/Info.plist`.
+  2. Configure iOS's process-wide `AVAudioSession` (e.g. via [`audio_session`](https://pub.dev/packages/audio_session)) before calling `start()` — `hum_cpal` automatically inherits the active session:
+     - `.playback` to play when the hardware mute switch is on or in the background.
+     - `.playAndRecord` for full-duplex microphone capture.
+
+### Web
+- **User gesture:** call `HumAudioSession.open()` / `HumAudioController.start()` directly from a tap/click handler so the browser creates and unlocks the `AudioContext` inside the user gesture (required by Safari and Chrome).
+- **Wasm:** supports `flutter run -d chrome --wasm` and `flutter build web --wasm`.
+- **Strict CSP:** `hum_web` loads its `AudioWorklet` from an in-memory `blob:` URL by default. If your site blocks `blob:` workers, use `hum_web` directly with `workletModuleUrl`.
+
+## Example
+
+See [example/](example/) for a cross-platform step sequencer. 
+[Also deployed here](https://hum-demo.alxbkr.xyz/)
