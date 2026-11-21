@@ -296,7 +296,7 @@ void main(List<String> args) async {
       sampleRate: sr,
     ),
   };
-  await host.startPlayback(output);
+  await host.startPlayback(output: output);
 
   final oldLineMode = stdin.lineMode;
   final oldEchoMode = stdin.echoMode;

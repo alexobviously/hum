@@ -19,6 +19,7 @@ class const StartPlaybackMessage({
   required final int session,
   required final SendPort replyPort,
   final AudioOutput? workerOutput,
+  final AudioInput? workerInput,
   final SendPort? audioDataPort,
 }) extends HostToEngineMessage;
 
@@ -58,13 +59,16 @@ void _audioWorkerEntry(
   // checking this token prevents stale sessions from clobbering newer ones.
   int activeSession = 0;
   AudioOutputDriver? activeWorkerDriver;
+  AudioInputDriver? activeWorkerInputDriver;
   // Drivers that have been created and not yet closed (or started closing).
   // Kept alongside closingDrivers so each driver is closed at most once even
   // when loop teardown, cancellation, and DisposeMessage overlap.
   final Set<AudioOutputDriver> openDrivers = {};
+  final Set<AudioInputDriver> openInputDrivers = {};
   // Maps drivers whose async close() is currently in-flight to its completion
   // Future so DisposeMessage can await cleanup before killing the isolate.
   final Map<AudioOutputDriver, Future<void>> closingDrivers = {};
+  final Map<AudioInputDriver, Future<void>> closingInputDrivers = {};
   PlaybackPacer? activePacer;
   SendPort? activeAudioPort;
   final Map<int, SendPort> pendingStartPorts = {};
@@ -122,22 +126,57 @@ void _audioWorkerEntry(
     required bool waitForExit,
   }) async {
     if (driver == null) return;
+
     if (identical(activeWorkerDriver, driver)) {
       activeWorkerDriver = null;
     }
+
     final existingClose = closingDrivers[driver];
     if (existingClose != null) {
       await existingClose;
       return;
     }
+
     if (!openDrivers.remove(driver)) return;
+
     final completer = Completer<void>();
+
     closingDrivers[driver] = completer.future;
     try {
       await driver.close(waitForExit: waitForExit);
     } catch (_) {
     } finally {
       unawaited(closingDrivers.remove(driver));
+      completer.complete();
+    }
+  }
+
+  Future<void> closeInputDriverOnce(
+    AudioInputDriver? driver, {
+    required bool waitForExit,
+  }) async {
+    if (driver == null) return;
+
+    if (identical(activeWorkerInputDriver, driver)) {
+      activeWorkerInputDriver = null;
+    }
+
+    final existingClose = closingInputDrivers[driver];
+    if (existingClose != null) {
+      await existingClose;
+      return;
+    }
+
+    if (!openInputDrivers.remove(driver)) return;
+
+    final completer = Completer<void>();
+
+    closingInputDrivers[driver] = completer.future;
+    try {
+      await driver.close(waitForExit: waitForExit);
+    } catch (_) {
+    } finally {
+      unawaited(closingInputDrivers.remove(driver));
       completer.complete();
     }
   }
@@ -156,11 +195,13 @@ void _audioWorkerEntry(
   void runPlaybackLoop(
     int session,
     AudioOutputDriver? driver,
+    AudioInputDriver? inputDriver,
     PlaybackPacer pacer,
   ) async {
     Object? loopError;
     StackTrace? loopStack;
     pacer.start();
+
     try {
       while (session == activeSession && isPlaying && !isDisposed) {
         final wait = pacer.waitForNextBlock();
@@ -169,7 +210,9 @@ void _audioWorkerEntry(
           if (session != activeSession || !isPlaying || isDisposed) break;
         }
 
+        inputDriver?.read(engine.inputs);
         engine.process();
+
         if (driver != null) {
           driver.write(engine.outputs);
         } else if (activeAudioPort != null) {
@@ -190,12 +233,15 @@ void _audioWorkerEntry(
       if (identical(activePacer, pacer)) {
         activePacer = null;
       }
+
       if (session == activeSession) {
         activeSession = 0;
         isPlaying = false;
         activeAudioPort = null;
+        engine.configureInputs(0);
       }
       await closeDriverOnce(driver, waitForExit: !isDisposed);
+      await closeInputDriverOnce(inputDriver, waitForExit: !isDisposed);
       // Report mid-playback errors only after clearing session state and
       // closing the driver so a playbackErrors listener can restart safely.
       if (loopError != null && !isDisposed) {
@@ -225,6 +271,7 @@ void _audioWorkerEntry(
         :final session,
         :final replyPort,
         :final workerOutput,
+        :final workerInput,
         :final audioDataPort,
       ):
         if (isPlaying || isDisposed) {
@@ -235,21 +282,38 @@ void _audioWorkerEntry(
         activeSession = session;
         pendingStartPorts[session] = replyPort;
         activeAudioPort = audioDataPort;
+        final inputDriver = workerInput?.createDriver();
         final driver = workerOutput?.createDriver();
+        if (inputDriver != null) {
+          openInputDrivers.add(inputDriver);
+          activeWorkerInputDriver = inputDriver;
+        }
         if (driver != null) {
           openDrivers.add(driver);
           activeWorkerDriver = driver;
+        }
+        if (inputDriver != null || driver != null) {
           try {
-            final startResult = driver.start(context);
-            if (startResult is Future<void>) {
-              await startResult;
+            if (inputDriver != null) {
+              final startResult = inputDriver.start(context);
+              if (startResult is Future<void>) {
+                await startResult;
+              }
+            }
+            if (driver != null) {
+              final startResult = driver.start(context);
+              if (startResult is Future<void>) {
+                await startResult;
+              }
             }
           } catch (e, st) {
             await closeDriverOnce(driver, waitForExit: false);
+            await closeInputDriverOnce(inputDriver, waitForExit: false);
             if (session == activeSession) {
               activeSession = 0;
               isPlaying = false;
               activeAudioPort = null;
+              engine.configureInputs(0);
             }
             completeStartError(session, e, st);
             completeStopWaiters(session);
@@ -257,6 +321,7 @@ void _audioWorkerEntry(
           }
           if (session != activeSession || !isPlaying || isDisposed) {
             await closeDriverOnce(driver, waitForExit: !isDisposed);
+            await closeInputDriverOnce(inputDriver, waitForExit: !isDisposed);
             completeStartWaiter(session);
             completeStopWaiters(session);
             return;
@@ -264,15 +329,18 @@ void _audioWorkerEntry(
         }
         if (session != activeSession || !isPlaying || isDisposed) {
           await closeDriverOnce(driver, waitForExit: !isDisposed);
+          await closeInputDriverOnce(inputDriver, waitForExit: !isDisposed);
           completeStartWaiter(session);
           completeStopWaiters(session);
           return;
         }
+        engine.configureInputs(inputDriver?.numChannels ?? 0);
         final pacer = activePacer =
             driver?.createPacer(context) ??
+            inputDriver?.createPacer(context) ??
             StopwatchPlaybackPacer(context: context);
         completeStartWaiter(session);
-        runPlaybackLoop(session, driver, pacer);
+        runPlaybackLoop(session, driver, inputDriver, pacer);
       case StopPlaybackMessage(:final replyPort):
         if (isPlaying) {
           final stoppedSession = activeSession;
@@ -289,13 +357,20 @@ void _audioWorkerEntry(
         activeSession = 0;
         activePacer?.stop();
         await closeDriverOnce(activeWorkerDriver, waitForExit: false);
+        await closeInputDriverOnce(activeWorkerInputDriver, waitForExit: false);
         for (final driver in openDrivers.toList()) {
           await closeDriverOnce(driver, waitForExit: false);
+        }
+        for (final inputDriver in openInputDrivers.toList()) {
+          await closeInputDriverOnce(inputDriver, waitForExit: false);
         }
         // Wait for any already-in-flight close() started by loop/stop teardown
         // so the host does not kill the isolate before driver cleanup finishes.
         if (closingDrivers.isNotEmpty) {
           await Future.wait(closingDrivers.values.toList());
+        }
+        if (closingInputDrivers.isNotEmpty) {
+          await Future.wait(closingInputDrivers.values.toList());
         }
         // Resolve every outstanding start/stop handshake so callers awaiting
         // them never hang if dispose() interrupts an in-flight transition.
@@ -463,14 +538,14 @@ class IsolateAudioHost._({
   }
 
   @override
-  Future<void> startPlayback([AudioOutput? output]) async {
+  Future<void> startPlayback({AudioOutput? output, AudioInput? input}) async {
     if (_isDisposed) {
       throw StateError('Cannot startPlayback on a disposed AudioHost.');
     }
     if (_isPlaying) {
       throw StateError('Playback is already active.');
     }
-    if (numChannels == 0) {
+    if (_currentSnapshot.isEmpty) {
       throw StateError('No active audio graph to play. Call setGraph() first.');
     }
     if (output != null) {
@@ -485,29 +560,30 @@ class IsolateAudioHost._({
         );
       }
     }
+    if (input != null) {
+      if (input.vectorSize != context.vectorSize) {
+        throw ArgumentError(
+          'Input vectorSize (${input.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
+        );
+      }
+      if (!input.isIsolateSendable) {
+        throw ArgumentError(
+          'IsolateAudioHost requires an isolate-sendable AudioInput.',
+        );
+      }
+    }
 
     _isPlaying = true;
     final session = ++_playbackSession;
     final startReplyPort = ReceivePort();
 
-    if (output == null) {
-      _engineSendPort.send(
-        StartPlaybackMessage(
-          session: session,
-          replyPort: startReplyPort.sendPort,
-        ),
-      );
-      await startReplyPort.first;
-      startReplyPort.close();
-      return;
-    }
-
-    if (output.isIsolateSendable) {
+    if (output == null || output.isIsolateSendable) {
       _engineSendPort.send(
         StartPlaybackMessage(
           session: session,
           replyPort: startReplyPort.sendPort,
           workerOutput: output,
+          workerInput: input,
         ),
       );
       final reply = await startReplyPort.first;
@@ -570,11 +646,31 @@ class IsolateAudioHost._({
       StartPlaybackMessage(
         session: session,
         replyPort: startReplyPort.sendPort,
+        workerInput: input,
         audioDataPort: audioReceivePort.sendPort,
       ),
     );
-    await startReplyPort.first;
+    final reply = await startReplyPort.first;
     startReplyPort.close();
+    if (reply is ({Object error, String? stackTrace})) {
+      if (session == _playbackSession) {
+        _isPlaying = false;
+      }
+      if (identical(_audioReceivePort, audioReceivePort)) {
+        _audioReceivePort = null;
+      }
+      audioReceivePort.close();
+      if (identical(_hostOutputDriver, driver)) {
+        _hostOutputDriver = null;
+      }
+      try {
+        await driver.close(waitForExit: false);
+      } catch (_) {}
+      Error.throwWithStackTrace(
+        reply.error,
+        StackTrace.fromString(reply.stackTrace ?? ''),
+      );
+    }
     // Clean up only this session's resources if stopPlayback/dispose landed
     // while waiting on the worker handshake, leaving newer sessions untouched.
     if (session != _playbackSession || !_isPlaying || _isDisposed) {

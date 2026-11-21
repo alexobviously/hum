@@ -95,14 +95,14 @@ class SyncAudioHost({
   }
 
   @override
-  Future<void> startPlayback([AudioOutput? output]) async {
+  Future<void> startPlayback({AudioOutput? output, AudioInput? input}) async {
     if (_isDisposed) {
       throw StateError('Cannot startPlayback on a disposed AudioHost.');
     }
     if (_isPlaying) {
       throw StateError('Playback is already active.');
     }
-    if (numChannels == 0) {
+    if (_currentSnapshot.isEmpty) {
       throw StateError('No active audio graph to play. Call setGraph() first.');
     }
     if (output != null) {
@@ -117,27 +117,50 @@ class SyncAudioHost({
         );
       }
     }
+    if (input != null) {
+      if (input.vectorSize != context.vectorSize) {
+        throw ArgumentError(
+          'Input vectorSize (${input.vectorSize}) does not match context vectorSize (${context.vectorSize}).',
+        );
+      }
+    }
 
     _isPlaying = true;
     // Monotonic session token so a fast stop -> start sequence never lets an
     // interrupted async driver.start() tear down or steal the newer session.
     final session = ++_playbackSession;
-    final driver = output?.createDriver();
+    final outputDriver = output?.createDriver();
+    final inputDriver = input?.createDriver();
     final completer = _playbackCompleter = Completer<void>();
 
-    if (driver != null) {
+    if (inputDriver != null || outputDriver != null) {
       try {
-        final startResult = driver.start(context);
-        if (startResult is Future<void>) {
-          await startResult;
+        if (inputDriver != null) {
+          final startResult = inputDriver.start(context);
+          if (startResult is Future<void>) {
+            await startResult;
+          }
+        }
+        if (outputDriver != null) {
+          final startResult = outputDriver.start(context);
+          if (startResult is Future<void>) {
+            await startResult;
+          }
         }
       } catch (_) {
         if (session == _playbackSession) {
           _isPlaying = false;
         }
-        try {
-          await driver.close(waitForExit: false);
-        } catch (_) {}
+        if (outputDriver != null) {
+          try {
+            await outputDriver.close(waitForExit: false);
+          } catch (_) {}
+        }
+        if (inputDriver != null) {
+          try {
+            await inputDriver.close(waitForExit: false);
+          } catch (_) {}
+        }
         if (identical(_playbackCompleter, completer)) {
           _playbackCompleter = null;
         }
@@ -150,9 +173,16 @@ class SyncAudioHost({
 
       // StopPlayback or dispose ran while awaiting driver.start().
       if (session != _playbackSession || !_isPlaying || _isDisposed) {
-        try {
-          await driver.close(waitForExit: !_isDisposed);
-        } catch (_) {}
+        if (outputDriver != null) {
+          try {
+            await outputDriver.close(waitForExit: !_isDisposed);
+          } catch (_) {}
+        }
+        if (inputDriver != null) {
+          try {
+            await inputDriver.close(waitForExit: !_isDisposed);
+          } catch (_) {}
+        }
         if (identical(_playbackCompleter, completer)) {
           _playbackCompleter = null;
         }
@@ -163,16 +193,19 @@ class SyncAudioHost({
       }
     }
 
-    _runPlaybackLoop(session, driver, completer);
+    _engine.configureInputs(inputDriver?.numChannels ?? 0);
+    _runPlaybackLoop(session, outputDriver, inputDriver, completer);
   }
 
   void _runPlaybackLoop(
     int session,
-    AudioOutputDriver? driver,
+    AudioOutputDriver? outputDriver,
+    AudioInputDriver? inputDriver,
     Completer<void> completer,
   ) async {
     final pacer = _activePacer =
-        driver?.createPacer(context) ??
+        outputDriver?.createPacer(context) ??
+        inputDriver?.createPacer(context) ??
         StopwatchPlaybackPacer(context: context);
     pacer.start();
     try {
@@ -183,8 +216,9 @@ class SyncAudioHost({
           if (session != _playbackSession || !_isPlaying || _isDisposed) break;
         }
 
+        inputDriver?.read(_engine.inputs);
         _engine.process();
-        driver?.write(_engine.outputs);
+        outputDriver?.write(_engine.outputs);
         pacer.onBlockProcessed();
       }
     } catch (e, st) {
@@ -200,12 +234,18 @@ class SyncAudioHost({
       }
       if (session == _playbackSession) {
         _isPlaying = false;
+        _engine.configureInputs(0);
       }
-      if (driver != null) {
+      if (outputDriver != null) {
         // Ignore close() exceptions so _playbackCompleter always resolves and
         // stopPlayback() never hangs waiting on a broken driver.
         try {
-          await driver.close(waitForExit: !_isDisposed);
+          await outputDriver.close(waitForExit: !_isDisposed);
+        } catch (_) {}
+      }
+      if (inputDriver != null) {
+        try {
+          await inputDriver.close(waitForExit: !_isDisposed);
         } catch (_) {}
       }
       if (identical(_playbackCompleter, completer)) {

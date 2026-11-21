@@ -160,7 +160,7 @@ Future<void> main(List<String> args) async {
     );
 
     print('Playing for 3 seconds...');
-    await host.startPlayback(output);
+    await host.startPlayback(output: output);
     await Future<void>.delayed(const Duration(seconds: 3));
     await host.stopPlayback();
     print('Done.');

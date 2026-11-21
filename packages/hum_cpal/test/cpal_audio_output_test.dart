@@ -168,7 +168,7 @@ void main() {
             vectorSize: vectorSize,
             bufferFrames: 2048,
           );
-          await host.startPlayback(output);
+          await host.startPlayback(output: output);
           await Future<void>.delayed(const Duration(milliseconds: 35));
           await host.stopPlayback();
 

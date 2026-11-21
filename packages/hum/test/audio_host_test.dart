@@ -83,7 +83,7 @@ void main() {
       final output = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
       expect(host.isPlaying, isFalse);
 
-      await host.startPlayback(output);
+      await host.startPlayback(output: output);
       expect(host.isPlaying, isTrue);
 
       // Play for 40ms to allow blocks to accumulate
@@ -106,7 +106,7 @@ void main() {
 
       // Calling startPlayback before setGraph throws StateError
       final output1 = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
-      expect(() => host.startPlayback(output1), throwsStateError);
+      expect(() => host.startPlayback(output: output1), throwsStateError);
 
       host.setGraph(root: dac);
 
@@ -115,11 +115,11 @@ void main() {
         numChannels: 2,
         vectorSize: 64,
       );
-      expect(() => host.startPlayback(mismatchChannels), throwsArgumentError);
+      expect(() => host.startPlayback(output: mismatchChannels), throwsArgumentError);
 
       // Vector size mismatch throws ArgumentError
       final mismatchVector = MemoryAudioOutput(numChannels: 1, vectorSize: 128);
-      expect(() => host.startPlayback(mismatchVector), throwsArgumentError);
+      expect(() => host.startPlayback(output: mismatchVector), throwsArgumentError);
     });
 
     test('dispose automatically closes all sink nodes in graph', () async {
@@ -215,7 +215,7 @@ void main() {
           numChannels: 1,
           vectorSize: 64,
         );
-        await host.startPlayback(failingOutput);
+        await host.startPlayback(output: failingOutput);
         await Future.delayed(const Duration(milliseconds: 20));
 
         await host.stopPlayback().timeout(const Duration(milliseconds: 500));
@@ -241,7 +241,7 @@ void main() {
         );
 
         await expectLater(
-          host.startPlayback(failingOutput),
+          host.startPlayback(output: failingOutput),
           throwsStateError,
         );
         expect(host.isPlaying, isFalse);
@@ -268,7 +268,7 @@ void main() {
           failOnWrite: true,
         );
 
-        await host.startPlayback(failingOutput);
+        await host.startPlayback(output: failingOutput);
         await Future.delayed(const Duration(milliseconds: 30));
 
         expect(errors, hasLength(1));
@@ -350,7 +350,7 @@ void main() {
         final output = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
         expect(host.isPlaying, isFalse);
 
-        await host.startPlayback(output);
+        await host.startPlayback(output: output);
         expect(host.isPlaying, isTrue);
 
         // Play for 50ms to allow blocks to stream across isolate
@@ -395,7 +395,7 @@ void main() {
         host.setGraph(root: osc.out);
 
         final nullOutput = AudioOutput.none(numChannels: 1, vectorSize: 64);
-        await host.startPlayback(nullOutput);
+        await host.startPlayback(output: nullOutput);
         expect(host.isPlaying, isTrue);
 
         await Future.delayed(const Duration(milliseconds: 30));
@@ -433,7 +433,7 @@ void main() {
           replyPort: eventPort.sendPort,
         );
 
-        await host.startPlayback(customOutput);
+        await host.startPlayback(output: customOutput);
         await Future.delayed(const Duration(milliseconds: 25));
         await host.stopPlayback();
 
@@ -464,7 +464,7 @@ void main() {
           numChannels: 1,
           vectorSize: 64,
         );
-        await host.startPlayback(failingOutput);
+        await host.startPlayback(output: failingOutput);
         await Future.delayed(const Duration(milliseconds: 20));
 
         await host.stopPlayback().timeout(const Duration(milliseconds: 500));
@@ -496,7 +496,7 @@ void main() {
           closeDelay: const Duration(milliseconds: 15),
         );
 
-        await host.startPlayback(output);
+        await host.startPlayback(output: output);
         await Future.delayed(const Duration(milliseconds: 15));
 
         unawaited(host.stopPlayback());
@@ -539,9 +539,9 @@ void main() {
           startDelay: Duration.zero,
         );
 
-        unawaited(host.startPlayback(slowOutput));
+        unawaited(host.startPlayback(output: slowOutput));
         unawaited(host.stopPlayback());
-        unawaited(host.startPlayback(fastOutput));
+        unawaited(host.startPlayback(output: fastOutput));
 
         await Future.delayed(const Duration(milliseconds: 80));
         await host.stopPlayback();
@@ -573,14 +573,14 @@ void main() {
         );
 
         await expectLater(
-          host.startPlayback(failingOutput),
+          host.startPlayback(output: failingOutput),
           throwsStateError,
         );
         expect(host.isPlaying, isFalse);
 
         // Subsequent valid playback must still work cleanly.
         final memory = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
-        await host.startPlayback(memory);
+        await host.startPlayback(output: memory);
         await Future.delayed(const Duration(milliseconds: 30));
         await host.stopPlayback();
         expect(memory.length, greaterThan(0));
@@ -607,7 +607,7 @@ void main() {
           failOnWrite: true,
         );
 
-        await host.startPlayback(failingOutput);
+        await host.startPlayback(output: failingOutput);
         await Future.delayed(const Duration(milliseconds: 50));
 
         expect(errors, hasLength(1));
@@ -638,7 +638,7 @@ void main() {
           failWithUnsendable: true,
         );
 
-        await host.startPlayback(failingOutput);
+        await host.startPlayback(output: failingOutput);
         await Future.delayed(const Duration(milliseconds: 50));
 
         expect(errors, hasLength(1));

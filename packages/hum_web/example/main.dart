@@ -59,7 +59,7 @@ void main() {
       audioContext: audioCtx,
     );
 
-    await syncHost.startPlayback(output);
+    await syncHost.startPlayback(output: output);
     host = syncHost;
     osc = sine;
     playing = true;

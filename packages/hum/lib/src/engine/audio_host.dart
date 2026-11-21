@@ -57,16 +57,18 @@ abstract class const AudioHost() {
   /// Broadcast stream of asynchronous errors occurring during active playback.
   Stream<AudioPlaybackError> get playbackErrors;
 
-  /// Starts continuous real-time audio playback streaming graph outputs to [output].
+  /// Starts continuous real-time audio playback, optionally reading from
+  /// [input] and streaming graph outputs to [output].
   ///
   /// Paced to real-time deadlines with backpressure to prevent buffer bloat.
   /// If [output] is omitted, the engine runs continuously in real-time without
-  /// writing to physical output devices (driving in-graph sinks and tap nodes).
+  /// writing to physical output devices (driving in-graph sinks, analysis
+  /// nodes, or input-only graphs).
   ///
   /// Throws [StateError] if playback is already active or if no graph is loaded.
-  /// Throws [ArgumentError] if [output] channel count or vector size does not match
-  /// the active graph context.
-  Future<void> startPlayback([AudioOutput? output]);
+  /// Throws [ArgumentError] if [output] or [input] channel count or vector size
+  /// does not match the active graph context.
+  Future<void> startPlayback({AudioOutput? output, AudioInput? input});
 
   /// Stops continuous real-time audio playback.
   Future<void> stopPlayback();

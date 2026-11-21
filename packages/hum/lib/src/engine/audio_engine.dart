@@ -26,10 +26,42 @@ class AudioEngine({required final ProcessContext context}) {
   late final Float32List _emptyBuffer = Float32List(context.vectorSize);
 
   List<EngineStep> _steps = [];
+  List<Float32List> _inputs = const [];
   List<Float32List> _outputs = [];
+
+  /// The active input buffers of the engine (one [Float32List] per input channel).
+  List<Float32List> get inputs => _inputs;
+
+  /// The number of active input channels.
+  int get numInputChannels => _inputs.length;
 
   /// The active output buffers of the engine (one [Float32List] per output channel).
   List<Float32List> get outputs => _outputs;
+
+  /// Configures the engine's input channel buffers and binds them to all
+  /// active [InputAwareProcessor]s.
+  void configureInputs(int numChannels) {
+    switch (numChannels) {
+      case <= 0:
+        _inputs = const [];
+      case final n when n == _inputs.length:
+        for (final buf in _inputs) {
+          buf.fillRange(0, context.vectorSize, 0.0);
+        }
+      default:
+        _inputs = List.generate(
+          numChannels,
+          (_) => Float32List(context.vectorSize),
+          growable: false,
+        );
+    }
+
+    for (final processor in _processors.values) {
+      if (processor case final InputAwareProcessor p) {
+        p.bindInputs(_inputs);
+      }
+    }
+  }
 
   /// The number of output channels.
   int get numChannels => _outputs.length;
@@ -54,7 +86,11 @@ class AudioEngine({required final ProcessContext context}) {
   void applyDiff(GraphDiff diff) {
     // 1. Instantiate new processors
     for (final MapEntry(key: id, value: node) in diff.addedNodes.entries) {
-      _processors[id] = node.createProcessor();
+      final processor = node.createProcessor();
+      if (processor case final InputAwareProcessor p) {
+        p.bindInputs(_inputs);
+      }
+      _processors[id] = processor;
     }
 
     // 2. In-place parameter updates
@@ -120,6 +156,7 @@ class AudioEngine({required final ProcessContext context}) {
     _processors.clear();
     _steps.clear();
     _bufferPool.clear();
+    _inputs = const [];
     _outputs = [];
   }
 }

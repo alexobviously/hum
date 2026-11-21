@@ -392,7 +392,7 @@ Future<void> _runLivePlayback({
       if (!completer.isCompleted) completer.complete();
     });
 
-    await host.startPlayback(output);
+    await host.startPlayback(output: output);
 
     final stopwatch = Stopwatch()..start();
     final timer = Timer.periodic(const Duration(milliseconds: 250), (t) {

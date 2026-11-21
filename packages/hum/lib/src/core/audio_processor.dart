@@ -19,3 +19,10 @@ abstract class AudioProcessor {
 abstract interface class DisposableAudioProcessor extends AudioProcessor {
   FutureOr<void> dispose();
 }
+
+/// An interface for [AudioProcessor]s that read directly from the engine's
+/// hardware/host input buffers (such as [InProcessor]).
+abstract interface class InputAwareProcessor extends AudioProcessor {
+  /// Binds the engine's pre-allocated input channel buffers to this processor.
+  void bindInputs(List<Float32List> engineInputs);
+}

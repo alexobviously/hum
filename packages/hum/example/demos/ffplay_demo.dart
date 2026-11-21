@@ -42,7 +42,7 @@ void main() async {
   print('Press Ctrl+C to abort.');
 
   // Start real-time playback engine with backpressure
-  await host.startPlayback(output);
+  await host.startPlayback(output: output);
 
   // Stream for 3 seconds
   await Future.delayed(const Duration(seconds: 1));
