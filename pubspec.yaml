@@ -2,9 +2,11 @@ name: hum_workspace
 publish_to: none
 
 environment:
-  sdk: ^3.13.4
+  sdk: ^3.14.0
 
 workspace:
   - packages/hum
   - packages/hum_cpal
+  - packages/hum_flutter
+  - packages/hum_flutter/example
   - packages/hum_web

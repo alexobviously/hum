@@ -13,8 +13,7 @@ topics:
   - rust
 
 environment:
-  sdk: ^3.13.4
-
+  sdk: ^3.14.0
 
 dependencies:
   code_assets: ^2.2.0
