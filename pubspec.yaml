@@ -8,5 +8,3 @@ workspace:
   - packages/hum
   - packages/hum_cpal
   - packages/hum_web
-  - packages/hum/example
-

@@ -1,13 +1,22 @@
 name: hum_web
-description: Web Audio (AudioWorklet) I/O bridge for Hum.
-publish_to: none
+description: Browser Web Audio API (AudioWorklet) playback and capture bridge for Hum with Dart Wasm support.
+version: 0.1.0
 resolution: workspace
+homepage: https://alxbkr.xyz
+repository: https://github.com/alexobviously/hum/tree/main/packages/hum_web
+issue_tracker: https://github.com/alexobviously/hum/issues
+topics:
+  - audio
+  - dsp
+  - web-audio
+  - audioworklet
+  - wasm
 
 environment:
   sdk: ^3.13.4
 
 dependencies:
-  hum: ^0.0.1
+  hum: ^0.1.0
   web: ^1.1.1
 
 dev_dependencies:

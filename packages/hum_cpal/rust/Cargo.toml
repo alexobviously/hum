@@ -2,6 +2,12 @@
 name = "hum_cpal"
 version = "0.1.0"
 edition = "2024"
+authors = ["Alex Baker"]
+description = "CPAL audio backend for Hum (Dart FFI)"
+homepage = "https://alxbkr.xyz"
+repository = "https://github.com/alexobviously/hum/tree/main/packages/hum_cpal/rust"
+license = "MIT"
+publish = false
 
 [lib]
 crate-type = ["staticlib", "cdylib"]
