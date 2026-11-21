@@ -71,6 +71,10 @@ class SequencerState {
   double downsample = 4;
   double bitcrushMix = 0.8;
 
+  /// Most recently constructed pitch [StepSequencer], used to look up its
+  /// live playhead [TelemetryChannel] on the host.
+  StepSequencer? freqSequencer;
+
   List<Note> get notes =>
       scalePattern.at(.parse(rootKey)).take(numNotes).toList();
 
@@ -130,7 +134,7 @@ class SequencerState {
       pulseWidth: const .value(0.5),
     );
 
-    final freqSeq = StepSequencer.fromList(
+    final freqSeq = freqSequencer = StepSequencer.fromList(
       clock: clock.trigger,
       steps: [
         for (final noteIdx in steps) currentNotes[noteIdx ?? 0].hz,

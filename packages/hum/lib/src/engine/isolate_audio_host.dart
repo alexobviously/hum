@@ -41,14 +41,33 @@ class const PlaybackErrorMessage({
   final String? stackTrace,
 }) extends EngineToHostMessage;
 
+class const TelemetryBatchMessage({
+  required final Int32List meta,
+  required final Float32List data,
+  required final int count,
+}) extends EngineToHostMessage;
+
 /// Top-level entrypoint for the background audio worker isolate.
 void _audioWorkerEntry(
-  ({SendPort hostSendPort, ProcessContext context}) args,
+  ({
+    SendPort hostSendPort,
+    ProcessContext context,
+    Duration telemetryInterval,
+  })
+  args,
 ) {
   final workerReceivePort = ReceivePort();
   args.hostSendPort.send(WorkerReadyMessage(workerReceivePort.sendPort));
 
-  final engine = AudioEngine(context: args.context);
+  final engine = AudioEngine(
+    context: args.context,
+    telemetryInterval: args.telemetryInterval,
+    onTelemetry: (meta, data, count) {
+      args.hostSendPort.send(
+        TelemetryBatchMessage(meta: meta, data: data, count: count),
+      );
+    },
+  );
   final context = args.context;
 
   bool isPlaying = false;
@@ -397,6 +416,7 @@ class IsolateAudioHost._({
   final StreamSubscription<Object?> _hostPortSub;
   final StreamController<AudioPlaybackError> _errorController =
       StreamController<AudioPlaybackError>.broadcast();
+  final TelemetryRegistry _telemetry = TelemetryRegistry();
   GraphSnapshot _currentSnapshot = .empty;
   bool _isDisposed = false;
   bool _isPlaying = false;
@@ -407,11 +427,16 @@ class IsolateAudioHost._({
   /// Spawns a new background worker isolate running [AudioEngine].
   static Future<IsolateAudioHost> spawn({
     required ProcessContext context,
+    Duration telemetryInterval = const Duration(milliseconds: 20),
   }) async {
     final hostReceivePort = ReceivePort();
     final isolate = await Isolate.spawn(
       _audioWorkerEntry,
-      (hostSendPort: hostReceivePort.sendPort, context: context),
+      (
+        hostSendPort: hostReceivePort.sendPort,
+        context: context,
+        telemetryInterval: telemetryInterval,
+      ),
       debugName: 'hum_engine',
     );
 
@@ -432,6 +457,8 @@ class IsolateAudioHost._({
           :final stackTrace,
         ):
           host._handleWorkerPlaybackError(session, error, stackTrace);
+        case TelemetryBatchMessage(:final meta, :final data, :final count):
+          host._telemetry.dispatch(meta, data, count);
       }
     });
 
@@ -477,6 +504,7 @@ class IsolateAudioHost._({
     }
 
     _currentSnapshot = diff.snapshot;
+    _telemetry.onGraphDiff(diff);
     return const [];
   }
 
@@ -494,6 +522,10 @@ class IsolateAudioHost._({
     if (_isDisposed) return;
     _engineSendPort.send(UpdateParamMessage(nodeId, params));
   }
+
+  @override
+  TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node) =>
+      _telemetry.channelFor(_currentSnapshot, node);
 
   @override
   Future<List<Float32List>> renderBlocks(int count) async {
@@ -730,6 +762,7 @@ class IsolateAudioHost._({
     await _closeHostDriver(waitForExit: false);
     await _hostPortSub.cancel();
     _hostReceivePort.close();
+    await _telemetry.dispose();
     await _errorController.close();
     _isolate.kill();
   }

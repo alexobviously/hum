@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:hum_flutter/hum_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,9 +37,12 @@ class const SequencerPage({super.key}) extends StatefulWidget {
 class _SequencerPageState extends State<SequencerPage> {
   final _audio = HumAudioController();
   final _state = SequencerState();
+  StreamSubscription<int>? _playheadSub;
+  int? _activeStep;
 
   @override
   void dispose() {
+    unawaited(_playheadSub?.cancel());
     _audio.dispose();
     super.dispose();
   }
@@ -51,11 +56,23 @@ class _SequencerPageState extends State<SequencerPage> {
 
   Future<void> _togglePlay() async {
     if (_audio.isPlaying || _audio.isStarting) {
+      await _playheadSub?.cancel();
+      _playheadSub = null;
+      if (mounted) setState(() => _activeStep = null);
       await _audio.stop();
       return;
     }
     try {
       await _audio.start(buildGraph: _state.buildGraph);
+      final seq = _state.freqSequencer;
+      if (seq != null) {
+        await _playheadSub?.cancel();
+        _playheadSub = _audio.telemetryOf(seq)?.stream.listen((step) {
+          if (mounted && _activeStep != step) {
+            setState(() => _activeStep = step);
+          }
+        });
+      }
     } catch (_) {
       // Error is already stored on `_audio.lastError`.
     }
@@ -81,6 +98,7 @@ class _SequencerPageState extends State<SequencerPage> {
 
         final grid = SequencerGrid(
           state: _state,
+          activeStep: _audio.isPlaying ? _activeStep : null,
           onToggleCell: (step, noteIdx) {
             _state.toggleCell(step, noteIdx);
             _syncGraph();

@@ -17,7 +17,7 @@ class StepSequencer({
   final Outlet? reset,
   required final ControlParam<List<double>> steps,
   final double threshold = 0.5,
-}) extends AudioNode<StepSequencerProcessor> {
+}) extends AudioNode<StepSequencerProcessor> with TelemetryNode<int> {
   /// Convenience factory taking a plain [List<double>].
   factory fromList({
     required Outlet clock,
@@ -106,19 +106,34 @@ class StepSequencer({
 
   @override
   List<Object?> get dynamicProps => [steps, threshold];
+
+  @override
+  int decodeTelemetry(Float32List data) => data[0].toInt();
 }
 
 class StepSequencerProcessor({
   required List<double> steps,
   var double threshold = 0.5,
   var bool hasReset = false,
-}) implements AudioProcessor {
+}) implements TelemetryProcessor {
   Float32List _steps = Float32List.fromList(steps);
 
   int _currentStep = 0;
   bool _isFirstPulse = true;
   bool _wasClockHigh = false;
   bool _wasResetHigh = false;
+  bool _telemetryDirty = false;
+
+  @override
+  int get telemetryLength => 1;
+
+  @override
+  bool writeTelemetry(Float32List out, int offset) {
+    if (!_telemetryDirty) return false;
+    _telemetryDirty = false;
+    out[offset] = _currentStep.toDouble();
+    return true;
+  }
 
   @override
   void update(Object params) {
@@ -150,6 +165,7 @@ class StepSequencerProcessor({
     bool isFirstPulse = _isFirstPulse;
     bool wasClockHigh = _wasClockHigh;
     bool wasResetHigh = _wasResetHigh;
+    bool telemetryDirty = _telemetryDirty;
 
     if (numSteps == 0) {
       out.fillRange(0, out.length, 0.0);
@@ -162,6 +178,7 @@ class StepSequencerProcessor({
         if (isResetHigh && !wasResetHigh) {
           currentStep = 0;
           isFirstPulse = true;
+          telemetryDirty = true;
         }
         wasResetHigh = isResetHigh;
       }
@@ -174,6 +191,7 @@ class StepSequencerProcessor({
         } else {
           currentStep = (currentStep + 1) % numSteps;
         }
+        telemetryDirty = true;
       }
       wasClockHigh = isClockHigh;
 
@@ -184,6 +202,7 @@ class StepSequencerProcessor({
     _isFirstPulse = isFirstPulse;
     _wasClockHigh = wasClockHigh;
     _wasResetHigh = wasResetHigh;
+    _telemetryDirty = telemetryDirty;
   }
 }
 

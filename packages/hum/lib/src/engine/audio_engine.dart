@@ -1,6 +1,21 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+
+/// Callback invoked by [AudioEngine] when a throttled telemetry batch is ready.
+///
+/// [meta] contains [count] consecutive `(nodeId, offset, length)` triples
+/// indexing into the flat [data] buffer.
+typedef TelemetryFlushCallback =
+    void Function(Int32List meta, Float32List data, int count);
+
+typedef _TelemetryEmitterSlot = ({
+  int nodeId,
+  TelemetryProcessor processor,
+  int offset,
+  int length,
+});
 
 /// A single step in the engine's linear execution schedule.
 class const EngineStep({
@@ -20,14 +35,26 @@ class const EngineStep({
 /// Owns the active [AudioProcessor] instances, pre-allocated memory buffer pool,
 /// and linear execution schedule. Receives transactional [GraphDiff] updates at
 /// block boundaries with zero allocations during the real-time [process] loop.
-class AudioEngine({required final ProcessContext context}) {
+class AudioEngine({
+  required final ProcessContext context,
+  final Duration telemetryInterval = const Duration(milliseconds: 20),
+  final TelemetryFlushCallback? onTelemetry,
+}) {
   final Map<int, AudioProcessor> _processors = {};
   final List<Float32List> _bufferPool = [];
   late final Float32List _emptyBuffer = Float32List(context.vectorSize);
+  late final int _telemetryIntervalSamples = math.max(
+    1,
+    (telemetryInterval.inMicroseconds * context.sampleRate) ~/ 1000000,
+  );
 
   List<EngineStep> _steps = [];
   List<Float32List> _inputs = const [];
   List<Float32List> _outputs = [];
+  List<_TelemetryEmitterSlot> _telemetryEmitters = const [];
+  Float32List _telemetryData = Float32List(0);
+  Int32List _telemetryMeta = Int32List(0);
+  int _samplesSinceTelemetry = 0;
 
   /// The active input buffers of the engine (one [Float32List] per input channel).
   List<Float32List> get inputs => _inputs;
@@ -105,6 +132,10 @@ class AudioEngine({required final ProcessContext context}) {
       }
     }
 
+    if (diff.addedNodes.isNotEmpty || diff.removedNodeIds.isNotEmpty) {
+      _rebuildTelemetrySlots();
+    }
+
     // 4. Rebuild schedule and buffer pool if topology changed
     if (diff.newSchedule case final schedule?) {
       while (_bufferPool.length < schedule.totalSlotsRequired) {
@@ -144,6 +175,65 @@ class AudioEngine({required final ProcessContext context}) {
     for (int i = 0; i < _steps.length; i++) {
       _steps[i].process(context);
     }
+
+    final callback = onTelemetry;
+    if (callback != null && _telemetryEmitters.isNotEmpty) {
+      _samplesSinceTelemetry += context.vectorSize;
+      if (_samplesSinceTelemetry >= _telemetryIntervalSamples) {
+        _samplesSinceTelemetry -= _telemetryIntervalSamples;
+        _flushTelemetry(callback);
+      }
+    }
+  }
+
+  void _rebuildTelemetrySlots() {
+    final slots = <_TelemetryEmitterSlot>[];
+    int offset = 0;
+    for (final MapEntry(key: id, value: processor) in _processors.entries) {
+      if (processor case final TelemetryProcessor emitter) {
+        final len = emitter.telemetryLength;
+        if (len > 0) {
+          slots.add((
+            nodeId: id,
+            processor: emitter,
+            offset: offset,
+            length: len,
+          ));
+          offset += len;
+        }
+      }
+    }
+
+    _telemetryEmitters = slots;
+    if (_telemetryData.length < offset) {
+      _telemetryData = Float32List(offset);
+    }
+    final metaLen = slots.length * 3;
+    if (_telemetryMeta.length < metaLen) {
+      _telemetryMeta = Int32List(metaLen);
+    }
+  }
+
+  void _flushTelemetry(TelemetryFlushCallback callback) {
+    final emitters = _telemetryEmitters;
+    final data = _telemetryData;
+    final meta = _telemetryMeta;
+    int written = 0;
+
+    for (int i = 0; i < emitters.length; i++) {
+      final slot = emitters[i];
+      if (slot.processor.writeTelemetry(data, slot.offset)) {
+        final base = written * 3;
+        meta[base] = slot.nodeId;
+        meta[base + 1] = slot.offset;
+        meta[base + 2] = slot.length;
+        written++;
+      }
+    }
+
+    if (written > 0) {
+      callback(meta, data, written);
+    }
   }
 
   /// Disposes all active processors and releases engine resources.
@@ -156,6 +246,8 @@ class AudioEngine({required final ProcessContext context}) {
     _processors.clear();
     _steps.clear();
     _bufferPool.clear();
+    _telemetryEmitters = const [];
+    _samplesSinceTelemetry = 0;
     _inputs = const [];
     _outputs = [];
   }

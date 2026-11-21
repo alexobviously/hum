@@ -6,8 +6,14 @@ import 'package:hum/hum.dart';
 /// Synchronous single-threaded implementation of [AudioHost].
 class SyncAudioHost({
   @override required final ProcessContext context,
+  final Duration telemetryInterval = const Duration(milliseconds: 20),
 }) extends AudioHost {
-  final AudioEngine _engine = AudioEngine(context: context);
+  final TelemetryRegistry _telemetry = TelemetryRegistry();
+  late final AudioEngine _engine = AudioEngine(
+    context: context,
+    telemetryInterval: telemetryInterval,
+    onTelemetry: _telemetry.dispatch,
+  );
   GraphSnapshot _currentSnapshot = .empty;
   bool _isPlaying = false;
   bool _isDisposed = false;
@@ -60,6 +66,7 @@ class SyncAudioHost({
     }
 
     _currentSnapshot = diff.snapshot;
+    _telemetry.onGraphDiff(diff);
     return const [];
   }
 
@@ -75,6 +82,10 @@ class SyncAudioHost({
   void updateById(int nodeId, Object params) {
     _engine.updateParam(nodeId, params);
   }
+
+  @override
+  TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node) =>
+      _telemetry.channelFor(_currentSnapshot, node);
 
   /// Processes one block of audio synchronously.
   void process() {
@@ -284,6 +295,7 @@ class SyncAudioHost({
     _isDisposed = true;
     await stopPlayback();
     await _engine.dispose();
+    await _telemetry.dispose();
     await _errorController.close();
   }
 }

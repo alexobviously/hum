@@ -48,6 +48,13 @@ abstract class const AudioHost() {
   /// Fast-path in-place parameter update by integer [nodeId].
   void updateById(int nodeId, Object params);
 
+  /// Returns a typed [TelemetryChannel] for [node] in the active graph, or
+  /// `null` if [node] is not part of [currentSnapshot].
+  ///
+  /// Channels are keyed by compiled `nodeId` and survive declarative
+  /// [setGraph] updates as long as `GraphDiff` retains the underlying node.
+  TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node);
+
   /// Renders [count] blocks of audio and returns the resulting channel buffers.
   Future<List<Float32List>> renderBlocks(int count);
 
@@ -79,5 +86,8 @@ abstract class const AudioHost() {
   /// Creates a synchronous [AudioHost] running directly on the caller thread.
   ///
   /// Ideal for unit testing, offline batch scripts, and WebAssembly / Flutter Web.
-  factory sync({required ProcessContext context}) = SyncAudioHost;
+  factory sync({
+    required ProcessContext context,
+    Duration telemetryInterval,
+  }) = SyncAudioHost;
 }

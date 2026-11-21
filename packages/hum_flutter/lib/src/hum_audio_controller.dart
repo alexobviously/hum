@@ -21,16 +21,21 @@ typedef HumSessionOpener = Future<HumAudioSession> Function({
 /// A Flutter [ChangeNotifier] that manages a [HumAudioSession] and hooks into
 /// [AppLifecycleListener] to stop audio cleanly on background/detach and
 /// dispose resources on teardown.
-class HumAudioController extends ChangeNotifier {
-  /// Creates a [HumAudioController].
-  ///
-  /// When [pauseOnBackground] is `true` (default), moving the app to the
-  /// background (`onPause`) or detaching (`onDetach`) automatically stops the
-  /// active audio session.
-  HumAudioController({
-    this.pauseOnBackground = true,
-    HumSessionOpener? sessionOpener,
-  }) : _openSession = sessionOpener ?? HumAudioSession.open {
+class HumAudioController({
+  /// Whether playback is automatically stopped when the app pauses or detaches.
+  final bool pauseOnBackground = true,
+
+  HumSessionOpener? sessionOpener,
+}) extends ChangeNotifier {
+  final HumSessionOpener _openSession = sessionOpener ?? HumAudioSession.open;
+  AppLifecycleListener? _lifecycleListener;
+  HumAudioSession? _session;
+  StreamSubscription<AudioPlaybackError>? _errorSub;
+  bool _isStarting = false;
+  bool _isDisposed = false;
+  Object? _lastError;
+
+  this {
     if (pauseOnBackground) {
       _lifecycleListener = AppLifecycleListener(
         onPause: _handleBackground,
@@ -38,17 +43,6 @@ class HumAudioController extends ChangeNotifier {
       );
     }
   }
-
-  /// Whether playback is automatically stopped when the app pauses or detaches.
-  final bool pauseOnBackground;
-
-  final HumSessionOpener _openSession;
-  AppLifecycleListener? _lifecycleListener;
-  HumAudioSession? _session;
-  StreamSubscription<AudioPlaybackError>? _errorSub;
-  bool _isStarting = false;
-  bool _isDisposed = false;
-  Object? _lastError;
 
   /// The currently active [HumAudioSession], if started.
   HumAudioSession? get session => _session;
@@ -181,6 +175,11 @@ class HumAudioController extends ChangeNotifier {
   void update(AudioNode node, Object params) {
     _session?.update(node, params);
   }
+
+  /// Returns a typed [TelemetryChannel] for [node] on the active session, or
+  /// `null` if stopped or [node] is not in the compiled graph.
+  TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node) =>
+      _session?.telemetryOf<T>(node);
 
   void _handleBackground() {
     if (!_isDisposed && (_session != null || _isStarting)) {

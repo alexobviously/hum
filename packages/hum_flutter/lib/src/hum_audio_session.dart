@@ -12,35 +12,26 @@ import 'platform/backend.dart';
 /// inside the caller's user gesture (before any `await`) and pairs an
 /// `AudioHost.sync` with `hum_web` (`AudioWorklet`), sharing a single
 /// `AudioContext` for full-duplex sessions.
-class HumAudioSession {
-  /// Creates a session wrapping an already-initialized [host] and optional
-  /// [output] / [input] descriptors.
-  HumAudioSession({
-    required this.host,
-    this.output,
-    this.input,
-    this.outputChannels = 0,
-    this.inputChannels = 0,
-    Future<void> Function()? onDispose,
-  }) : _onDisposeCallback = onDispose;
-
+class HumAudioSession({
   /// The underlying [AudioHost] (`IsolateAudioHost` on native, `SyncAudioHost`
   /// on Web).
-  final AudioHost host;
+  required final AudioHost host,
 
   /// Output descriptor configured for this session, if output is enabled.
-  final AudioOutput? output;
+  final AudioOutput? output,
 
   /// Input descriptor configured for this session, if input is enabled.
-  final AudioInput? input;
+  final AudioInput? input,
 
   /// Number of output channels configured (0 when output is disabled).
-  final int outputChannels;
+  final int outputChannels = 0,
 
   /// Number of input channels configured (0 when input is disabled).
-  final int inputChannels;
+  final int inputChannels = 0,
 
-  final Future<void> Function()? _onDisposeCallback;
+  Future<void> Function()? onDispose,
+}) {
+  final Future<void> Function()? _onDisposeCallback = onDispose;
   bool _isDisposed = false;
 
   /// Opens a platform-appropriate [HumAudioSession].
@@ -122,6 +113,13 @@ class HumAudioSession {
   void updateById(int nodeId, Object params) {
     if (_isDisposed) return;
     host.updateById(nodeId, params);
+  }
+
+  /// Returns a typed [TelemetryChannel] for [node] in the active graph, or
+  /// `null` if disposed or [node] is not in the compiled graph.
+  TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node) {
+    if (_isDisposed) return null;
+    return host.telemetryOf<T>(node);
   }
 
   /// Stops playback, disposes [host], and releases any platform-owned

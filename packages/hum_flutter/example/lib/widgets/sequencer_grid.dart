@@ -5,6 +5,7 @@ import '../sequencer_state.dart';
 class const SequencerGrid({
   super.key,
   required final SequencerState state,
+  required final int? activeStep,
   required final void Function(int step, int noteIdx) onToggleCell,
   required final VoidCallback onRandomize,
   required final VoidCallback onClear,
@@ -24,19 +25,18 @@ class const SequencerGrid({
           mainAxisSize: .min,
           crossAxisAlignment: .start,
           children: [
-            // TODO(telemetry/#5): Drive this playhead indicator row directly
-            // from the audio engine's StepSequencer telemetry stream once the
-            // telemetry pipeline is implemented, highlighting the active step
-            // column in real time!
             Row(
               children: [
                 const SizedBox(width: 52 + gap),
                 for (int step = 0; step < SequencerState.numSteps; step++) ...[
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 60),
                     width: cellSize,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest,
+                      color: activeStep == step
+                          ? scheme.primary
+                          : scheme.surfaceContainerHighest,
                       borderRadius: .circular(4),
                     ),
                   ),
