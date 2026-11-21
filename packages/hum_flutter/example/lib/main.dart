@@ -17,7 +17,7 @@ class const HumSequencerApp({super.key}) extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: .fromSeed(
-          seedColor: const Color(0xff564D65),
+          seedColor: const Color(0xffabe188),
           brightness: .light,
         ),
         useMaterial3: true,

@@ -20,9 +20,22 @@ fi
 
 if command -v fvm >/dev/null 2>&1; then
   DART_CMD=(fvm dart)
+  FLUTTER_CMD=(fvm flutter)
 else
   DART_CMD=(dart)
+  FLUTTER_CMD=(flutter)
 fi
+
+run_pkg_tests() {
+  local pkg_dir="$1"
+  shift
+  echo "==> Running tests in $pkg_dir"
+  if [ -f "$pkg_dir/pubspec.yaml" ] && grep -qE '^[[:space:]]+sdk:[[:space:]]+flutter' "$pkg_dir/pubspec.yaml"; then
+    (cd "$pkg_dir" && "${FLUTTER_CMD[@]}" test "$@")
+  else
+    (cd "$pkg_dir" && "${DART_CMD[@]}" test "$@")
+  fi
+}
 
 # If a path inside a specific package was provided, route directly to that package.
 TARGET_PKG=""
@@ -41,8 +54,7 @@ for arg in "$@"; do
 done
 
 if [ -n "$TARGET_PKG" ]; then
-  echo "==> Running tests in $TARGET_PKG"
-  (cd "$TARGET_PKG" && "${DART_CMD[@]}" test "${FORWARD_ARGS[@]}")
+  run_pkg_tests "$TARGET_PKG" "${FORWARD_ARGS[@]}"
   exit 0
 fi
 
@@ -59,7 +71,6 @@ if [ ${#TEST_PKGS[@]} -eq 0 ]; then
 fi
 
 for pkg_dir in "${TEST_PKGS[@]}"; do
-  echo "==> Running tests in $pkg_dir"
-  (cd "$pkg_dir" && "${DART_CMD[@]}" test "$@")
+  run_pkg_tests "$pkg_dir" "$@"
 done
 

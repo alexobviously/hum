@@ -75,7 +75,7 @@ void main() {
       await session.start();
       expect(session.isPlaying, isTrue);
 
-      session.update(osc, (frequency: 880.0, interpTime: 0.01));
+      session.update(osc, (frequency: 880.0));
       await session.stop();
       expect(session.isPlaying, isFalse);
 
@@ -131,7 +131,7 @@ void main() {
       expect(controller.lastError, isNull);
       expect(controller.session, isNotNull);
 
-      controller.update(osc, (frequency: 440.0, interpTime: 0.01));
+      controller.update(osc, (frequency: 440.0));
 
       await controller.stop();
       expect(controller.isPlaying, isFalse);
