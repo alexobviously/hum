@@ -146,10 +146,11 @@ class CpalAudioOutputDriver({
         'Cannot create a pacer before CpalAudioOutputDriver.start().',
       );
     }
+
     return CpalPlaybackPacer(
       sampleRate: context.sampleRate,
       vectorSize: vectorSize,
-      availableWriteFrames: () => availableWriteFrames,
+      availableFrames: () => availableWriteFrames,
       isStopped: () => _isClosed || isStopped,
     );
   }

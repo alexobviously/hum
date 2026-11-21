@@ -12,7 +12,7 @@ void main() {
       final pacer = CpalPlaybackPacer(
         sampleRate: 48000,
         vectorSize: 64,
-        availableWriteFrames: () => 128,
+        availableFrames: () => 128,
         isStopped: () => false,
       )..start();
 
@@ -25,7 +25,7 @@ void main() {
       final pacer = CpalPlaybackPacer(
         sampleRate: 48000,
         vectorSize: 64,
-        availableWriteFrames: () => available,
+        availableFrames: () => available,
         isStopped: () => false,
       )..start();
 
@@ -51,7 +51,7 @@ void main() {
       final pacer = CpalPlaybackPacer(
         sampleRate: 48000,
         vectorSize: 64,
-        availableWriteFrames: () => 0,
+        availableFrames: () => 0,
         isStopped: () => false,
       )..start();
 
@@ -71,7 +71,7 @@ void main() {
       final pacer = CpalPlaybackPacer(
         sampleRate: 48000,
         vectorSize: 64,
-        availableWriteFrames: () => 0,
+        availableFrames: () => 0,
         isStopped: () => stopped,
       )..start();
 

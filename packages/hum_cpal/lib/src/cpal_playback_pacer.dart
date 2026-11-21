@@ -2,16 +2,20 @@ import 'dart:async';
 
 import 'package:hum/hum.dart';
 
-/// A hardware-backpressure [PlaybackPacer] driven by the free space in a
-/// `cpal` ring buffer.
+/// A hardware-clocked [PlaybackPacer] driven by the ready frame count in a
+/// Rust `cpal` `rtrb` ring buffer.
+///
+/// Used by both `CpalAudioOutputDriver` (polling free write frames) and
+/// `CpalAudioInputDriver` (polling buffered read frames), since Rust owns the
+/// lock-free `rtrb` ring buffer in both directions.
 ///
 /// Returns synchronous `null` from [waitForNextBlock] whenever at least
-/// [vectorSize] frames can be written immediately without blocking, avoiding
+/// [vectorSize] frames are ready immediately without blocking, avoiding
 /// per-block [Future] allocations on hot paths.
 class CpalPlaybackPacer({
   required final int sampleRate,
   required final int vectorSize,
-  required final int Function() availableWriteFrames,
+  required final int Function() availableFrames,
   required final bool Function() isStopped,
 
   /// Minimum time in microseconds to wait between polls.
@@ -36,7 +40,7 @@ class CpalPlaybackPacer({
   FutureOr<void> waitForNextBlock() {
     if (_stopped || isStopped()) return null;
 
-    final available = availableWriteFrames();
+    final available = availableFrames();
     if (available >= vectorSize) return null;
 
     final completer = _pendingCompleter = Completer<void>();
@@ -68,7 +72,7 @@ class CpalPlaybackPacer({
         return;
       }
 
-      final available = availableWriteFrames();
+      final available = availableFrames();
       if (available >= vectorSize) {
         _pendingCompleter = null;
         if (!completer.isCompleted) {
