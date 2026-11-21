@@ -24,11 +24,14 @@ external void humCpalFreeString(Pointer<Utf8> ptr);
 /// Opens and starts a float32 cpal output stream backed by an `rtrb` buffer.
 ///
 /// Passing `nullptr` for [deviceId] selects the host's default output device.
+/// Passing `0` for [hardwareBufferFrames] uses the OS default period size
+/// (`BufferSize::Default`); a positive value requests `BufferSize::Fixed(n)`.
 /// On failure returns `nullptr` and writes an error string to [outError]
 /// (which callers must free via [humCpalFreeString]).
 @Native<
   Pointer<HumPlaybackHandle> Function(
     Pointer<Utf8>,
+    Uint32,
     Uint32,
     Uint32,
     Uint32,
@@ -40,6 +43,7 @@ external Pointer<HumPlaybackHandle> humCpalPlaybackCreate(
   int sampleRate,
   int channels,
   int bufferFrames,
+  int hardwareBufferFrames,
   Pointer<Pointer<Utf8>> outError,
 );
 
@@ -96,6 +100,8 @@ external void humCpalPlaybackClose(Pointer<HumPlaybackHandle> handle);
 /// Opens and starts a cpal input capture stream backed by an `rtrb` buffer.
 ///
 /// Passing `nullptr` for [deviceId] selects the host's default input device.
+/// Passing `0` for [hardwareBufferFrames] uses the OS default period size
+/// (`BufferSize::Default`); a positive value requests `BufferSize::Fixed(n)`.
 /// Prefers `f32` native capture and falls back to `i32`/`i16`/`u16` -> `f32`
 /// conversion when needed.
 /// On failure returns `nullptr` and writes an error string to [outError]
@@ -103,6 +109,7 @@ external void humCpalPlaybackClose(Pointer<HumPlaybackHandle> handle);
 @Native<
   Pointer<HumCaptureHandle> Function(
     Pointer<Utf8>,
+    Uint32,
     Uint32,
     Uint32,
     Uint32,
@@ -114,6 +121,7 @@ external Pointer<HumCaptureHandle> humCpalCaptureCreate(
   int sampleRate,
   int channels,
   int bufferFrames,
+  int hardwareBufferFrames,
   Pointer<Pointer<Utf8>> outError,
 );
 

@@ -130,6 +130,48 @@ void main() {
       await driver.close();
     });
 
+    test('supports fixed hardwareBufferFrames and rejects non-positive', () async {
+      final invalidDriver = CpalAudioOutputDriver(
+        numChannels: 2,
+        vectorSize: 64,
+        bufferFrames: 256,
+        hardwareBufferFrames: 0,
+      );
+      expect(
+        () => invalidDriver.start(
+          const ProcessContext(sampleRate: 48000, vectorSize: 64),
+        ),
+        throwsArgumentError,
+      );
+      await invalidDriver.close();
+
+      final snapshot = CpalHostSnapshot.probe();
+      final defaultOut = snapshot.defaultOutputDevice;
+      final cfg = defaultOut?.defaultOutput;
+      final range = cfg?.bufferSize;
+      if (defaultOut == null ||
+          cfg == null ||
+          cfg.sampleFormat != CpalSampleFormat.f32 ||
+          range == null) {
+        return;
+      }
+
+      final target = 64.clamp(range.min, range.max);
+      final driver = CpalAudioOutputDriver(
+        numChannels: cfg.channels,
+        vectorSize: 64,
+        bufferFrames: 256,
+        hardwareBufferFrames: target,
+      );
+      try {
+        driver.start(ProcessContext(sampleRate: cfg.sampleRate, vectorSize: 64));
+        expect(driver.isOpen, isTrue);
+        expect(driver.isStopped, isFalse);
+      } finally {
+        await driver.close();
+      }
+    });
+
     test(
       'streams silent audio through IsolateAudioHost on default f32 device',
       () async {

@@ -11,11 +11,21 @@ import 'cpal_playback_pacer.dart';
 /// that captures live audio from a native `cpal` hardware input device.
 ///
 /// Selecting `deviceId == null` opens the host's default input device.
+///
+/// [bufferFrames] controls the Rust lock-free `rtrb` ring buffer capacity
+/// between the OS audio thread and Dart (defaults to `2048` frames).
+///
+/// [hardwareBufferFrames] optionally requests a fixed OS/hardware callback
+/// period (`cpal::BufferSize::Fixed(n)`), e.g. `64` or `128` for low-latency
+/// live monitoring or guitar pedalboards. Leave `null` (default) to let the OS
+/// choose its default period size (`cpal::BufferSize::Default`). When set, it
+/// must fall within the device's supported [CpalBufferSizeRange].
 class const CpalAudioInput({
   @override required final int numChannels,
   @override required final int vectorSize,
   final String? deviceId,
   final int bufferFrames = 2048,
+  final int? hardwareBufferFrames,
 }) extends AudioInput {
   this
     : assert(numChannels > 0, 'numChannels must be positive'),
@@ -23,6 +33,10 @@ class const CpalAudioInput({
       assert(
         bufferFrames >= vectorSize,
         'bufferFrames must be at least vectorSize',
+      ),
+      assert(
+        hardwareBufferFrames == null || hardwareBufferFrames > 0,
+        'hardwareBufferFrames must be positive when provided',
       );
 
   @override
@@ -34,6 +48,7 @@ class const CpalAudioInput({
     vectorSize: vectorSize,
     deviceId: deviceId,
     bufferFrames: bufferFrames,
+    hardwareBufferFrames: hardwareBufferFrames,
   );
 }
 
@@ -46,6 +61,7 @@ class CpalAudioInputDriver({
   @override required final int vectorSize,
   final String? deviceId,
   final int bufferFrames = 2048,
+  final int? hardwareBufferFrames,
 }) extends AudioInputDriver {
   Pointer<HumCaptureHandle> _handle = nullptr;
   Pointer<Float> _nativeBuffer = nullptr;
@@ -95,6 +111,13 @@ class CpalAudioInputDriver({
         'Must be at least vectorSize ($vectorSize)',
       );
     }
+    if (hardwareBufferFrames != null && hardwareBufferFrames! <= 0) {
+      throw ArgumentError.value(
+        hardwareBufferFrames,
+        'hardwareBufferFrames',
+        'Must be positive when provided',
+      );
+    }
 
     final outError = calloc<Pointer<Utf8>>();
     final deviceIdPtr = deviceId?.toNativeUtf8() ?? nullptr;
@@ -106,6 +129,7 @@ class CpalAudioInputDriver({
         context.sampleRate,
         numChannels,
         bufferFrames,
+        hardwareBufferFrames ?? 0,
         outError,
       );
 

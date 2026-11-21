@@ -25,6 +25,7 @@ void main() {
           0,
           2,
           1024,
+          0,
           outError,
         );
         expect(invalidHandle, equals(nullptr));
@@ -37,6 +38,7 @@ void main() {
           48000,
           2,
           1024,
+          0,
           outError,
         );
         expect(missingHandle, equals(nullptr));
@@ -76,6 +78,7 @@ void main() {
           cfg.sampleRate,
           cfg.channels,
           2048,
+          0,
           outError,
         );
         if (outError.value != nullptr) {
