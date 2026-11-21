@@ -269,10 +269,7 @@ class SubprocessSourceProcessor implements DisposableAudioProcessor {
   bool _isStreamDone = false;
   Object? _startError;
 
-  Float32List? _interleavedFloatBuffer;
-  Uint8List? _interleavedFloatByteView;
-  Int16List? _interleavedPcm16Buffer;
-  Uint8List? _interleavedPcm16ByteView;
+  BufferInterleaver? _interleaver;
 
   /// Whether this source has been closed.
   bool get isClosed => _isClosed;
@@ -390,29 +387,6 @@ class SubprocessSourceProcessor implements DisposableAudioProcessor {
     }
   }
 
-  void _ensureBuffers(int vectorSize) {
-    final int totalSamples = numChannels * vectorSize;
-    if (format == .float32) {
-      if (_interleavedFloatBuffer == null ||
-          _interleavedFloatBuffer!.length != totalSamples) {
-        _interleavedFloatBuffer = Float32List(totalSamples);
-        _interleavedFloatByteView = _interleavedFloatBuffer!.buffer.asUint8List(
-          _interleavedFloatBuffer!.offsetInBytes,
-          _interleavedFloatBuffer!.lengthInBytes,
-        );
-      }
-    } else {
-      if (_interleavedPcm16Buffer == null ||
-          _interleavedPcm16Buffer!.length != totalSamples) {
-        _interleavedPcm16Buffer = Int16List(totalSamples);
-        _interleavedPcm16ByteView = _interleavedPcm16Buffer!.buffer.asUint8List(
-          _interleavedPcm16Buffer!.offsetInBytes,
-          _interleavedPcm16Buffer!.lengthInBytes,
-        );
-      }
-    }
-  }
-
   @override
   void update(Object params) {}
 
@@ -441,11 +415,17 @@ class SubprocessSourceProcessor implements DisposableAudioProcessor {
     final int bytesToRead = framesToRead * frameBytes;
 
     if (bytesToRead > 0) {
-      _ensureBuffers(vectorSize);
+      BufferInterleaver? interleaver = _interleaver;
+      if (interleaver == null || interleaver.vectorSize != vectorSize) {
+        interleaver = _interleaver = BufferInterleaver(
+          numChannels: numChannels,
+          vectorSize: vectorSize,
+        );
+      }
 
       final Uint8List byteView = format == .float32
-          ? _interleavedFloatByteView!
-          : _interleavedPcm16ByteView!;
+          ? interleaver.floatByteView
+          : interleaver.pcm16ByteView;
       final int readIdx = _readIndex;
       final int toEnd = _capacity - readIdx;
 
@@ -467,14 +447,14 @@ class SubprocessSourceProcessor implements DisposableAudioProcessor {
 
       // Decode and de-interleave into output channels
       if (format == .float32) {
-        deinterleaveFloats(
-          _interleavedFloatBuffer!,
+        interleaver.deinterleaveFloatsFrom(
+          interleaver.floatBuffer,
           outputs,
           vectorSize: framesToRead,
         );
       } else {
         deinterleavePcm16(
-          _interleavedPcm16Buffer!,
+          interleaver.pcm16Buffer,
           outputs,
           vectorSize: framesToRead,
         );

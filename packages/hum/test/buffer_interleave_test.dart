@@ -133,5 +133,268 @@ void main() {
         );
       },
     );
+
+    test('interleaveFloats handles SIMD blocks with scalar tails and 3/4/5 channels', () {
+      // Stereo length 11 (2 SIMD chunks of 4 + 3 scalar tail)
+      final left = Float32List.fromList([
+        for (int i = 0; i < 11; i++) i.toDouble(),
+      ]);
+      final right = Float32List.fromList([
+        for (int i = 0; i < 11; i++) (i + 100).toDouble(),
+      ]);
+      final stereoOut = Float32List(22);
+      interleaveFloats([left, right], stereoOut);
+      for (int i = 0; i < 11; i++) {
+        expect(stereoOut[i * 2], equals(left[i]));
+        expect(stereoOut[i * 2 + 1], equals(right[i]));
+      }
+
+      // Quad length 10 (2 SIMD chunks of 4 + 2 scalar tail)
+      final q0 = Float32List.fromList([for (int i = 0; i < 10; i++) i + 0.0]);
+      final q1 = Float32List.fromList([for (int i = 0; i < 10; i++) i + 10.0]);
+      final q2 = Float32List.fromList([for (int i = 0; i < 10; i++) i + 20.0]);
+      final q3 = Float32List.fromList([for (int i = 0; i < 10; i++) i + 30.0]);
+      final quadOut = Float32List(40);
+      interleaveFloats([q0, q1, q2, q3], quadOut);
+      for (int i = 0; i < 10; i++) {
+        expect(quadOut[i * 4 + 0], equals(q0[i]));
+        expect(quadOut[i * 4 + 1], equals(q1[i]));
+        expect(quadOut[i * 4 + 2], equals(q2[i]));
+        expect(quadOut[i * 4 + 3], equals(q3[i]));
+      }
+
+      // Round-trip deinterleaveFloats for quad length 10
+      final r0 = Float32List(10);
+      final r1 = Float32List(10);
+      final r2 = Float32List(10);
+      final r3 = Float32List(10);
+      deinterleaveFloats(quadOut, [r0, r1, r2, r3]);
+      expect(r0, equals(q0));
+      expect(r1, equals(q1));
+      expect(r2, equals(q2));
+      expect(r3, equals(q3));
+    });
+
+    test(
+      'interleave/deinterleave handle unaligned Float32List subviews safely',
+      () {
+        final backingA = Float32List.fromList([99, 1, 2, 3, 4, 5, 6, 7, 8]);
+        final backingB = Float32List.fromList([
+          99,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+        ]);
+        final subA = Float32List.sublistView(backingA, 1); // offsetInBytes = 4
+        final subB = Float32List.sublistView(backingB, 1);
+        final backingOut = Float32List(17);
+        final subOut = Float32List.sublistView(backingOut, 1);
+
+        interleaveFloats([subA, subB], subOut);
+        expect(
+          subOut,
+          equals([1, 11, 2, 12, 3, 13, 4, 14, 5, 15, 6, 16, 7, 17, 8, 18]),
+        );
+
+        final recA = Float32List.sublistView(Float32List(9), 1);
+        final recB = Float32List.sublistView(Float32List(9), 1);
+        deinterleaveFloats(subOut, [recA, recB]);
+        expect(recA, equals(subA));
+        expect(recB, equals(subB));
+
+        final pcmInBacking = Float32List.fromList([
+          0.0,
+          -1.0,
+          0.0,
+          1.0,
+          0.5,
+          -0.5,
+          2.0,
+          -2.0,
+          0.25,
+        ]);
+        final subPcmIn = Float32List.sublistView(pcmInBacking, 1);
+        final pcmOut = Int16List(8);
+        interleavePcm16([subPcmIn], pcmOut);
+        expect(
+          pcmOut,
+          equals([-32767, 0, 32767, 16384, -16384, 32767, -32767, 8192]),
+        );
+      },
+    );
+
+    test(
+      'interleavePcm16 handles SIMD mono, stereo, and multi-channel with tails',
+      () {
+        // Mono length 9 (2 SIMD chunks + 1 tail)
+        final mono = Float32List.fromList([
+          0.0,
+          1.0,
+          -1.0,
+          0.5,
+          -0.5,
+          2.0,
+          -2.0,
+          0.25,
+          -0.25,
+        ]);
+        final monoOut = Int16List(9);
+        interleavePcm16([mono], monoOut);
+        expect(
+          monoOut,
+          equals([0, 32767, -32767, 16384, -16384, 32767, -32767, 8192, -8192]),
+        );
+
+        // Stereo length 6 (1 SIMD chunk + 2 tail)
+        final left = Float32List.fromList([0.0, 1.0, -1.0, 0.5, -0.5, 2.0]);
+        final right = Float32List.fromList([-1.0, 0.5, 0.0, -0.5, 1.0, -2.0]);
+        final stereoOut = Int16List(12);
+        interleavePcm16([left, right], stereoOut);
+        expect(
+          stereoOut,
+          equals([
+            0,
+            -32767,
+            32767,
+            16384,
+            -32767,
+            0,
+            16384,
+            -16384,
+            -16384,
+            32767,
+            32767,
+            -32767,
+          ]),
+        );
+
+        // 3-channel length 5 (1 SIMD chunk + 1 tail)
+        final c0 = Float32List.fromList([0.0, 1.0, -1.0, 0.5, -0.5]);
+        final c1 = Float32List.fromList([1.0, -1.0, 0.5, -0.5, 0.0]);
+        final c2 = Float32List.fromList([-1.0, 0.5, -0.5, 0.0, 1.0]);
+        final triOut = Int16List(15);
+        interleavePcm16([c0, c1, c2], triOut);
+        expect(
+          triOut,
+          equals([
+            0,
+            32767,
+            -32767,
+            32767,
+            -32767,
+            16384,
+            -32767,
+            16384,
+            -16384,
+            16384,
+            -16384,
+            0,
+            -16384,
+            0,
+            32767,
+          ]),
+        );
+      },
+    );
+
+    test(
+      'BufferInterleaver caches views and handles buffer swaps and tails',
+      () {
+        final interleaver = BufferInterleaver(numChannels: 2, vectorSize: 6);
+        final left1 = Float32List.fromList([0.0, 0.25, 0.5, 0.75, 1.0, -1.0]);
+        final right1 = Float32List.fromList([-1.0, 1.0, -0.5, 0.5, 0.0, 0.25]);
+        final target = Float32List(12);
+
+        interleaver.interleaveFloatsTo([left1, right1], target);
+        expect(
+          target,
+          equals([
+            0.0,
+            -1.0,
+            0.25,
+            1.0,
+            0.5,
+            -0.5,
+            0.75,
+            0.5,
+            1.0,
+            0.0,
+            -1.0,
+            0.25,
+          ]),
+        );
+
+        // Swap channel buffers on subsequent block to verify cache updates
+        final left2 = Float32List.fromList([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+        final right2 = Float32List.fromList([
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0,
+          -1.0,
+        ]);
+        interleaver.interleaveFloatsTo([left2, right2], target);
+        expect(
+          target,
+          equals([
+            1.0,
+            -1.0,
+            1.0,
+            -1.0,
+            1.0,
+            -1.0,
+            1.0,
+            -1.0,
+            1.0,
+            -1.0,
+            1.0,
+            -1.0,
+          ]),
+        );
+
+        final pcmTarget = Int16List(12);
+        interleaver.interleavePcm16To([left1, right1], pcmTarget);
+        expect(
+          pcmTarget,
+          equals([
+            0,
+            -32767,
+            8192,
+            32767,
+            16384,
+            -16384,
+            24575,
+            16384,
+            32767,
+            0,
+            -32767,
+            8192,
+          ]),
+        );
+
+        final recLeft = Float32List(6);
+        final recRight = Float32List(6);
+        interleaver.deinterleaveFloatsFrom(target, [recLeft, recRight]);
+        expect(recLeft, equals(left2));
+        expect(recRight, equals(right2));
+
+        // Partial vectorSize (e.g. underrun frame count < interleaver.vectorSize)
+        final partialLeft = Float32List(6);
+        final partialRight = Float32List(6);
+        interleaver.deinterleaveFloatsFrom(
+          target,
+          [partialLeft, partialRight],
+          vectorSize: 5,
+        );
+        expect(partialLeft, equals([1.0, 1.0, 1.0, 1.0, 1.0, 0.0]));
+        expect(partialRight, equals([-1.0, -1.0, -1.0, -1.0, -1.0, 0.0]));
+      },
+    );
   });
 }

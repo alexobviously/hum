@@ -51,6 +51,10 @@ class CpalAudioOutputDriver({
   Pointer<HumPlaybackHandle> _handle = nullptr;
   Pointer<Float> _nativeBuffer = nullptr;
   Float32List? _nativeView;
+  final BufferInterleaver _interleaver = BufferInterleaver(
+    numChannels: numChannels,
+    vectorSize: vectorSize,
+  );
   bool _isClosed = false;
 
   /// Whether the native `cpal` stream handle is currently open.
@@ -163,7 +167,7 @@ class CpalAudioOutputDriver({
       _throwStreamError(handle);
     }
 
-    interleaveFloats(channels, _nativeView!, vectorSize: vectorSize);
+    _interleaver.interleaveFloatsTo(channels, _nativeView!);
     final written = humCpalPlaybackWrite(handle, _nativeBuffer, vectorSize);
     if (written < vectorSize && humCpalPlaybackIsStopped(handle)) {
       _throwStreamError(handle);
