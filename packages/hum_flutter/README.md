@@ -58,6 +58,13 @@ session.update(osc, (frequency: 330.0));
 await session.dispose();
 ```
 
+## Requirements
+
+- **Native builds (macOS, Linux, Windows, iOS):** require [`rustup`](https://rustup.rs/) so `hum_cpal`'s Dart Native Assets hook can automatically install its toolchain/targets and compile the Rust audio bridge (plus `libasound2-dev` and `pkg-config` on Linux).
+- **Web-only builds:** no Rust toolchain required.
+
+Note: I am looking into a way to distribute prebuilt dylibs for `hum_cpal` so that users don't have to install Rust / build from source. Should be coming fairly soon but lmk if you need it.  
+
 ## Platform Setup
 
 ### macOS
