@@ -4,22 +4,14 @@ import 'package:material_ui/material_ui.dart';
 
 import '../sequencer_state.dart';
 
-class ControlsPanel extends StatelessWidget {
-  const ControlsPanel({
-    super.key,
-    required this.audio,
-    required this.state,
-    required this.onTogglePlay,
-    required this.onRandomizeSettings,
-    required this.onChanged,
-  });
-
-  final HumAudioController audio;
-  final SequencerState state;
-  final VoidCallback onTogglePlay;
-  final VoidCallback onRandomizeSettings;
-  final VoidCallback onChanged;
-
+class const ControlsPanel({
+  super.key,
+  required final HumAudioController audio,
+  required final SequencerState state,
+  required final VoidCallback onTogglePlay,
+  required final VoidCallback onRandomizeSettings,
+  required final VoidCallback onChanged,
+}) extends StatelessWidget {
   void _update(VoidCallback mutate) {
     mutate();
     onChanged();
@@ -246,7 +238,8 @@ class ControlsPanel extends StatelessWidget {
               value: state.bitDepth,
               min: 2,
               max: 16,
-              onChanged: (v) => _update(() => state.bitDepth = v.roundToDouble()),
+              onChanged: (v) =>
+                  _update(() => state.bitDepth = v.roundToDouble()),
             ),
             _ParamSlider(
               label: 'Downsample',
@@ -271,11 +264,7 @@ class ControlsPanel extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
+class const _SectionHeader(final String title) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -291,23 +280,14 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _ParamSlider extends StatelessWidget {
-  const _ParamSlider({
-    required this.label,
-    required this.valueText,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String valueText;
-  final double value;
-  final double min;
-  final double max;
-  final ValueChanged<double> onChanged;
-
+class const _ParamSlider({
+  required final String label,
+  required final String valueText,
+  required final double value,
+  required final double min,
+  required final double max,
+  required final ValueChanged<double> onChanged,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
