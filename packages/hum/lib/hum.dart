@@ -25,6 +25,7 @@ export 'src/music/pitch.dart';
 export 'src/music/scale.dart';
 export 'src/music/tempo.dart';
 export 'src/nodes/analysis/autocorrelation.dart';
+export 'src/nodes/analysis/meter.dart';
 export 'src/nodes/composite/clap.dart';
 export 'src/nodes/composite/hihat.dart';
 export 'src/nodes/composite/kick.dart';

@@ -57,6 +57,8 @@ class Synth({
   var bool vinylEnabled = true,
   var bool swarmEnabled = true,
 }) {
+  Meter? meter;
+
   TerminalNode buildGraph() {
     final noise = NoiseGenerator.pink();
     final reso = ResonatorBank.chord(
@@ -124,11 +126,16 @@ class Synth({
       interpTime: 0.03,
     );
 
-    final masterGain = isMuted ? 0.0 : 0.35;
+    final masterGain = isMuted ? 0.0 : 0.4;
     final masterL = reverb.left.mult(masterGain, interpTime: 0.03);
     final masterR = reverb.right.mult(masterGain, interpTime: 0.03);
 
-    return Out.stereo(left: masterL.outlet, right: masterR.outlet);
+    final m = meter = Meter.stereo(
+      left: masterL.outlet,
+      right: masterR.outlet,
+    );
+
+    return Out.stereo(left: m.left, right: m.right);
   }
 }
 
@@ -157,10 +164,10 @@ void main(List<String> args) async {
   }
 
   if (stdout.hasTerminal) {
-    if (stdout.terminalColumns < 80 || stdout.terminalLines < 24) {
+    if (stdout.terminalColumns < 80 || stdout.terminalLines < 26) {
       stderr.writeln(
         'Terminal is too small (${stdout.terminalColumns}x${stdout.terminalLines}). '
-        'Please resize to at least 80x24.',
+        'Please resize to at least 80x26.',
       );
       exit(1);
     }
@@ -170,7 +177,10 @@ void main(List<String> args) async {
   const sr = 44100;
   const vs = 64;
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
-  final host = await IsolateAudioHost.spawn(context: context);
+  final host = await IsolateAudioHost.spawn(
+    context: context,
+    telemetryInterval: const Duration(milliseconds: 33),
+  );
 
   int currentChordIndex = 0;
   int octaveOffset = 0;
@@ -283,6 +293,9 @@ void main(List<String> args) async {
 
   void updateGraph() => host.setGraph(root: synth.buildGraph());
   updateGraph();
+
+  final meterChannel = host.telemetryOf(synth.meter!);
+  MeterReading? latestMeter;
 
   final output = switch (player) {
     'sox' => PipedAudioOutput.sox(
@@ -411,10 +424,15 @@ void main(List<String> args) async {
     // Row 21: Bottom border + side[17]
     line(' └${'─' * 40}┘  ${side[17]}');
 
-    // Row 22: Footer separator
+    // Rows 22-23: Stereo level meter below the XY pad
+    final reading = latestMeter;
+    line(_formatMeterLine('L', reading?.left));
+    line(_formatMeterLine('R', reading?.right));
+
+    // Row 24: Footer separator
     line('─' * 80);
 
-    // Row 23: Tips
+    // Row 25: Tips
     line(
       'Mouse: Drag inside pad | [1-5]/[←/→] Pairs | [c] Chord | [↑/↓] Oct | [Space] Mute',
     );
@@ -542,10 +560,15 @@ void main(List<String> args) async {
 
   render();
 
+  final meterSub = meterChannel?.stream.listen((reading) {
+    latestMeter = reading;
+    render();
+  });
   final stdinSub = stdin.listen(handleInput);
   try {
     await completer.future;
   } finally {
+    await meterSub?.cancel();
     await stdinSub.cancel();
     await host.stopPlayback();
     await host.dispose();
@@ -557,4 +580,34 @@ void main(List<String> args) async {
     stdout.writeln('Bye bye!');
     exit(0);
   }
+}
+
+String _formatMeterLine(String label, ChannelLevel? level) {
+  const width = 32;
+  const minDb = -48.0;
+
+  final db = level?.peakDb ?? -120.0;
+  final normalized = ((db - minDb) / -minDb).clamp(0.0, 1.0);
+  final filled = (normalized * width).round();
+
+  final bar = StringBuffer();
+  for (int i = 0; i < width; i++) {
+    if (i < filled) {
+      final frac = i / width;
+      final colour = frac > 0.88
+          ? '\x1b[91m' // Red (near 0 dBFS)
+          : frac > 0.70
+          ? '\x1b[93m' // Yellow (-12..-3 dBFS)
+          : '\x1b[92m'; // Green
+      bar.write('$colour|\x1b[0m');
+    } else {
+      bar.write('\x1b[90m·\x1b[0m');
+    }
+  }
+
+  final dbLabel = db <= -60.0
+      ? '  -∞ dB'
+      : '${db.toStringAsFixed(1).padLeft(5)} dB';
+  final clipTag = (level?.clipped ?? false) ? ' \x1b[91mCLIP\x1b[0m' : '';
+  return ' $label $bar $dbLabel$clipTag';
 }
