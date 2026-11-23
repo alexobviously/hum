@@ -91,49 +91,89 @@ fn map_config_range(range: &SupportedStreamConfigRange) -> ConfigRange {
     }
 }
 
+fn build_device_info(
+    device: &cpal::Device,
+    device_id: &cpal::DeviceId,
+    is_default_output: bool,
+    is_default_input: bool,
+) -> DeviceInfo {
+    let name = device
+        .description()
+        .map(|desc| desc.name().to_owned())
+        .unwrap_or_else(|_| String::from("Unknown Device"));
+
+    DeviceInfo {
+        id: device_id.to_string(),
+        name,
+        is_default_output,
+        is_default_input,
+        default_output: device
+            .default_output_config()
+            .ok()
+            .map(|c| map_default_config(&c)),
+        default_input: device
+            .default_input_config()
+            .ok()
+            .map(|c| map_default_config(&c)),
+        output_configs: device
+            .supported_output_configs()
+            .map(|r| r.map(|c| map_config_range(&c)).collect())
+            .unwrap_or_default(),
+        input_configs: device
+            .supported_input_configs()
+            .map(|r| r.map(|c| map_config_range(&c)).collect())
+            .unwrap_or_default(),
+    }
+}
+
 /// Probes the default cpal host and serializes all device capabilities as JSON.
 pub fn probe_devices_json() -> Result<String, serde_json::Error> {
     let host = cpal::default_host();
-    let default_output_id =
-        host.default_output_device().and_then(|d| d.id().ok());
-    let default_input_id =
-        host.default_input_device().and_then(|d| d.id().ok());
+    let default_output = host.default_output_device();
+    let default_input = host.default_input_device();
+    let default_output_id = default_output.as_ref().and_then(|d| d.id().ok());
+    let default_input_id = default_input.as_ref().and_then(|d| d.id().ok());
 
     let mut devices = Vec::new();
+    let mut saw_default_output = false;
+    let mut saw_default_input = false;
+
     if let Ok(iter) = host.devices() {
         for device in iter {
             let Ok(device_id) = device.id() else {
                 continue;
             };
-            let name = device
-                .description()
-                .map(|desc| desc.name().to_owned())
-                .unwrap_or_else(|_| String::from("Unknown Device"));
+            let is_def_out = default_output_id.as_ref() == Some(&device_id);
+            let is_def_in = default_input_id.as_ref() == Some(&device_id);
+            saw_default_output |= is_def_out;
+            saw_default_input |= is_def_in;
 
-            devices.push(DeviceInfo {
-                id: device_id.to_string(),
-                name,
-                is_default_output: default_output_id.as_ref()
-                    == Some(&device_id),
-                is_default_input: default_input_id.as_ref() == Some(&device_id),
-                default_output: device
-                    .default_output_config()
-                    .ok()
-                    .map(|c| map_default_config(&c)),
-                default_input: device
-                    .default_input_config()
-                    .ok()
-                    .map(|c| map_default_config(&c)),
-                output_configs: device
-                    .supported_output_configs()
-                    .map(|r| r.map(|c| map_config_range(&c)).collect())
-                    .unwrap_or_default(),
-                input_configs: device
-                    .supported_input_configs()
-                    .map(|r| r.map(|c| map_config_range(&c)).collect())
-                    .unwrap_or_default(),
-            });
+            devices.push(build_device_info(
+                &device, &device_id, is_def_out, is_def_in,
+            ));
         }
+    }
+
+    // Some backends (notably Android AAudio) expose a virtual default device
+    // (`Device(None)`) from `default_output_device()` / `default_input_device()`
+    // that is not included in `host.devices()`. Append it if not already seen.
+    if !saw_default_output
+        && let (Some(out_dev), Some(out_id)) =
+            (default_output.as_ref(), default_output_id.as_ref())
+    {
+        let same_as_in =
+            !saw_default_input && default_input_id.as_ref() == Some(out_id);
+        if same_as_in {
+            saw_default_input = true;
+        }
+        devices.push(build_device_info(out_dev, out_id, true, same_as_in));
+    }
+
+    if !saw_default_input
+        && let (Some(in_dev), Some(in_id)) =
+            (default_input.as_ref(), default_input_id.as_ref())
+    {
+        devices.push(build_device_info(in_dev, in_id, false, true));
     }
 
     serde_json::to_string(&HostSnapshot {

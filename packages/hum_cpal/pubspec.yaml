@@ -1,6 +1,6 @@
 name: hum_cpal
 description: Native audio I/O bridge for Hum powered by Rust CPAL and lock-free ring buffers over Dart FFI.
-version: 0.1.0
+version: 0.1.1
 resolution: workspace
 homepage: https://alxbkr.xyz
 repository: https://github.com/alexobviously/hum/tree/main/packages/hum_cpal

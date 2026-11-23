@@ -10,6 +10,62 @@ mod devices;
 mod ffi;
 mod playback;
 
+#[cfg(target_os = "android")]
+mod android {
+    use std::ffi::c_void;
+    use std::ptr;
+    use std::sync::Once;
+
+    use jni::sys::{JNIEnv, JavaVM, jclass, jobject};
+
+    static INIT: Once = Once::new();
+
+    /// Initializes `ndk-context` with the Android `JavaVM` and global
+    /// `Application` context so `cpal` can query `AudioManager` and open
+    /// AAudio streams.
+    ///
+    /// Called automatically by `HumFlutterPlugin` on engine attach. Safe to
+    /// call multiple times; only the first call registers the context.
+    ///
+    /// # Safety
+    /// Must be invoked by the Android JVM with a valid `JNIEnv` and non-null
+    /// `android.content.Context` object reference.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "system" fn Java_xyz_alxbkr_hum_1flutter_HumFlutterPlugin_nativeInitAndroidContext(
+        env: *mut JNIEnv,
+        _class: jclass,
+        context: jobject,
+    ) {
+        if env.is_null() || context.is_null() {
+            return;
+        }
+
+        INIT.call_once(|| {
+            let mut vm: *mut JavaVM = ptr::null_mut();
+            let vtable = unsafe { *env };
+            if vtable.is_null() {
+                return;
+            }
+            let get_vm = unsafe { (*vtable).v1_2.GetJavaVM };
+            let rc = unsafe { get_vm(env, &mut vm) };
+            if rc != 0 || vm.is_null() {
+                return;
+            }
+            let new_global_ref = unsafe { (*vtable).v1_2.NewGlobalRef };
+            let global_ctx = unsafe { new_global_ref(env, context) };
+            if global_ctx.is_null() {
+                return;
+            }
+            unsafe {
+                ndk_context::initialize_android_context(
+                    vm.cast::<c_void>(),
+                    global_ctx.cast::<c_void>(),
+                );
+            }
+        });
+    }
+}
+
 /// Probes the default cpal host and returns a newly allocated UTF-8 JSON string.
 ///
 /// The returned pointer must be freed with [hum_cpal_free_string]. Returns null

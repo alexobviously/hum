@@ -187,6 +187,28 @@ fn push_converted_frames<T>(
     }
 }
 
+fn handle_input_stream_error(
+    err: &cpal::Error,
+    overruns: &AtomicU64,
+    stopped: &AtomicBool,
+    last_error: &Mutex<Option<String>>,
+) {
+    match err.kind() {
+        cpal::ErrorKind::Xrun => {
+            overruns.fetch_add(1, Ordering::Relaxed);
+        }
+        // TODO: surface non-fatal stream notices (realtime denied, route
+        // changes) to Dart instead of silently swallowing them.
+        cpal::ErrorKind::RealtimeDenied | cpal::ErrorKind::DeviceChanged => {}
+        _ => {
+            if let Ok(mut guard) = last_error.lock() {
+                *guard = Some(err.to_string());
+            }
+            stopped.store(true, Ordering::Release);
+        }
+    }
+}
+
 fn build_converted_input_stream<T>(
     device: &cpal::Device,
     config: StreamConfig,
@@ -200,6 +222,7 @@ where
     T: SizedSample,
     f32: FromSample<T>,
 {
+    let error_overruns = Arc::clone(&overruns);
     device
         .build_input_stream(
             config,
@@ -212,10 +235,12 @@ where
                 );
             },
             move |err| {
-                if let Ok(mut guard) = last_error.lock() {
-                    *guard = Some(err.to_string());
-                }
-                stopped.store(true, Ordering::Release);
+                handle_input_stream_error(
+                    &err,
+                    &error_overruns,
+                    &stopped,
+                    &last_error,
+                );
             },
             None,
         )
@@ -271,6 +296,7 @@ impl HumCaptureHandle {
         let overruns = Arc::new(AtomicU64::new(0));
 
         let data_overruns = Arc::clone(&overruns);
+        let error_overruns = Arc::clone(&overruns);
         let error_stopped = Arc::clone(&stopped);
         let error_message = Arc::clone(&last_error);
 
@@ -297,10 +323,12 @@ impl HumCaptureHandle {
                         );
                     },
                     move |err| {
-                        if let Ok(mut guard) = error_message.lock() {
-                            *guard = Some(err.to_string());
-                        }
-                        error_stopped.store(true, Ordering::Release);
+                        handle_input_stream_error(
+                            &err,
+                            &error_overruns,
+                            &error_stopped,
+                            &error_message,
+                        );
                     },
                     None,
                 )

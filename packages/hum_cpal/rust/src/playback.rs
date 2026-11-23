@@ -143,6 +143,7 @@ impl HumPlaybackHandle {
         let underruns = Arc::new(AtomicU64::new(0));
 
         let data_underruns = Arc::clone(&underruns);
+        let error_underruns = Arc::clone(&underruns);
         let error_stopped = Arc::clone(&stopped);
         let error_message = Arc::clone(&last_error);
 
@@ -175,11 +176,20 @@ impl HumPlaybackHandle {
                         data_underruns.fetch_add(1, Ordering::Relaxed);
                     }
                 },
-                move |err| {
-                    if let Ok(mut guard) = error_message.lock() {
-                        *guard = Some(err.to_string());
+                move |err| match err.kind() {
+                    cpal::ErrorKind::Xrun => {
+                        error_underruns.fetch_add(1, Ordering::Relaxed);
                     }
-                    error_stopped.store(true, Ordering::Release);
+                    // TODO: surface non-fatal stream notices (realtime denied,
+                    // route changes) to Dart instead of silently swallowing them.
+                    cpal::ErrorKind::RealtimeDenied
+                    | cpal::ErrorKind::DeviceChanged => {}
+                    _ => {
+                        if let Ok(mut guard) = error_message.lock() {
+                            *guard = Some(err.to_string());
+                        }
+                        error_stopped.store(true, Ordering::Release);
+                    }
                 },
                 None,
             )
