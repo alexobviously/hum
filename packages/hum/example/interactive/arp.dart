@@ -170,6 +170,7 @@ void main(List<String> args) async {
 
   render();
   final stdinSub = stdin.listen(handleInput);
+
   try {
     await completer.future;
   } finally {

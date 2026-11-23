@@ -26,7 +26,7 @@ double gainToDb(num gain, {double floor = 1e-6, double minDb = -120.0}) {
 extension DecibelNumExtension on num {
   /// Converts this number as decibels into linear amplitude gain.
   ///
-  /// Example: `-6.db` or `3.db`.
+  /// Example: `(-6).db` or `3.db`.
   double get db => dbToGain(this);
 
   /// Converts this number as a linear amplitude gain factor into decibels.
