@@ -5,11 +5,33 @@ import 'package:hum/hum.dart';
 
 // TODO: revisit this. I temporarily abandoned it to do something else.
 
+/// Pitch-detection telemetry reading emitted by [Autocorrelation].
+class const AutocorrelationReading({
+  /// Detected fundamental frequency in Hz (`0.0` if not yet detected).
+  required final double frequency,
+
+  /// Detected pitch period in samples (tau), or `0` if not yet detected.
+  required final int bestLag,
+
+  /// Maximum autocorrelation peak value for the analysis window.
+  required final double maxCorrelation,
+}) {
+  /// Whether a valid pitch period was detected (`bestLag > 0`).
+  bool get hasPitch => bestLag > 0;
+
+  @override
+  String toString() =>
+      'AutocorrelationReading(frequency: ${frequency.toStringAsFixed(2)} Hz, '
+      'bestLag: $bestLag, maxCorrelation: ${maxCorrelation.toStringAsFixed(3)})';
+}
+
 /// An audio node that performs time-domain autocorrelation to detect pitch.
 ///
 /// Features a zero-cost audio passthrough outlet, while exposing the detected
-/// fundamental period [bestLag] and [frequency] on its processor.
-class Autocorrelation extends AudioNode<AutocorrelationProcessor> {
+/// fundamental period [bestLag] and [frequency] on its processor and emitting
+/// [AutocorrelationReading] snapshots via [TelemetryNode].
+class Autocorrelation extends AudioNode<AutocorrelationProcessor>
+    with TelemetryNode<AutocorrelationReading> {
   final Outlet input;
   final int windowSize;
   final int hopSize;
@@ -54,10 +76,18 @@ class Autocorrelation extends AudioNode<AutocorrelationProcessor> {
 
   @override
   Object get params => ();
+
+  @override
+  AutocorrelationReading decodeTelemetry(Float32List data) =>
+      AutocorrelationReading(
+        frequency: data[0],
+        bestLag: data[1].round(),
+        maxCorrelation: data[2],
+      );
 }
 
 /// The runtime processor for [Autocorrelation].
-class AutocorrelationProcessor implements AudioProcessor {
+class AutocorrelationProcessor implements TelemetryProcessor {
   AutocorrelationProcessor({
     this.windowSize = 1024,
     this.hopSize = 512,
@@ -89,6 +119,11 @@ class AutocorrelationProcessor implements AudioProcessor {
 
   /// The maximum autocorrelation peak value.
   double maxCorrelation = 0.0;
+
+  bool _hasNewReading = false;
+
+  @override
+  int get telemetryLength => 3;
 
   @override
   void update(Object params) {}
@@ -180,5 +215,16 @@ class AutocorrelationProcessor implements AudioProcessor {
     bestLag = peakLag;
     maxCorrelation = highestPeak;
     frequency = peakLag > 0 ? sampleRate / peakLag : 0.0;
+    _hasNewReading = true;
+  }
+
+  @override
+  bool writeTelemetry(Float32List out, int offset) {
+    if (!_hasNewReading) return false;
+    out[offset] = frequency;
+    out[offset + 1] = bestLag.toDouble();
+    out[offset + 2] = maxCorrelation;
+    _hasNewReading = false;
+    return true;
   }
 }
