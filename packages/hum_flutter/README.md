@@ -5,12 +5,16 @@ Cross-platform Flutter integration for the [`hum`](https://github.com/alexobviou
 
 `hum_flutter` automatically selects the right host and audio I/O backend per platform via conditional imports:
 
-- **Desktop & iOS:** `IsolateAudioHost` + `hum_cpal` (Rust CPAL over Dart FFI)
+- **Desktop, Android & iOS:** `IsolateAudioHost` + `hum_cpal` (Rust CPAL over Dart FFI)
 - **Web:** `AudioHost.sync` + `hum_web` (`AudioWorklet`, Wasm-ready, no `SharedArrayBuffer` / COOP+COEP headers required)
 
-ANDROID IS COMING SOON! I just need to spend a bit of time figuring out the ndk context thing.  
-
 For desktop, I've only tested macos so far. In theory it works on linux and windows but lmk if it doesn't (make an issue on gh).
+
+## Note about Bluetooth
+
+Bluetooth A2DP requires a larger `bufferFrames` param, because the burst size can be quite high. I'm planning to add some more intelligent support for this in the near future (decoupling buffer size from burst size, etc).  
+
+From my testing, the default of 2048 was fine with bluetooth headphones on ios, but on android I was getting a burst of 2180. So I'd suggest for now setting the `bufferFrames` param to 4096 when using bluetooth on android. Better support for this coming soon though.
 
 ## Quick Start
 

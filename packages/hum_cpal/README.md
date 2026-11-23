@@ -2,9 +2,13 @@
 
 Native hardware audio I/O bridge for [`hum`](https://pub.dev/packages/hum), backed by Rust [`cpal`](https://github.com/RustAudio/cpal) and lock-free `rtrb` ring buffers over Dart FFI / Native Assets.
 
-Supports **macOS, Linux, Windows, and iOS** (Android / Oboe planned).
+Supports **macOS, Linux, Windows, Android and iOS**.
 
 This package is agnostic of Flutter. If you want a quick and easy way to integrate Hum into your Flutter project, take a look at [`hum_flutter`](https://pub.dev/packages/hum_flutter).
+
+## Note about Bluetooth
+
+Bluetooth A2DP requires a larger `bufferFrames` param, because the burst size can be quite high. I'm planning to add some more intelligent support for this in the near future (decoupling buffer size from burst size, etc).
 
 ## Features
 
