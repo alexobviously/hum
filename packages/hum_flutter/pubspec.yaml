@@ -1,6 +1,6 @@
 name: hum_flutter
 description: Cross-platform Flutter integration for the Hum audio DSP engine across desktop, iOS, and Web.
-version: 0.1.0
+version: 0.1.1
 resolution: workspace
 homepage: https://alxbkr.xyz
 repository: https://github.com/alexobviously/hum/tree/main/packages/hum_flutter
