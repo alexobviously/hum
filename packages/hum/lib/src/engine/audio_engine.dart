@@ -41,6 +41,7 @@ class AudioEngine({
   final TelemetryFlushCallback? onTelemetry,
 }) {
   final Map<int, AudioProcessor> _processors = {};
+  final Map<BufferId, AudioBuffer> _buffers = {};
   final List<Float32List> _bufferPool = [];
   late final Float32List _emptyBuffer = Float32List(context.vectorSize);
   late final int _telemetryIntervalSamples = math.max(
@@ -90,6 +91,29 @@ class AudioEngine({
     }
   }
 
+  AudioBuffer? _lookupBuffer(BufferId id) => _buffers[id];
+
+  /// Registers [buffer] under [id] and rebinds all active [BufferAwareProcessor]s.
+  void loadBuffer(BufferId id, AudioBuffer buffer) {
+    _buffers[id] = buffer;
+    for (final processor in _processors.values) {
+      if (processor case final BufferAwareProcessor p) {
+        p.bindBuffers(_lookupBuffer);
+      }
+    }
+  }
+
+  /// Removes the buffer registered under [id] and rebinds all active
+  /// [BufferAwareProcessor]s so references drop cleanly to silence.
+  void unloadBuffer(BufferId id) {
+    if (_buffers.remove(id) == null) return;
+    for (final processor in _processors.values) {
+      if (processor case final BufferAwareProcessor p) {
+        p.bindBuffers(_lookupBuffer);
+      }
+    }
+  }
+
   /// The number of output channels.
   int get numChannels => _outputs.length;
 
@@ -116,6 +140,9 @@ class AudioEngine({
       final processor = node.createProcessor();
       if (processor case final InputAwareProcessor p) {
         p.bindInputs(_inputs);
+      }
+      if (processor case final BufferAwareProcessor p) {
+        p.bindBuffers(_lookupBuffer);
       }
       _processors[id] = processor;
     }
@@ -244,6 +271,7 @@ class AudioEngine({
       }
     }
     _processors.clear();
+    _buffers.clear();
     _steps.clear();
     _bufferPool.clear();
     _telemetryEmitters = const [];

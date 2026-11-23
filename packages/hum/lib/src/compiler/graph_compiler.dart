@@ -241,6 +241,7 @@ CompileResult compilePipeline({
   List<AudioNode>? roots,
   List<Outlet>? targetOutputs,
   required ProcessContext context,
+  Map<BufferId, AudioBuffer>? buffers,
 }) {
   final graphResult = compileGraph(
     root: root,
@@ -256,7 +257,7 @@ CompileResult compilePipeline({
   }
 
   final snapshot = graphResult.snapshot!;
-  final pipeline = snapshot.toPipeline(context);
+  final pipeline = snapshot.toPipeline(context, buffers: buffers);
 
   return (
     pipeline: pipeline,

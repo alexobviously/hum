@@ -12,6 +12,16 @@ class const ApplyDiffMessage(final GraphDiff diff) extends HostToEngineMessage;
 class const UpdateParamMessage(final int nodeId, final Object params)
     extends HostToEngineMessage;
 
+class const LoadBufferMessage({
+  required final BufferId id,
+  required final int sampleRate,
+  required final int numChannels,
+  required final int length,
+  final TransferableTypedData? data,
+}) extends HostToEngineMessage;
+
+class const UnloadBufferMessage(final BufferId id) extends HostToEngineMessage;
+
 class const RenderBlocksMessage(final int count, final SendPort replyPort)
     extends HostToEngineMessage;
 
@@ -276,6 +286,34 @@ void _audioWorkerEntry(
         engine.applyDiff(diff);
       case UpdateParamMessage(:final nodeId, :final params):
         engine.updateParam(nodeId, params);
+      case LoadBufferMessage(
+        :final id,
+        :final sampleRate,
+        :final numChannels,
+        :final length,
+        :final data,
+      ):
+        final AudioBuffer buffer;
+        if (length == 0 || data == null) {
+          buffer = AudioBuffer.silence(
+            length: 0,
+            sampleRate: sampleRate,
+            numChannels: numChannels,
+          );
+        } else {
+          final flat = data.materialize().asFloat32List();
+          buffer = AudioBuffer(
+            channels: List.generate(
+              numChannels,
+              (ch) => Float32List.sublistView(flat, ch * length, (ch + 1) * length),
+              growable: false,
+            ),
+            sampleRate: sampleRate,
+          );
+        }
+        engine.loadBuffer(id, buffer);
+      case UnloadBufferMessage(:final id):
+        engine.unloadBuffer(id);
       case RenderBlocksMessage(:final count, :final replyPort):
         final numChannels = engine.numChannels;
         final totalBlocks = <Float32List>[];
@@ -418,6 +456,7 @@ class IsolateAudioHost._({
       StreamController<AudioPlaybackError>.broadcast();
   final TelemetryRegistry _telemetry = TelemetryRegistry();
   GraphSnapshot _currentSnapshot = .empty;
+  int _nextBufferId = 1;
   bool _isDisposed = false;
   bool _isPlaying = false;
   int _playbackSession = 0;
@@ -526,6 +565,38 @@ class IsolateAudioHost._({
   @override
   TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node) =>
       _telemetry.channelFor(_currentSnapshot, node);
+
+  @override
+  BufferHandle loadBuffer(AudioBuffer buffer) {
+    if (_isDisposed) {
+      throw StateError('Cannot loadBuffer on a disposed AudioHost.');
+    }
+    final id = BufferId(_nextBufferId++);
+    final transferable = buffer.length > 0
+        ? TransferableTypedData.fromList(buffer.channels)
+        : null;
+    _engineSendPort.send(
+      LoadBufferMessage(
+        id: id,
+        sampleRate: buffer.sampleRate,
+        numChannels: buffer.numChannels,
+        length: buffer.length,
+        data: transferable,
+      ),
+    );
+    return BufferHandle(
+      id: id,
+      sampleRate: buffer.sampleRate,
+      numChannels: buffer.numChannels,
+      length: buffer.length,
+    );
+  }
+
+  @override
+  void unloadBuffer(BufferHandle handle) {
+    if (_isDisposed) return;
+    _engineSendPort.send(UnloadBufferMessage(handle.id));
+  }
 
   @override
   Future<List<Float32List>> renderBlocks(int count) async {

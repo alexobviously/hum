@@ -55,6 +55,18 @@ abstract class const AudioHost() {
   /// [setGraph] updates as long as `GraphDiff` retains the underlying node.
   TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node);
 
+  /// Registers [buffer] with the underlying [AudioEngine] and returns a
+  /// lightweight [BufferHandle] for use in audio nodes (e.g. [SamplePlayer]).
+  ///
+  /// Synchronous and FIFO-ordered with [setGraph]: the returned handle can be
+  /// used in a graph immediately.
+  BufferHandle loadBuffer(AudioBuffer buffer);
+
+  /// Removes the buffer referenced by [handle] from the [AudioEngine].
+  ///
+  /// Active nodes still referencing [handle] fall back to silence safely.
+  void unloadBuffer(BufferHandle handle);
+
   /// Renders [count] blocks of audio and returns the resulting channel buffers.
   Future<List<Float32List>> renderBlocks(int count);
 

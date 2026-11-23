@@ -69,9 +69,13 @@ class const GraphSnapshot({
   /// Materializes an executable [AudioPipeline] from this snapshot.
   ///
   /// Allocates physical memory buffers based on [totalSlots] and instantiates
-  /// an [AudioProcessor] for each scheduled node.
-  AudioPipeline toPipeline(ProcessContext context) {
-    final buffers = List.generate(
+  /// an [AudioProcessor] for each scheduled node. If [buffers] is provided,
+  /// any [BufferAwareProcessor]s are bound to it immediately.
+  AudioPipeline toPipeline(
+    ProcessContext context, {
+    Map<BufferId, AudioBuffer>? buffers,
+  }) {
+    final slotBuffers = List.generate(
       totalSlots,
       (_) => Float32List(context.vectorSize),
     );
@@ -80,12 +84,15 @@ class const GraphSnapshot({
     final pipelineSteps = <RenderStep>[];
     for (final step in steps) {
       final processor = step.node.createProcessor();
+      if (buffers != null && processor is BufferAwareProcessor) {
+        processor.bindBuffers((id) => buffers[id]);
+      }
       final inputs = [
         for (final slot in step.inputSlots)
-          slot >= 0 ? buffers[slot] : emptyBuffer,
+          slot >= 0 ? slotBuffers[slot] : emptyBuffer,
       ];
       final outputs = [
-        for (final slot in step.outputSlots) buffers[slot],
+        for (final slot in step.outputSlots) slotBuffers[slot],
       ];
       pipelineSteps.add(
         RenderStep(
@@ -98,7 +105,7 @@ class const GraphSnapshot({
     }
 
     final pipelineOutputs = [
-      for (final slot in outputSlots) buffers[slot],
+      for (final slot in outputSlots) slotBuffers[slot],
     ];
 
     return AudioPipeline(

@@ -3,6 +3,16 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
+/// Reads and decodes a WAV file from disk into a planar [AudioBuffer].
+Future<AudioBuffer> loadWav(String path) async {
+  final bytes = await File(path).readAsBytes();
+  return readWav(bytes);
+}
+
+/// Synchronously reads and decodes a WAV file from disk into a planar
+/// [AudioBuffer].
+AudioBuffer loadWavSync(String path) => readWav(File(path).readAsBytesSync());
+
 /// Writes audio blocks to a WAV file as 16-bit integer PCM or 32-bit float PCM.
 void writeWav(
   String path,

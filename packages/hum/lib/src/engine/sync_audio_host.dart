@@ -15,6 +15,7 @@ class SyncAudioHost({
     onTelemetry: _telemetry.dispatch,
   );
   GraphSnapshot _currentSnapshot = .empty;
+  int _nextBufferId = 1;
   bool _isPlaying = false;
   bool _isDisposed = false;
   int _playbackSession = 0;
@@ -86,6 +87,27 @@ class SyncAudioHost({
   @override
   TelemetryChannel<T>? telemetryOf<T>(TelemetryNode<T> node) =>
       _telemetry.channelFor(_currentSnapshot, node);
+
+  @override
+  BufferHandle loadBuffer(AudioBuffer buffer) {
+    if (_isDisposed) {
+      throw StateError('Cannot loadBuffer on a disposed AudioHost.');
+    }
+    final id = BufferId(_nextBufferId++);
+    _engine.loadBuffer(id, buffer);
+    return BufferHandle(
+      id: id,
+      sampleRate: buffer.sampleRate,
+      numChannels: buffer.numChannels,
+      length: buffer.length,
+    );
+  }
+
+  @override
+  void unloadBuffer(BufferHandle handle) {
+    if (_isDisposed) return;
+    _engine.unloadBuffer(handle.id);
+  }
 
   /// Processes one block of audio synchronously.
   void process() {

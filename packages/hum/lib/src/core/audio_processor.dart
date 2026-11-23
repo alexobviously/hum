@@ -26,3 +26,17 @@ abstract interface class InputAwareProcessor extends AudioProcessor {
   /// Binds the engine's pre-allocated input channel buffers to this processor.
   void bindInputs(List<Float32List> engineInputs);
 }
+
+/// Callback that resolves a [BufferId] to its [AudioBuffer] inside the engine.
+typedef BufferLookup = AudioBuffer? Function(BufferId id);
+
+/// An interface for [AudioProcessor]s that read from host-loaded [AudioBuffer]s
+/// stored in [AudioEngine] (such as [SamplePlayerProcessor]).
+abstract interface class BufferAwareProcessor extends AudioProcessor {
+  /// Binds [lookup] to this processor so it can resolve and cache its
+  /// [AudioBuffer] reference(s).
+  ///
+  /// Called when the processor is installed and whenever buffers are loaded
+  /// or unloaded in the engine.
+  void bindBuffers(BufferLookup lookup);
+}
