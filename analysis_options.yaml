@@ -13,6 +13,7 @@ linter:
     directives_ordering: true
     empty_container_bodies: true
     implicit_call_tearoffs: true
+    initialize_in_field_declaration: true
     library_private_types_in_public_api: false
     noop_primitive_operations: true
     # prefer_const_constructors: true # TODO: there are like 500 of these and there are problems node equality
@@ -26,8 +27,10 @@ linter:
     unnecessary_async: true
     unnecessary_const_in_enum_constructor: true
     unnecessary_lambdas: true
+    unnecessary_primary_constructor_body: true
     unnecessary_to_list_in_spreads: true
     use_null_aware_elements: true
+    use_declaring_parameters: true
     use_super_parameters: true
     use_truncating_division: true
 

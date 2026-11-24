@@ -11,17 +11,14 @@ import 'package:hum/hum.dart';
 /// sends it across the isolate boundary and instantiates [PipedAudioOutputDriver]
 /// directly on the background audio worker isolate.
 class PipedAudioOutput({
-  this._sink,
-  this._process,
+  final IOSink? _sink,
+  final Process? _process,
   final String? executable,
   final List<String> arguments = const [],
   @override required final int numChannels,
   @override required final int vectorSize,
   final WavFormat format = .float32,
 }) extends AudioOutput {
-  final IOSink? _sink;
-  final Process? _process;
-
   /// Creates a [PipedAudioOutput] configured to stream audio into `ffplay`.
   ///
   /// The `ffplay` child process is spawned by [PipedAudioOutputDriver] inside
@@ -126,11 +123,9 @@ class PipedAudioOutputDriver({
   final WavFormat format = .float32,
   final String? executable,
   final List<String> arguments = const [],
-  this._sink,
-  this._process,
+  var IOSink? _sink,
+  var Process? _process,
 }) extends AudioOutputDriver {
-  IOSink? _sink;
-  Process? _process;
   BufferInterleaver? _interleaver;
   final List<Uint8List> _pendingBuffer = [];
   bool _isSpawning = false;

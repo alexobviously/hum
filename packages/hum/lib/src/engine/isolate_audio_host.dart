@@ -305,7 +305,8 @@ void _audioWorkerEntry(
           buffer = AudioBuffer(
             channels: List.generate(
               numChannels,
-              (ch) => Float32List.sublistView(flat, ch * length, (ch + 1) * length),
+              (ch) =>
+                  Float32List.sublistView(flat, ch * length, (ch + 1) * length),
               growable: false,
             ),
             sampleRate: sampleRate,
@@ -443,15 +444,11 @@ void _audioWorkerEntry(
 /// Multi-threaded isolate implementation of [AudioHost].
 class IsolateAudioHost._({
   @override required final ProcessContext context,
-  required this._isolate,
-  required this._engineSendPort,
-  required this._hostReceivePort,
-  required this._hostPortSub,
+  required final Isolate _isolate,
+  required final SendPort _engineSendPort,
+  required final ReceivePort _hostReceivePort,
+  required final StreamSubscription<Object?> _hostPortSub,
 }) extends AudioHost {
-  final Isolate _isolate;
-  final SendPort _engineSendPort;
-  final ReceivePort _hostReceivePort;
-  final StreamSubscription<Object?> _hostPortSub;
   final StreamController<AudioPlaybackError> _errorController =
       StreamController<AudioPlaybackError>.broadcast();
   final TelemetryRegistry _telemetry = TelemetryRegistry();
