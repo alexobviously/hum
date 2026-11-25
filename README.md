@@ -19,6 +19,7 @@ Play with a small flutter web demo [here](https://hum-demo.alxbkr.xyz) if you wa
 * [hum_flutter](https://pub.dev/packages/hum_flutter): Flutter bindings to allow using hum in Flutter applications.
 * [hum_cpal](https://pub.dev/packages/hum_cpal): lite native i/o wrapper using [cpal](https://crates.io/crates/cpal) with ffi bindings.
 * [hum_web](https://pub.dev/packages/hum_web): i/o wrapper for web using AudioWorklet.
+* [hum_codecs](https://pub.dev/packages/hum_codecs): cross-platform compressed audio decoding (MP3, FLAC, Ogg Vorbis, AAC/M4A, ALAC, WAV, AIFF) powered by [Symphonia](https://github.com/pdeljanov/Symphonia) on native and Web Audio `decodeAudioData` on web.
 
 `hum_flutter` delegates to `hum_cpal` or `hum_web` depending on platform, so start there if you want to incorporate hum into your Flutter app.  
 

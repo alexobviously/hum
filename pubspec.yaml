@@ -6,6 +6,7 @@ environment:
 
 workspace:
   - packages/hum
+  - packages/hum_codecs
   - packages/hum_cpal
   - packages/hum_flutter
   - packages/hum_flutter/example

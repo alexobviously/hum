@@ -1,0 +1,27 @@
+[package]
+name = "hum_codecs"
+version = "0.1.0"
+edition = "2024"
+authors = ["Alex Baker"]
+description = "Native audio codecs for Hum powered by Symphonia (Dart FFI)"
+homepage = "https://alxbkr.xyz"
+repository = "https://github.com/alexobviously/hum/tree/main/packages/hum_codecs/rust"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+symphonia = { version = "0.5.4", default-features = false, features = [
+  "mp3",
+  "flac",
+  "ogg",
+  "vorbis",
+  "aac",
+  "isomp4",
+  "alac",
+  "wav",
+  "aiff",
+  "pcm",
+] }

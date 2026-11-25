@@ -3,5 +3,6 @@
 .dart_tool/
 .DS_Store
 build/
+**/rust/target/
 
 tmp/

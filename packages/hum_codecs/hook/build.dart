@@ -1,0 +1,14 @@
+import 'package:code_assets/code_assets.dart';
+import 'package:hooks/hooks.dart';
+import 'package:native_toolchain_rust/native_toolchain_rust.dart';
+
+void main(List<String> args) async {
+  await build(args, (input, output) async {
+    // Skip cargo compilation on Web builds (which use Web Audio decodeAudioData).
+    if (!input.config.buildCodeAssets) return;
+
+    await RustBuilder(
+      assetName: 'src/codec_bindings.dart',
+    ).run(input: input, output: output);
+  });
+}
