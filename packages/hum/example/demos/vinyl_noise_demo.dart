@@ -9,7 +9,7 @@ void main(List<String> args) => runDemo(
   bars: 2,
   description: 'Vinyl crackle and warp on top of a Rhodes-like chord',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     final chord = Note.parse('D3').maj9Chord;
     final oscs = [
       for (final f in chord.hz) SineOscillator(frequency: .value(f)),

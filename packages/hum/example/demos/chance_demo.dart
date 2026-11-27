@@ -18,7 +18,7 @@ void main(List<String> args) => runDemo(
   description:
       'Bernoulli Gate (Chance): 16th-note clock probabilistically routed to hi-hat (A) and cowbell (B)',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // 1. Master clock running at steady 16th notes
     final clock = Clock(
       frequency: .value(1 / tempo.sixteenth),

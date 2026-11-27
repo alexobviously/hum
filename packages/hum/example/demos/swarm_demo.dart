@@ -8,7 +8,7 @@ void main(List<String> args) => runDemo(
   bars: 2,
   description: 'bzzzzz',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     final lfo = SineOscillator(frequency: .value(0.2))
         .mapRange(noteToHz('A3'), noteToHz('C3'));
     final swarm = Swarm.square(frequency: .signal(lfo.outlet), voices: 20);

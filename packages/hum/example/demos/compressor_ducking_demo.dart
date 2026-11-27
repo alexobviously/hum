@@ -14,7 +14,7 @@ void main(List<String> args) => runDemo(
   bars: 4,
   description: 'Four-on-the-floor kick ducking an acid synth bassline via sidechain compression.',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // 1. Kick Drum Synthesizer: 4-on-the-floor (quarter notes)
     final kickClock = Clock(
       frequency: .value(1 / tempo.beat),

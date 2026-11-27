@@ -22,7 +22,7 @@ void main(List<String> args) => runDemo(
   description:
       'Track & Hold (Tah): Glide-and-hold rhythmic pitch modulation + audio-rate formant waveshaper',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // 1. Rhythmic Gate: 8th-note clock with 40% duty cycle (tracks for 40%, holds for 60%)
     final rhythmicGate = Clock(
       frequency: .value(tempo.frequencyOf(NoteValue.eighth)),

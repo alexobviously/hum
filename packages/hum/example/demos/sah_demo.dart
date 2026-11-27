@@ -22,7 +22,7 @@ void main(List<String> args) => runDemo(
   description:
       'Generative modular synth: dual-channel S&H + dynamic slew (portamento glide) -> delay -> Freeverb',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     final totalDurationSeconds = 8.0 * tempo.bar;
 
     // 1. Clock / Trigger: 16th-note pulse train driving both S&H and ADSR

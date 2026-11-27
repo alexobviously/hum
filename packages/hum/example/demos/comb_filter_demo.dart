@@ -18,7 +18,7 @@ void main(List<String> args) => runDemo(
   description:
       'Physical modeling string melody: noise impulse burst into tuned resonant CombFilter',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // 1. Master clock at 16th notes
     final clock = Clock(
       frequency: .value(1 / tempo.sixteenth),

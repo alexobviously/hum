@@ -38,7 +38,7 @@ void main(List<String> args) => runDemo(
   bars: 4,
   description: '168 BPM jungle breakbeat with Reese + 808 sub bassline, chopped snare rolls, and dynamic hat chokes.',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // Master 16th-note clock at 168 BPM
     final clock = Clock(
       frequency: .value(1 / tempo.sixteenth),

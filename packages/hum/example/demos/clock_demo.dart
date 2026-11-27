@@ -11,7 +11,7 @@ void main(List<String> args) => runDemo(
   description:
       'Clock synchronization: BPM clock -> ADSR envelope -> FM synths -> Bitcrusher -> Delay',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     final clock = Clock.bpm(tempo.bpm);
     final adsr = Adsr(gate: clock.gate, attack: const .value(0.1));
 

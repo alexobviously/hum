@@ -9,7 +9,7 @@ void main(List<String> args) => runDemo(
   description:
       'Acid bassline step sequencer with portamento glide and stereo delay.',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // Clock running at 16th notes with 50% duty cycle
     final clock = Clock(
       frequency: .value(1 / tempo.sixteenth),

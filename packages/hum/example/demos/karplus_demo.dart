@@ -11,7 +11,7 @@ void main(List<String> args) => runDemo(
   description:
       'Karplus-Strong plucked string physical modeling -> Bitcrusher -> Freeverb',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     final clock = Clock.bpm(tempo.bpm);
     final note = Note.parse('C4');
 

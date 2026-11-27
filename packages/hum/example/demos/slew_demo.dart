@@ -20,7 +20,7 @@ void main(List<String> args) => runDemo(
   description:
       'Slew/Portamento: Alternating 2-octave lead cycling through 4 stages of glide times',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // 1. Note Clock: 2 notes per second (120 BPM quarter notes)
     // Gate stays high for 80% of the note (0.4s note, 0.1s space)
     final noteClock = Clock(

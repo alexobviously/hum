@@ -48,6 +48,7 @@ export 'src/nodes/io/in.dart';
 export 'src/nodes/io/out.dart';
 export 'src/nodes/io/wav_sink.dart';
 export 'src/nodes/modulation/adsr.dart';
+export 'src/nodes/modulation/branch.dart';
 export 'src/nodes/modulation/chance.dart';
 export 'src/nodes/modulation/clock.dart';
 export 'src/nodes/modulation/decay.dart';

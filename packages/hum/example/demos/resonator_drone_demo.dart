@@ -10,7 +10,7 @@ void main(List<String> args) => runDemo(
   description:
       'Ambient acoustic drone: brown noise -> ResonatorBank modal chord',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     final noise = NoiseGenerator(type: .brown);
 
     final driftLfo = SineOscillator(

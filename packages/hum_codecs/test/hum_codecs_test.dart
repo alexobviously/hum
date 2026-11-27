@@ -20,33 +20,38 @@ bool _hasFfmpeg() {
 
 void main() {
   group('hum_codecs (native Symphonia)', () {
-    test('decodes stereo float32 and pcm16 WAV synchronously and asynchronously', () async {
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
-      final host = SyncAudioHost(context: context);
-      final oscL = SineOscillator(frequency: const .value(440.0));
-      final oscR = SineOscillator(frequency: const .value(880.0));
-      host.setGraph(root: Out.stereo(left: oscL.outlet, right: oscR.outlet));
+    test(
+      'decodes stereo float32 and pcm16 WAV synchronously and asynchronously',
+      () async {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+        final host = SyncAudioHost(context: context);
+        final oscL = SineOscillator(frequency: const .value(440.0));
+        final oscR = SineOscillator(frequency: const .value(880.0));
+        host.setGraph(
+          root: Out.stereo(left: oscL.outlet, right: oscR.outlet),
+        );
 
-      final wavBytes = await host.exportWav(
-        duration: const Duration(milliseconds: 20),
-        format: .pcm16,
-      );
-      await host.dispose();
+        final wavBytes = await host.exportWav(
+          duration: const Duration(milliseconds: 20),
+          format: .pcm16,
+        );
+        await host.dispose();
 
-      final reference = readWav(wavBytes);
-      final syncDecoded = decodeAudioSync(wavBytes, hint: 'wav');
-      final asyncDecoded = await decodeAudio(wavBytes, hint: 'wav');
+        final reference = readWav(wavBytes);
+        final syncDecoded = decodeAudioSync(wavBytes, hint: 'wav');
+        final asyncDecoded = await decodeAudio(wavBytes, hint: 'wav');
 
-      for (final decoded in [syncDecoded, asyncDecoded]) {
-        expect(decoded.sampleRate, equals(48000));
-        expect(decoded.numChannels, equals(2));
-        expect(decoded.length, equals(reference.length));
-        for (int i = 0; i < 64; i++) {
-          expect(decoded[0][i], closeTo(reference[0][i], 1e-4));
-          expect(decoded[1][i], closeTo(reference[1][i], 1e-4));
+        for (final decoded in [syncDecoded, asyncDecoded]) {
+          expect(decoded.sampleRate, equals(48000));
+          expect(decoded.numChannels, equals(2));
+          expect(decoded.length, equals(reference.length));
+          for (int i = 0; i < 64; i++) {
+            expect(decoded[0][i], closeTo(reference[0][i], 1e-4));
+            expect(decoded[1][i], closeTo(reference[1][i], 1e-4));
+          }
         }
-      }
-    });
+      },
+    );
 
     test('decodes compressed MP3, FLAC, and Ogg Vorbis files and plays via SamplePlayer', () async {
       if (!_hasFfmpeg()) {
@@ -113,13 +118,13 @@ void main() {
     test('throws FormatException on empty or invalid bytes', () async {
       expect(() => decodeAudioSync(Uint8List(0)), throwsFormatException);
       expect(
-        () => decodeAudioSync(Uint8List.fromList('not audio'.codeUnits), hint: 'mp3'),
+        () => decodeAudioSync(
+          Uint8List.fromList('not audio'.codeUnits),
+          hint: 'mp3',
+        ),
         throwsFormatException,
       );
-      await expectLater(
-        decodeAudio(Uint8List(0)),
-        throwsFormatException,
-      );
+      await expectLater(decodeAudio(Uint8List(0)), throwsFormatException);
       await expectLater(
         decodeAudio(Uint8List.fromList('not audio'.codeUnits)),
         throwsFormatException,

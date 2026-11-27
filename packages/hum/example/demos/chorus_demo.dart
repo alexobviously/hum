@@ -14,7 +14,7 @@ void main(List<String> args) => runDemo(
   description:
       '80s Synthwave lead transformed by Chorus.toStereo into a lush Juno-106 style pad',
   args: args,
-  builder: (context, tempo) {
+  builder: (context, tempo, _) {
     // 1. 16th-note clock
     final clock = Clock(
       frequency: .value(1 / tempo.sixteenth),

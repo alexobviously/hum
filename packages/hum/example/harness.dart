@@ -10,7 +10,8 @@ import 'package:hum/io.dart';
 ///
 /// Can return a [TerminalNode] (such as [Out] or [WavSink]), an [AudioNode],
 /// an [Outlet], or a `List<Outlet>`.
-typedef DemoBuilder = Object Function(ProcessContext context, Tempo tempo);
+typedef DemoBuilder =
+    Object Function(ProcessContext context, Tempo tempo, ArgResults args);
 
 /// Supported real-time audio playback engines.
 /// Auto checks what you have in path.
@@ -30,6 +31,7 @@ class const DemoOptions({
   final int? sampleRate,
   final int? vectorSize,
   final bool help = false,
+  final ArgResults? rawArgs,
 }) {
   /// Parses CLI arguments using [ArgParser].
   factory parse(
@@ -40,6 +42,7 @@ class const DemoOptions({
     required int defaultSr,
     required int defaultVs,
     String? description,
+    void Function(ArgParser parser)? configureArgs,
   }) {
     final parser = ArgParser()
       ..addFlag(
@@ -107,6 +110,8 @@ class const DemoOptions({
         help: 'Show this help information',
       );
 
+    configureArgs?.call(parser);
+
     final ArgResults results;
     try {
       results = parser.parse(args);
@@ -154,6 +159,7 @@ class const DemoOptions({
       sampleRate: int.tryParse(results.option('sr') ?? ''),
       vectorSize: int.tryParse(results.option('vs') ?? ''),
       help: false,
+      rawArgs: results,
     );
   }
 
@@ -171,6 +177,7 @@ Future<void> runDemo({
   int vectorSize = 64,
   List<String> args = const [],
   String? description,
+  void Function(ArgParser parser)? configureArgs,
 }) async {
   final options = DemoOptions.parse(
     args,
@@ -180,6 +187,7 @@ Future<void> runDemo({
     defaultSr: sampleRate,
     defaultVs: vectorSize,
     description: description,
+    configureArgs: configureArgs,
   );
 
   if (options.help) return;
@@ -196,7 +204,7 @@ Future<void> runDemo({
     vectorSize: effectiveVs,
   );
 
-  final rawResult = builder(context, effectiveTempo);
+  final rawResult = builder(context, effectiveTempo, options.rawArgs!);
   final terminal = _resolveTerminal(rawResult);
 
   if (options.bench) {
