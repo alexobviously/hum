@@ -68,6 +68,7 @@ void main(List<String> args) => runDemo(
     final mix = Sum(
       inputs: [sineVoice.outlet, squareVoice.outlet, sawVoice.outlet],
     );
+
     return Mult.mono(input: mix.outlet, value: const .value(0.5));
   },
 );

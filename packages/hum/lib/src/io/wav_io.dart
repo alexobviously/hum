@@ -85,7 +85,8 @@ extension AudioHostWavExport on AudioHost {
       numChannels: numChannels,
       vectorSize: vectorSize,
     );
-    final builder = BytesBuilder(copy: false);
+    // Must copy: `interleaver` reuses a single scratch buffer across blocks.
+    final builder = BytesBuilder();
 
     if (this case final SyncAudioHost syncHost) {
       for (int i = 0; i < totalBlocks; i++) {

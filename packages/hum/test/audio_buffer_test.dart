@@ -188,6 +188,36 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('exportWav preserves distinct blocks instead of repeating the last block', () async {
+      const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+
+      for (final useIsolate in [false, true]) {
+        final host = useIsolate
+            ? await IsolateAudioHost.spawn(context: context)
+            : SyncAudioHost(context: context);
+        try {
+          // 100 Hz sine wave: period is 480 samples (7.5 blocks), so consecutive
+          // 64-sample blocks must differ markedly.
+          final osc = SineOscillator(frequency: const .value(100.0));
+          host.setGraph(root: Out.mono(osc.outlet));
+
+          final bytes = await host.exportWav(
+            duration: const Duration(milliseconds: 10),
+            format: .float32,
+          );
+          final buf = readWav(bytes);
+          expect(buf.length, greaterThanOrEqualTo(256));
+
+          // Block 0 starts near 0.0; block 2 (sample 128) is near +1.0.
+          expect(buf[0][0], closeTo(0.0, 0.05));
+          expect(buf[0][120], closeTo(1.0, 0.05));
+          expect(buf[0][0], isNot(closeTo(buf[0][64], 0.1)));
+        } finally {
+          await host.dispose();
+        }
+      }
+    });
   });
 
   group('SamplePlayer & Buffer Registry', () {

@@ -1,0 +1,1 @@
+Samples lovingly taken from https://github.com/crabacus/the-open-source-drumkit
