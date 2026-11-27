@@ -42,11 +42,16 @@ pub fn decode_audio(
         }
     }
 
+    let format_opts = FormatOptions {
+        enable_gapless: true,
+        ..Default::default()
+    };
+
     let probed = symphonia::default::get_probe()
         .format(
             &probe_hint,
             mss,
-            &FormatOptions::default(),
+            &format_opts,
             &MetadataOptions::default(),
         )
         .map_err(|e| format!("Failed to probe audio format: {e}"))?;

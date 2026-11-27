@@ -20,6 +20,8 @@ Cross-platform compressed audio decoding for [`hum`](https://pub.dev/packages/hu
 | **AIFF** | `.aif`, `.aiff` | Yes | Safari (varies by browser) |
 | **Opus** | `.opus`, `.webm`, `.ogg` | Planned | Yes (modern browsers) |
 
+Gapless trimming of encoder delay and padding (MP3 LAME/Xing, AAC/MP4, Ogg Vorbis) is enabled automatically on both native (via Symphonia's `enable_gapless`) and Web (browser default), keeping drum one-shots and loops sample-accurate.
+
 ## Usage
 
 ### Cross-platform (Desktop, Mobile, and Web)

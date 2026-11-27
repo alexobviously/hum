@@ -4,6 +4,9 @@ import 'package:hum/hum.dart';
 import 'package:hum/io.dart';
 import 'package:hum_codecs/native.dart';
 
+// The point of this demo is that it loads a few audio files in various formats.
+// Builds a randomised drum pattern.
+
 Future<void> main() async {
   final sr = 44100, vs = 64, tempo = Tempo(140);
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
