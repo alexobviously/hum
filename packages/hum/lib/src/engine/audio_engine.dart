@@ -7,8 +7,11 @@ import 'package:hum/hum.dart';
 ///
 /// [meta] contains [count] consecutive `(nodeId, offset, length)` triples
 /// indexing into the flat [data] buffer.
-typedef TelemetryFlushCallback =
-    void Function(Int32List meta, Float32List data, int count);
+typedef TelemetryFlushCallback = void Function(
+  Int32List meta,
+  Float32List data,
+  int count,
+);
 
 typedef _TelemetryEmitterSlot = ({
   int nodeId,

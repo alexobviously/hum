@@ -114,72 +114,82 @@ void main() {
   });
 
   group('readWav / loadWav', () {
-    test('round-trips float32 and pcm16 WAV via exportWav and loadWav', () async {
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
-      final host = SyncAudioHost(context: context);
-      final oscL = SineOscillator(frequency: const .value(440.0));
-      final oscR = SineOscillator(frequency: const .value(880.0));
-      host.setGraph(root: Out.stereo(left: oscL.outlet, right: oscR.outlet));
-
-      final floatBytes = await host.exportWav(
-        duration: const Duration(milliseconds: 10),
-        format: .float32,
-      );
-      final floatBuf = readWav(floatBytes);
-      expect(floatBuf.sampleRate, equals(48000));
-      expect(floatBuf.numChannels, equals(2));
-      expect(floatBuf.length, greaterThanOrEqualTo(480));
-
-      final tmpDir = await Directory.systemTemp.createTemp('hum_wav_test_');
-      try {
-        final path = '${tmpDir.path}/test_pcm16.wav';
-        final host2 = SyncAudioHost(context: context);
-        final oscL2 = SineOscillator(frequency: const .value(440.0));
-        final oscR2 = SineOscillator(frequency: const .value(880.0));
-        host2.setGraph(root: Out.stereo(left: oscL2.outlet, right: oscR2.outlet));
-        await host2.exportWav(
-          path: path,
-          duration: const Duration(milliseconds: 10),
-          format: .pcm16,
+    test(
+      'round-trips float32 and pcm16 WAV via exportWav and loadWav',
+      () async {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+        final host = SyncAudioHost(context: context);
+        final oscL = SineOscillator(frequency: const .value(440.0));
+        final oscR = SineOscillator(frequency: const .value(880.0));
+        host.setGraph(
+          root: Out.stereo(left: oscL.outlet, right: oscR.outlet),
         );
-        await host2.dispose();
-        final diskBuf = await loadWav(path);
-        expect(diskBuf.sampleRate, equals(48000));
-        expect(diskBuf.numChannels, equals(2));
-        expect(diskBuf.length, equals(floatBuf.length));
-        for (int i = 0; i < 64; i++) {
-          expect(diskBuf[0][i], closeTo(floatBuf[0][i], 1e-3));
-          expect(diskBuf[1][i], closeTo(floatBuf[1][i], 1e-3));
+
+        final floatBytes = await host.exportWav(
+          duration: const Duration(milliseconds: 10),
+          format: .float32,
+        );
+        final floatBuf = readWav(floatBytes);
+        expect(floatBuf.sampleRate, equals(48000));
+        expect(floatBuf.numChannels, equals(2));
+        expect(floatBuf.length, greaterThanOrEqualTo(480));
+
+        final tmpDir = await Directory.systemTemp.createTemp('hum_wav_test_');
+        try {
+          final path = '${tmpDir.path}/test_pcm16.wav';
+          final host2 = SyncAudioHost(context: context);
+          final oscL2 = SineOscillator(frequency: const .value(440.0));
+          final oscR2 = SineOscillator(frequency: const .value(880.0));
+          host2.setGraph(
+            root: Out.stereo(left: oscL2.outlet, right: oscR2.outlet),
+          );
+          await host2.exportWav(
+            path: path,
+            duration: const Duration(milliseconds: 10),
+            format: .pcm16,
+          );
+          await host2.dispose();
+          final diskBuf = await loadWav(path);
+          expect(diskBuf.sampleRate, equals(48000));
+          expect(diskBuf.numChannels, equals(2));
+          expect(diskBuf.length, equals(floatBuf.length));
+          for (int i = 0; i < 64; i++) {
+            expect(diskBuf[0][i], closeTo(floatBuf[0][i], 1e-3));
+            expect(diskBuf[1][i], closeTo(floatBuf[1][i], 1e-3));
+          }
+        } finally {
+          await tmpDir.delete(recursive: true);
         }
-      } finally {
-        await tmpDir.delete(recursive: true);
-      }
 
-      await host.dispose();
-    });
+        await host.dispose();
+      },
+    );
 
-    test('decodes 24-bit PCM with odd-sized JUNK chunk and WAVE_FORMAT_EXTENSIBLE', () {
-      // 2 frames mono: +0.5 (0x400000) and -0.5 (0xC00000).
-      final pcm24 = Uint8List.fromList([
-        0x00, 0x00, 0x40, // +0.5
-        0x00, 0x00, 0xC0, // -0.5
-      ]);
-      final wav = _buildCustomWav(
-        formatTag: 1,
-        numChannels: 1,
-        sampleRate: 44100,
-        bitsPerSample: 24,
-        pcmBytes: pcm24,
-        includeJunkChunk: true,
-        extensible: true,
-      );
-      final buf = readWav(wav);
-      expect(buf.sampleRate, equals(44100));
-      expect(buf.numChannels, equals(1));
-      expect(buf.length, equals(2));
-      expect(buf[0][0], closeTo(0.5, 1e-5));
-      expect(buf[0][1], closeTo(-0.5, 1e-5));
-    });
+    test(
+      'decodes 24-bit PCM with odd-sized JUNK chunk and WAVE_FORMAT_EXTENSIBLE',
+      () {
+        // 2 frames mono: +0.5 (0x400000) and -0.5 (0xC00000).
+        final pcm24 = Uint8List.fromList([
+          0x00, 0x00, 0x40, // +0.5
+          0x00, 0x00, 0xC0, // -0.5
+        ]);
+        final wav = _buildCustomWav(
+          formatTag: 1,
+          numChannels: 1,
+          sampleRate: 44100,
+          bitsPerSample: 24,
+          pcmBytes: pcm24,
+          includeJunkChunk: true,
+          extensible: true,
+        );
+        final buf = readWav(wav);
+        expect(buf.sampleRate, equals(44100));
+        expect(buf.numChannels, equals(1));
+        expect(buf.length, equals(2));
+        expect(buf[0][0], closeTo(0.5, 1e-5));
+        expect(buf[0][1], closeTo(-0.5, 1e-5));
+      },
+    );
 
     test('throws FormatException on invalid WAV bytes', () {
       expect(() => readWav(Uint8List(4)), throwsFormatException);
@@ -189,35 +199,38 @@ void main() {
       );
     });
 
-    test('exportWav preserves distinct blocks instead of repeating the last block', () async {
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+    test(
+      'exportWav preserves distinct blocks instead of repeating the last block',
+      () async {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
 
-      for (final useIsolate in [false, true]) {
-        final host = useIsolate
-            ? await IsolateAudioHost.spawn(context: context)
-            : SyncAudioHost(context: context);
-        try {
-          // 100 Hz sine wave: period is 480 samples (7.5 blocks), so consecutive
-          // 64-sample blocks must differ markedly.
-          final osc = SineOscillator(frequency: const .value(100.0));
-          host.setGraph(root: Out.mono(osc.outlet));
+        for (final useIsolate in [false, true]) {
+          final host = useIsolate
+              ? await IsolateAudioHost.spawn(context: context)
+              : SyncAudioHost(context: context);
+          try {
+            // 100 Hz sine wave: period is 480 samples (7.5 blocks), so consecutive
+            // 64-sample blocks must differ markedly.
+            final osc = SineOscillator(frequency: const .value(100.0));
+            host.setGraph(root: Out.mono(osc.outlet));
 
-          final bytes = await host.exportWav(
-            duration: const Duration(milliseconds: 10),
-            format: .float32,
-          );
-          final buf = readWav(bytes);
-          expect(buf.length, greaterThanOrEqualTo(256));
+            final bytes = await host.exportWav(
+              duration: const Duration(milliseconds: 10),
+              format: .float32,
+            );
+            final buf = readWav(bytes);
+            expect(buf.length, greaterThanOrEqualTo(256));
 
-          // Block 0 starts near 0.0; block 2 (sample 128) is near +1.0.
-          expect(buf[0][0], closeTo(0.0, 0.05));
-          expect(buf[0][120], closeTo(1.0, 0.05));
-          expect(buf[0][0], isNot(closeTo(buf[0][64], 0.1)));
-        } finally {
-          await host.dispose();
+            // Block 0 starts near 0.0; block 2 (sample 128) is near +1.0.
+            expect(buf[0][0], closeTo(0.0, 0.05));
+            expect(buf[0][120], closeTo(1.0, 0.05));
+            expect(buf[0][0], isNot(closeTo(buf[0][64], 0.1)));
+          } finally {
+            await host.dispose();
+          }
         }
-      }
-    });
+      },
+    );
   });
 
   group('SamplePlayer & Buffer Registry', () {
@@ -247,83 +260,95 @@ void main() {
       await host.dispose();
     });
 
-    test('loops seamlessly within [loopStart, loopEnd) and supports reverse rate', () async {
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 16);
-      final host = SyncAudioHost(context: context);
+    test(
+      'loops seamlessly within [loopStart, loopEnd) and supports reverse rate',
+      () async {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 16);
+        final host = SyncAudioHost(context: context);
 
-      // Buffer: [0.0, 0.25, 0.5, 0.75, 1.0, 0.0]
-      final handle = host.loadBuffer(
-        AudioBuffer.mono(
-          Float32List.fromList([0.0, 0.25, 0.5, 0.75, 1.0, 0.0]),
-          sampleRate: 48000,
-        ),
-      );
+        // Buffer: [0.0, 0.25, 0.5, 0.75, 1.0, 0.0]
+        final handle = host.loadBuffer(
+          AudioBuffer.mono(
+            Float32List.fromList([0.0, 0.25, 0.5, 0.75, 1.0, 0.0]),
+            sampleRate: 48000,
+          ),
+        );
 
-      final player = SamplePlayer(
-        buffer: handle,
-        loop: true,
-        loopStart: 1,
-        loopEnd: 5, // [0.25, 0.5, 0.75, 1.0]
-      );
-      expect(host.setGraph(root: Out.mono(player.outlet)), isEmpty);
+        final player = SamplePlayer(
+          buffer: handle,
+          loop: true,
+          loopStart: 1,
+          loopEnd: 5, // [0.25, 0.5, 0.75, 1.0]
+        );
+        expect(host.setGraph(root: Out.mono(player.outlet)), isEmpty);
 
-      final blocks = await host.renderBlocks(1);
-      final out = blocks[0];
-      final expected = [0.25, 0.5, 0.75, 1.0];
-      for (int i = 0; i < 16; i++) {
-        expect(out[i], closeTo(expected[i % 4], 1e-5));
-      }
+        final blocks = await host.renderBlocks(1);
+        final out = blocks[0];
+        final expected = [0.25, 0.5, 0.75, 1.0];
+        for (int i = 0; i < 16; i++) {
+          expect(out[i], closeTo(expected[i % 4], 1e-5));
+        }
 
-      // Switch to reverse playback (-1.0) in-place.
-      host.update(player, (
-        bufferId: null,
-        rate: -1.0,
-        loop: true,
-        loopStart: 1,
-        loopEnd: 5,
-      ));
-      final revBlocks = await host.renderBlocks(1);
-      // Should walk backwards through [0.25, 0.5, 0.75, 1.0].
-      expect(revBlocks[0][1], isNot(equals(revBlocks[0][0])));
+        // Switch to reverse playback (-1.0) in-place.
+        host.update(player, (
+          bufferId: null,
+          rate: -1.0,
+          loop: true,
+          loopStart: 1,
+          loopEnd: 5,
+        ));
+        final revBlocks = await host.renderBlocks(1);
+        // Should walk backwards through [0.25, 0.5, 0.75, 1.0].
+        expect(revBlocks[0][1], isNot(equals(revBlocks[0][0])));
 
-      await host.dispose();
-    });
+        await host.dispose();
+      },
+    );
 
-    test('compensates automatically for buffer sampleRate vs context sampleRate', () async {
-      // Buffer at 24 kHz played in a 48 kHz engine should step 0.5 frames/sample.
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 16);
-      final host = SyncAudioHost(context: context);
+    test(
+      'compensates automatically for buffer sampleRate vs context sampleRate',
+      () async {
+        // Buffer at 24 kHz played in a 48 kHz engine should step 0.5 frames/sample.
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 16);
+        final host = SyncAudioHost(context: context);
 
-      // 24 kHz sine at 1000 Hz -> period 24 samples.
-      final bufSamples = Float32List(240);
-      for (int i = 0; i < bufSamples.length; i++) {
-        bufSamples[i] = math.sin(2.0 * math.pi * 1000.0 * i / 24000.0);
-      }
-      final handle = host.loadBuffer(
-        AudioBuffer.mono(bufSamples, sampleRate: 24000),
-      );
+        // 24 kHz sine at 1000 Hz -> period 24 samples.
+        final bufSamples = Float32List(240);
+        for (int i = 0; i < bufSamples.length; i++) {
+          bufSamples[i] = math.sin(2.0 * math.pi * 1000.0 * i / 24000.0);
+        }
+        final handle = host.loadBuffer(
+          AudioBuffer.mono(bufSamples, sampleRate: 24000),
+        );
 
-      final player = SamplePlayer(buffer: handle, loop: true);
-      expect(host.setGraph(root: Out.mono(player.outlet)), isEmpty);
+        final player = SamplePlayer(buffer: handle, loop: true);
+        expect(host.setGraph(root: Out.mono(player.outlet)), isEmpty);
 
-      final blocks = await host.renderBlocks(2);
-      // At 48 kHz, sample 12 should be ~sin(2*pi*1000*12/48000) = sin(pi/2) = 1.0.
-      expect(blocks[0][12], closeTo(1.0, 0.01));
-      // Sample 24 (block 1 index 8) should be ~sin(pi) = 0.0.
-      expect(blocks[1][8], closeTo(0.0, 0.01));
+        final blocks = await host.renderBlocks(2);
+        // At 48 kHz, sample 12 should be ~sin(2*pi*1000*12/48000) = sin(pi/2) = 1.0.
+        expect(blocks[0][12], closeTo(1.0, 0.01));
+        // Sample 24 (block 1 index 8) should be ~sin(pi) = 0.0.
+        expect(blocks[1][8], closeTo(0.0, 0.01));
 
-      await host.dispose();
-    });
+        await host.dispose();
+      },
+    );
 
     test('retriggers on rising edge and swaps buffer in-place without graph rebuild', () async {
       const context = ProcessContext(sampleRate: 48000, vectorSize: 16);
       final host = SyncAudioHost(context: context);
 
       final bufA = host.loadBuffer(
-        AudioBuffer.mono(Float32List.fromList([0.5, 0.5, 0.5, 0.5]), sampleRate: 48000),
+        AudioBuffer.mono(
+          Float32List.fromList([0.5, 0.5, 0.5, 0.5]),
+          sampleRate: 48000,
+        ),
       );
       final bufB = host.loadBuffer(
-        AudioBuffer.mono(Float32List.fromList([-0.8, -0.8, -0.8, -0.8]), sampleRate: 48000),
+        AudioBuffer.mono(
+          Float32List.fromList([-0.8, -0.8, -0.8, -0.8]),
+          sampleRate: 48000,
+        ),
       );
 
       // Clock fires a 1-sample trigger at sample 0.
@@ -368,7 +393,9 @@ void main() {
 
       final player = SamplePlayer(buffer: handle, loop: true);
       expect(
-        host.setGraph(root: Out.stereo(left: player.left, right: player.right)),
+        host.setGraph(
+          root: Out.stereo(left: player.left, right: player.right),
+        ),
         isEmpty,
       );
 

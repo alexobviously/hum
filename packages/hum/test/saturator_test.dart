@@ -79,7 +79,16 @@ void main() {
         mode: SaturationMode.cubic,
       );
 
-      final inBuf = Float32List.fromList([0.0, 0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 0.0]);
+      final inBuf = Float32List.fromList([
+        0.0,
+        0.5,
+        1.0,
+        2.0,
+        -2.0,
+        -1.0,
+        -0.5,
+        0.0,
+      ]);
       final outBuf = Float32List(8);
 
       processor.process(context, _inlets(inBuf), [outBuf]);

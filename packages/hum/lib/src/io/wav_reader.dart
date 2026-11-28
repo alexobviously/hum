@@ -49,7 +49,9 @@ AudioBuffer readWav(Uint8List bytes) {
       // of the 16-byte SubFormat GUID at chunkDataOffset + 24.
       if (formatTag == 0xFFFE) {
         if (chunkSize < 40 || chunkDataOffset + 26 > bytes.lengthInBytes) {
-          throw const FormatException('Truncated WAVE_FORMAT_EXTENSIBLE chunk.');
+          throw const FormatException(
+            'Truncated WAVE_FORMAT_EXTENSIBLE chunk.',
+          );
         }
         formatTag = view.getUint16(chunkDataOffset + 24, Endian.little);
       }

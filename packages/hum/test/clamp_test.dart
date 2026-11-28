@@ -43,7 +43,16 @@ void main() {
         max: 0.5,
       );
 
-      final inBuf = Float32List.fromList([-1.2, -0.5, 0.0, 0.5, 1.2, -2.0, 2.0, 0.2]);
+      final inBuf = Float32List.fromList([
+        -1.2,
+        -0.5,
+        0.0,
+        0.5,
+        1.2,
+        -2.0,
+        2.0,
+        0.2,
+      ]);
       final outBuf = Float32List(8);
 
       processor.process(

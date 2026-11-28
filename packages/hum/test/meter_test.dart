@@ -111,31 +111,34 @@ void main() {
       expect(telemetry[1], equals(0.0));
     });
 
-    test('works as a side-tap root via setGraph(roots: [out, meter])', () async {
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
-      final host = SyncAudioHost(
-        context: context,
-        telemetryInterval: const Duration(milliseconds: 10),
-      );
+    test(
+      'works as a side-tap root via setGraph(roots: [out, meter])',
+      () async {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+        final host = SyncAudioHost(
+          context: context,
+          telemetryInterval: const Duration(milliseconds: 10),
+        );
 
-      final osc = SineOscillator(frequency: const .value(440.0));
-      final out = Out.mono(osc.outlet);
-      final tap = Meter.mono(input: osc.outlet);
+        final osc = SineOscillator(frequency: const .value(440.0));
+        final out = Out.mono(osc.outlet);
+        final tap = Meter.mono(input: osc.outlet);
 
-      expect(host.setGraph(roots: [out, tap]), isEmpty);
-      final channel = host.telemetryOf(tap)!;
+        expect(host.setGraph(roots: [out, tap]), isEmpty);
+        final channel = host.telemetryOf(tap)!;
 
-      await host.renderBlocks(40);
-      expect(channel.latest, isNotNull);
-      expect(channel.latest!.peak, closeTo(1.0, 0.02));
+        await host.renderBlocks(40);
+        expect(channel.latest, isNotNull);
+        expect(channel.latest!.peak, closeTo(1.0, 0.02));
 
-      // Unplug the side-tap without rewiring `osc -> out`.
-      expect(host.setGraph(root: out), isEmpty);
-      await Future<void>.delayed(Duration.zero);
-      expect(channel.isClosed, isTrue);
+        // Unplug the side-tap without rewiring `osc -> out`.
+        expect(host.setGraph(root: out), isEmpty);
+        await Future<void>.delayed(Duration.zero);
+        expect(channel.isClosed, isTrue);
 
-      await host.dispose();
-    });
+        await host.dispose();
+      },
+    );
 
     test('streams MeterReading across IsolateAudioHost', () async {
       const context = ProcessContext(sampleRate: 48000, vectorSize: 64);

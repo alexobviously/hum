@@ -8,8 +8,7 @@ void main(List<String> args) => runDemo(
   name: 'clock_demo',
   tempo: const Tempo(140),
   bars: 4,
-  description:
-      'Clock synchronization: BPM clock -> ADSR envelope -> FM synths -> Bitcrusher -> Delay',
+  description: 'Clock synchronization: BPM clock -> ADSR envelope -> FM synths -> Bitcrusher -> Delay',
   args: args,
   builder: (context, tempo, _) {
     final clock = Clock.bpm(tempo.bpm);
@@ -31,7 +30,10 @@ void main(List<String> args) => runDemo(
     );
     final noise = NoiseGenerator.pink();
     final sawScaled = Mult.mono(value: const .value(0.1), input: saw.outlet);
-    final noiseScaled = Mult.mono(value: const .value(0.25), input: noise.outlet);
+    final noiseScaled = Mult.mono(
+      value: const .value(0.25),
+      input: noise.outlet,
+    );
     final amp = Mult.mono(
       value: .signal(adsr.outlet),
       input: sine.outlet + sawScaled.outlet + noiseScaled.outlet,

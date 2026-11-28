@@ -17,8 +17,7 @@ void main(List<String> args) => runDemo(
   name: 'slew_demo',
   tempo: const Tempo(120),
   bars: 8,
-  description:
-      'Slew/Portamento: Alternating 2-octave lead cycling through 4 stages of glide times',
+  description: 'Slew/Portamento: Alternating 2-octave lead cycling through 4 stages of glide times',
   args: args,
   builder: (context, tempo, _) {
     // 1. Note Clock: 2 notes per second (120 BPM quarter notes)

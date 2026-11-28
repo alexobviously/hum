@@ -82,7 +82,16 @@ void main() {
         // sample 5: clock high (3rd pulse -> step 2)
         // sample 6: clock low
         // sample 7: clock low
-        final clockBuf = Float32List.fromList([1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0]);
+        final clockBuf = Float32List.fromList([
+          1.0,
+          1.0,
+          0.0,
+          1.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+        ]);
         final emptyReset = Float32List(8);
         final cvOut = Float32List(8);
 
@@ -103,7 +112,16 @@ void main() {
         expect(cvOut[7], equals(30.0));
 
         // Block 2: 4th pulse wraps back to step 0 (10.0)
-        final clockBuf2 = Float32List.fromList([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        final clockBuf2 = Float32List.fromList([
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+        ]);
         processor.process(
           context,
           [clockBuf2, emptyReset],
@@ -125,8 +143,26 @@ void main() {
       final context = ProcessContext(sampleRate: 100, vectorSize: 8);
 
       // Advance to step 1 (200.0) on clock pulses
-      final clockBuf = Float32List.fromList([1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
-      final resetBuf = Float32List.fromList([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]);
+      final clockBuf = Float32List.fromList([
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+      ]);
+      final resetBuf = Float32List.fromList([
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+      ]);
       final cvOut = Float32List(8);
 
       processor.process(

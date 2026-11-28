@@ -31,32 +31,35 @@ Uint8List _makeStereoPcm16Wav(int sampleRate, int numFrames) {
 
 void main() {
   group('hum_codecs (browser AudioContext.decodeAudioData)', () {
-    test('decodes stereo WAV into planar AudioBuffer without neutering input', () async {
-      final wavBytes = _makeStereoPcm16Wav(48000, 1024);
-      final originalFirstByte = wavBytes[0];
+    test(
+      'decodes stereo WAV into planar AudioBuffer without neutering input',
+      () async {
+        final wavBytes = _makeStereoPcm16Wav(48000, 1024);
+        final originalFirstByte = wavBytes[0];
 
-      final buffer = await decodeAudio(wavBytes, hint: 'wav');
+        final buffer = await decodeAudio(wavBytes, hint: 'wav');
 
-      // Caller's Uint8List must remain intact (not detached by decodeAudioData).
-      expect(wavBytes.length, equals(44 + 1024 * 4));
-      expect(wavBytes[0], equals(originalFirstByte));
+        // Caller's Uint8List must remain intact (not detached by decodeAudioData).
+        expect(wavBytes.length, equals(44 + 1024 * 4));
+        expect(wavBytes[0], equals(originalFirstByte));
 
-      expect(buffer.numChannels, equals(2));
-      expect(buffer.sampleRate, greaterThan(0));
-      expect(buffer.length, greaterThan(0));
+        expect(buffer.numChannels, equals(2));
+        expect(buffer.sampleRate, greaterThan(0));
+        expect(buffer.length, greaterThan(0));
 
-      // Verify decoded audio is non-silent on both channels.
-      double peakL = 0.0;
-      double peakR = 0.0;
-      for (int i = 0; i < buffer.length; i++) {
-        final l = buffer[0][i].abs();
-        final r = buffer[1][i].abs();
-        if (l > peakL) peakL = l;
-        if (r > peakR) peakR = r;
-      }
-      expect(peakL, greaterThan(0.8));
-      expect(peakR, greaterThan(0.8));
-    });
+        // Verify decoded audio is non-silent on both channels.
+        double peakL = 0.0;
+        double peakR = 0.0;
+        for (int i = 0; i < buffer.length; i++) {
+          final l = buffer[0][i].abs();
+          final r = buffer[1][i].abs();
+          if (l > peakL) peakL = l;
+          if (r > peakR) peakR = r;
+        }
+        expect(peakL, greaterThan(0.8));
+        expect(peakR, greaterThan(0.8));
+      },
+    );
 
     test('throws FormatException on empty or invalid bytes', () async {
       await expectLater(decodeAudio(Uint8List(0)), throwsFormatException);

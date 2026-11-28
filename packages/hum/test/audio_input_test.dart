@@ -82,38 +82,41 @@ void main() {
       expect(target[0], equals([5.0, 6.0, 1.0, 2.0]));
     });
 
-    test('SyncAudioHost duplex streams MemoryAudioInput through DSP to output', () async {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final host = AudioHost.sync(context: context);
+    test(
+      'SyncAudioHost duplex streams MemoryAudioInput through DSP to output',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context);
 
-      // Select channel 1 (right) from a 2-channel input and double it
-      final ch0 = Float32List(64)..fillRange(0, 64, 0.1);
-      final ch1 = Float32List(64)..fillRange(0, 64, 0.25);
-      final input = MemoryAudioInput(
-        channels: [ch0, ch1],
-        vectorSize: 64,
-        loop: true,
-      );
-      final output = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
+        // Select channel 1 (right) from a 2-channel input and double it
+        final ch0 = Float32List(64)..fillRange(0, 64, 0.1);
+        final ch1 = Float32List(64)..fillRange(0, 64, 0.25);
+        final input = MemoryAudioInput(
+          channels: [ch0, ch1],
+          vectorSize: 64,
+          loop: true,
+        );
+        final output = MemoryAudioOutput(numChannels: 1, vectorSize: 64);
 
-      final mic = In.mono(1);
-      final boosted = Mult.mono(
-        input: mic.outlet,
-        value: const .value(2.0),
-        interpTime: 0.0,
-      );
-      expect(host.setGraph(root: boosted.out), isEmpty);
+        final mic = In.mono(1);
+        final boosted = Mult.mono(
+          input: mic.outlet,
+          value: const .value(2.0),
+          interpTime: 0.0,
+        );
+        expect(host.setGraph(root: boosted.out), isEmpty);
 
-      await host.startPlayback(output: output, input: input);
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-      await host.stopPlayback();
+        await host.startPlayback(output: output, input: input);
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        await host.stopPlayback();
 
-      expect(output.length, greaterThan(0));
-      final samples = output.bytes.buffer.asFloat32List();
-      expect(samples.first, closeTo(0.5, 1e-6));
+        expect(output.length, greaterThan(0));
+        final samples = output.bytes.buffer.asFloat32List();
+        expect(samples.first, closeTo(0.5, 1e-6));
 
-      await host.dispose();
-    });
+        await host.dispose();
+      },
+    );
 
     test('SyncAudioHost validates input vectorSize', () async {
       final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
@@ -129,29 +132,32 @@ void main() {
       await host.dispose();
     });
 
-    test('SyncAudioHost supports input-only playback with WavSink and no Out', () async {
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
-      final host = AudioHost.sync(context: context) as SyncAudioHost;
+    test(
+      'SyncAudioHost supports input-only playback with WavSink and no Out',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+        final host = AudioHost.sync(context: context) as SyncAudioHost;
 
-      final src = Float32List(64)..fillRange(0, 64, 0.4);
-      final input = MemoryAudioInput(
-        channels: [src],
-        vectorSize: 64,
-        loop: true,
-      );
-      final mic = In.mono();
-      final sink = WavSink.memory(channels: [mic.outlet]);
-      expect(host.setGraph(root: sink), isEmpty);
+        final src = Float32List(64)..fillRange(0, 64, 0.4);
+        final input = MemoryAudioInput(
+          channels: [src],
+          vectorSize: 64,
+          loop: true,
+        );
+        final mic = In.mono();
+        final sink = WavSink.memory(channels: [mic.outlet]);
+        expect(host.setGraph(root: sink), isEmpty);
 
-      await host.startPlayback(input: input);
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-      await host.stopPlayback();
+        await host.startPlayback(input: input);
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        await host.stopPlayback();
 
-      final proc = host.processorOf<WavSinkProcessor>(sink)!;
-      final wavBytes = proc.close()!;
-      expect(wavBytes.length, greaterThan(44));
-      await host.dispose();
-    });
+        final proc = host.processorOf<WavSinkProcessor>(sink)!;
+        final wavBytes = proc.close()!;
+        expect(wavBytes.length, greaterThan(44));
+        await host.dispose();
+      },
+    );
 
     test(
       'IsolateAudioHost streams MemoryAudioInput through worker isolate to output',

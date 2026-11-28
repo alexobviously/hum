@@ -109,8 +109,26 @@ void main() {
       );
 
       // Trigger rises at 1, falls below 0.5 at 4
-      final trigBuf = Float32List.fromList([0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0]);
-      final inBuf = Float32List.fromList([5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0]);
+      final trigBuf = Float32List.fromList([
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+      ]);
+      final inBuf = Float32List.fromList([
+        5.0,
+        15.0,
+        25.0,
+        35.0,
+        45.0,
+        55.0,
+        65.0,
+        75.0,
+      ]);
       final outBuf = Float32List(8);
 
       processor.process(
@@ -140,7 +158,16 @@ void main() {
       );
 
       // Trigger transitions: 0->1 (rising @ 1), 1->-1 (falling @ 3), -1->1 (rising @ 5)
-      final trigBuf = Float32List.fromList([-1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0]);
+      final trigBuf = Float32List.fromList([
+        -1.0,
+        1.0,
+        1.0,
+        -1.0,
+        -1.0,
+        1.0,
+        1.0,
+        1.0,
+      ]);
       final inBuf = Float32List.fromList([
         100.0,
         200.0,

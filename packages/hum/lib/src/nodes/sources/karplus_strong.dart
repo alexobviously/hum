@@ -357,9 +357,7 @@ class KarplusStrongProcessor({
           _burstRemaining--;
         }
 
-        final pos = posBuf != null
-            ? posBuf[i].fastClamp(0.03, 0.97)
-            : constPos;
+        final pos = posBuf != null ? posBuf[i].fastClamp(0.03, 0.97) : constPos;
         excBuffer[excWriteIndex] = shaped;
 
         final combDelay = (pos * (sampleRate / freq)).fastClamp(
@@ -388,7 +386,9 @@ class KarplusStrongProcessor({
       } else {
         final double damp = dampingBuf != null
             ? dampingBuf[i].fastClamp(0.0, 1.0)
-            : (isDampSettled ? _dampingSmoother.current : _dampingSmoother.next())
+            : (isDampSettled
+                      ? _dampingSmoother.current
+                      : _dampingSmoother.next())
                   .fastClamp(0.0, 1.0);
         final double fb = fbBuf != null
             ? fbBuf[i].fastClamp(0.0, 0.9999)
@@ -411,7 +411,8 @@ class KarplusStrongProcessor({
       final double delayedSample =
           buffer[read0] + frac * (buffer[read1] - buffer[read0]);
 
-      final double lowpassed = (1.0 - g) * delayedSample + g * _lastFilterSample;
+      final double lowpassed =
+          (1.0 - g) * delayedSample + g * _lastFilterSample;
       _lastFilterSample = lowpassed.abs() < 1e-15 ? 0.0 : lowpassed;
 
       final double sample = excitation + lowpassed * effectiveFb;

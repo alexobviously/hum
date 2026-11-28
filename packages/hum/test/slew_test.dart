@@ -125,7 +125,16 @@ void main() {
       final context = ProcessContext(sampleRate: 100, vectorSize: 8);
       final processor = SlewProcessor(numChannels: 1, rise: 0.5, fall: 1.0);
 
-      final inBuf = Float32List.fromList([1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0]);
+      final inBuf = Float32List.fromList([
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0,
+      ]);
       final outBuf = Float32List(8);
 
       processor.process(context, [inBuf], [outBuf]);

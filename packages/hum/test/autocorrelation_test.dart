@@ -144,40 +144,43 @@ void main() {
       expect(proc.writeTelemetry(buf, 0), isFalse);
     });
 
-    test('streams AutocorrelationReading telemetry through SyncAudioHost', () async {
-      const context = ProcessContext(sampleRate: 44100, vectorSize: 128);
-      final host = SyncAudioHost(
-        context: context,
-        telemetryInterval: const Duration(milliseconds: 10),
-      );
+    test(
+      'streams AutocorrelationReading telemetry through SyncAudioHost',
+      () async {
+        const context = ProcessContext(sampleRate: 44100, vectorSize: 128);
+        final host = SyncAudioHost(
+          context: context,
+          telemetryInterval: const Duration(milliseconds: 10),
+        );
 
-      final osc = SineOscillator(frequency: const .value(440.0));
-      final autocorr = Autocorrelation(
-        input: osc.outlet,
-        windowSize: 1024,
-        hopSize: 256,
-      );
-      final out = Out.mono(autocorr.outlet);
+        final osc = SineOscillator(frequency: const .value(440.0));
+        final autocorr = Autocorrelation(
+          input: osc.outlet,
+          windowSize: 1024,
+          hopSize: 256,
+        );
+        final out = Out.mono(autocorr.outlet);
 
-      expect(host.setGraph(root: out), isEmpty);
+        expect(host.setGraph(root: out), isEmpty);
 
-      final channel = host.telemetryOf(autocorr)!;
-      final readings = <AutocorrelationReading>[];
-      final sub = channel.stream.listen(readings.add);
+        final channel = host.telemetryOf(autocorr)!;
+        final readings = <AutocorrelationReading>[];
+        final sub = channel.stream.listen(readings.add);
 
-      await host.renderBlocks(25);
-      await Future<void>.delayed(Duration.zero);
+        await host.renderBlocks(25);
+        await Future<void>.delayed(Duration.zero);
 
-      expect(readings, isNotEmpty);
-      final last = readings.last;
-      expect(last.hasPitch, isTrue);
-      expect(last.bestLag, equals(100));
-      expect(last.frequency, closeTo(441.0, 2.0));
-      expect(last.maxCorrelation, greaterThan(0.0));
-      expect(channel.latest, isNotNull);
+        expect(readings, isNotEmpty);
+        final last = readings.last;
+        expect(last.hasPitch, isTrue);
+        expect(last.bestLag, equals(100));
+        expect(last.frequency, closeTo(441.0, 2.0));
+        expect(last.maxCorrelation, greaterThan(0.0));
+        expect(channel.latest, isNotNull);
 
-      await sub.cancel();
-      await host.dispose();
-    });
+        await sub.cancel();
+        await host.dispose();
+      },
+    );
   });
 }

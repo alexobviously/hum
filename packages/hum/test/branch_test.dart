@@ -149,7 +149,9 @@ void main() {
         seed: 1,
       );
       expect(
-        host.setGraph(root: Out.stereo(left: branch[0], right: branch[1])),
+        host.setGraph(
+          root: Out.stereo(left: branch[0], right: branch[1]),
+        ),
         isEmpty,
       );
 

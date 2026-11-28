@@ -7,30 +7,34 @@ import 'package:test/test.dart';
 
 void main() {
   group('Wavetable builders', () {
-    test('builds procedural basicShapes, formants, and organ mipmapped tables', () {
-      final basic = Wavetable.basicShapes(frameSize: 1024);
-      expect(basic.numFrames, equals(4));
-      expect(basic.frameSize, equals(1024));
-      expect(basic.mipmapped, isTrue);
-      expect(basic.toAudioBuffer().numChannels, equals(4));
-      expect(basic.toAudioBuffer().length, equals(2048)); // 2 * frameSize
+    test(
+      'builds procedural basicShapes, formants, and organ mipmapped tables',
+      () {
+        final basic = Wavetable.basicShapes(frameSize: 1024);
+        expect(basic.numFrames, equals(4));
+        expect(basic.frameSize, equals(1024));
+        expect(basic.mipmapped, isTrue);
+        expect(basic.toAudioBuffer().numChannels, equals(4));
+        expect(basic.toAudioBuffer().length, equals(2048)); // 2 * frameSize
 
-      final formants = Wavetable.formants(frameSize: 512);
-      expect(formants.numFrames, equals(5));
-      expect(formants.toAudioBuffer().length, equals(1024));
+        final formants = Wavetable.formants(frameSize: 512);
+        expect(formants.numFrames, equals(5));
+        expect(formants.toAudioBuffer().length, equals(1024));
 
-      final organ = Wavetable.organ(frameSize: 512);
-      expect(organ.numFrames, equals(4));
-      expect(organ.toAudioBuffer().length, equals(1024));
-    });
+        final organ = Wavetable.organ(frameSize: 512);
+        expect(organ.numFrames, equals(4));
+        expect(organ.toAudioBuffer().length, equals(1024));
+      },
+    );
 
     test('slices concatenated mono Serum/Vital AudioBuffer via Wavetable.fromBuffer', () {
       const frameSize = 256;
       final concat = Float32List(frameSize * 3);
       for (int f = 0; f < 3; f++) {
         for (int i = 0; i < frameSize; i++) {
-          concat[f * frameSize + i] =
-              math.sin(2.0 * math.pi * (f + 1) * i / frameSize);
+          concat[f * frameSize + i] = math.sin(
+            2.0 * math.pi * (f + 1) * i / frameSize,
+          );
         }
       }
       final raw = AudioBuffer.mono(concat, sampleRate: 48000);
@@ -107,7 +111,8 @@ void main() {
       );
 
       // Audio-rate CV modulation on position & frequency works cleanly.
-      final lfo = SineOscillator(frequency: const .value(2.0)).mapRange(0.0, 1.0);
+      final lfo = SineOscillator(frequency: const .value(2.0))
+          .mapRange(0.0, 1.0);
       final modOsc = WavetableOscillator(
         wavetable: wt,
         frequency: const .value(220.0),

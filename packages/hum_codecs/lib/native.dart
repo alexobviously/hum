@@ -2,5 +2,4 @@
 // Do not import this library on Web — use `package:hum_codecs/hum_codecs.dart`.
 
 export 'hum_codecs.dart';
-export 'src/decode_native.dart'
-    show decodeAudioSync, loadAudio, loadAudioSync;
+export 'src/decode_native.dart' show decodeAudioSync, loadAudio, loadAudioSync;

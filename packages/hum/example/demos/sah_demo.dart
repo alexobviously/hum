@@ -19,8 +19,7 @@ void main(List<String> args) => runDemo(
   name: 'sah_demo',
   tempo: const Tempo(132),
   bars: 8,
-  description:
-      'Generative modular synth: dual-channel S&H + dynamic slew (portamento glide) -> delay -> Freeverb',
+  description: 'Generative modular synth: dual-channel S&H + dynamic slew (portamento glide) -> delay -> Freeverb',
   args: args,
   builder: (context, tempo, _) {
     final totalDurationSeconds = 8.0 * tempo.bar;

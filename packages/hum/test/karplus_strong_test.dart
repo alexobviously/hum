@@ -211,39 +211,42 @@ void main() {
   });
 
   group('KarplusStrongProcessor DSP behavior', () {
-    test('produces silence before gate trigger and clean pluck decay after', () {
-      final proc = KarplusStrongProcessor(
-        frequency: 220.0,
-        feedback: 0.995,
-        pickHardness: 0.8,
-        pickPosition: 0.25,
-        damping: 0.4,
-      );
-      final context = ProcessContext(sampleRate: 44100, vectorSize: 256);
+    test(
+      'produces silence before gate trigger and clean pluck decay after',
+      () {
+        final proc = KarplusStrongProcessor(
+          frequency: 220.0,
+          feedback: 0.995,
+          pickHardness: 0.8,
+          pickPosition: 0.25,
+          damping: 0.4,
+        );
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 256);
 
-      // Gate stays low -> strictly silent output.
-      final zeroGate = Float32List(256);
-      final silentOut = Float32List(256);
-      proc.process(context, _inputs(zeroGate), [silentOut]);
-      expect(_rms(silentOut), equals(0.0));
+        // Gate stays low -> strictly silent output.
+        final zeroGate = Float32List(256);
+        final silentOut = Float32List(256);
+        proc.process(context, _inputs(zeroGate), [silentOut]);
+        expect(_rms(silentOut), equals(0.0));
 
-      // Trigger gate -> sound rings and decays over time without NaN/Inf.
-      final rendered = _renderBlocks(
-        proc,
-        sampleRate: 44100,
-        blockSize: 256,
-        numBlocks: 80,
-      );
-      for (final s in rendered) {
-        expect(s.isFinite, isTrue);
-        expect(s.abs(), lessThanOrEqualTo(2.0));
-      }
+        // Trigger gate -> sound rings and decays over time without NaN/Inf.
+        final rendered = _renderBlocks(
+          proc,
+          sampleRate: 44100,
+          blockSize: 256,
+          numBlocks: 80,
+        );
+        for (final s in rendered) {
+          expect(s.isFinite, isTrue);
+          expect(s.abs(), lessThanOrEqualTo(2.0));
+        }
 
-      final attackRms = _rms(rendered, 0, 2048);
-      final tailRms = _rms(rendered, rendered.length - 2048, rendered.length);
-      expect(attackRms, greaterThan(0.05));
-      expect(tailRms, lessThan(attackRms));
-    });
+        final attackRms = _rms(rendered, 0, 2048);
+        final tailRms = _rms(rendered, rendered.length - 2048, rendered.length);
+        expect(attackRms, greaterThan(0.05));
+        expect(tailRms, lessThan(attackRms));
+      },
+    );
 
     test('pickHardness shapes excitation high-frequency content', () {
       const sampleRate = 44100;

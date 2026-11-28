@@ -28,10 +28,8 @@ void main() {
         );
 
         // Build a stereo source with distinct L (440 Hz) and R (880 Hz) sines
-        final oscL = offlineCtx.createOscillator()
-          ..frequency.value = 440.0;
-        final oscR = offlineCtx.createOscillator()
-          ..frequency.value = 880.0;
+        final oscL = offlineCtx.createOscillator()..frequency.value = 440.0;
+        final oscR = offlineCtx.createOscillator()..frequency.value = 880.0;
         final merger = offlineCtx.createChannelMerger(2);
         oscL.connect(merger, 0, 0);
         oscR.connect(merger, 0, 1);

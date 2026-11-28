@@ -19,8 +19,7 @@ void main(List<String> args) => runDemo(
   name: 'tah_demo',
   tempo: const Tempo(124),
   bars: 4,
-  description:
-      'Track & Hold (Tah): Glide-and-hold rhythmic pitch modulation + audio-rate formant waveshaper',
+  description: 'Track & Hold (Tah): Glide-and-hold rhythmic pitch modulation + audio-rate formant waveshaper',
   args: args,
   builder: (context, tempo, _) {
     // 1. Rhythmic Gate: 8th-note clock with 40% duty cycle (tracks for 40%, holds for 60%)

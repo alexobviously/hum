@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
+
 import '../../io/file_io.dart';
 
 /// A terminal audio node that captures multi-channel audio blocks and writes

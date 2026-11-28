@@ -111,8 +111,26 @@ void main() {
       // i=0,1: low (<= 0.5) -> tracking
       // i=2,3: high (> 0.5) -> holding last sample from i=1
       // i=4,5,6,7: low (<= 0.5) -> tracking resumed
-      final gateBuf = Float32List.fromList([0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0]);
-      final inBuf = Float32List.fromList([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+      final gateBuf = Float32List.fromList([
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+      ]);
+      final inBuf = Float32List.fromList([
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0,
+      ]);
       final outBuf = Float32List(8);
 
       processor.process(

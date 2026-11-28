@@ -39,13 +39,16 @@ Future<void> main(List<String> args) async {
         .listSync()
         .whereType<Directory>()
         .where(
-          (d) => File('${d.path}${Platform.pathSeparator}main.dart').existsSync(),
+          (d) =>
+              File('${d.path}${Platform.pathSeparator}main.dart').existsSync(),
         )
         .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
         .toList();
     stderr.writeln('Demo "$demoName" not found in ${rootExampleDir.path}.');
     if (available.isNotEmpty) {
-      stderr.writeln('Available demos: default (no arg), ${available.join(', ')}');
+      stderr.writeln(
+        'Available demos: default (no arg), ${available.join(', ')}',
+      );
     }
     exitCode = 64;
     return;
@@ -68,7 +71,9 @@ Future<void> main(List<String> args) async {
   );
 
   if (compileResult.exitCode != 0) {
-    stderr.writeln('dart compile wasm failed (exit ${compileResult.exitCode}):');
+    stderr.writeln(
+      'dart compile wasm failed (exit ${compileResult.exitCode}):',
+    );
     stderr.write(compileResult.stdout);
     stderr.write(compileResult.stderr);
     exitCode = compileResult.exitCode;

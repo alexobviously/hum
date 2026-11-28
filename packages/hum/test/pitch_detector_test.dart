@@ -54,44 +54,50 @@ void main() {
       expect(pipeline.outputs[3][0], greaterThan(0.98));
     });
 
-    test('tracks guitar Low E (82.41 Hz) with strong H2 > H1 without octave error', () {
-      const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
-      final lowE = Note.parse('E2').hz; // 82.4069 Hz
+    test(
+      'tracks guitar Low E (82.41 Hz) with strong H2 > H1 without octave error',
+      () {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+        final lowE = Note.parse('E2').hz; // 82.4069 Hz
 
-      // Guitar-like harmonic mix where H2 (2 * f0) is 2x louder than H1 (f0).
-      final h1 = Mult.mono(
-        input: SineOscillator(frequency: .value(lowE)).outlet,
-        value: const .value(0.3),
-      );
-      final h2 = Mult.mono(
-        input: SineOscillator(frequency: .value(lowE * 2.0)).outlet,
-        value: const .value(0.6),
-      );
-      final h3 = Mult.mono(
-        input: SineOscillator(frequency: .value(lowE * 3.0)).outlet,
-        value: const .value(0.2),
-      );
-      final mix = Sum(inputs: [h1.outlet, h2.outlet, h3.outlet]);
-      final pitch = PitchDetector(
-        input: mix.outlet,
-        windowSize: 1024,
-        hopSize: 256,
-        minFrequency: 50.0,
-        maxFrequency: 1000.0,
-      );
+        // Guitar-like harmonic mix where H2 (2 * f0) is 2x louder than H1 (f0).
+        final h1 = Mult.mono(
+          input: SineOscillator(frequency: .value(lowE)).outlet,
+          value: const .value(0.3),
+        );
+        final h2 = Mult.mono(
+          input: SineOscillator(frequency: .value(lowE * 2.0)).outlet,
+          value: const .value(0.6),
+        );
+        final h3 = Mult.mono(
+          input: SineOscillator(frequency: .value(lowE * 3.0)).outlet,
+          value: const .value(0.2),
+        );
+        final mix = Sum(inputs: [h1.outlet, h2.outlet, h3.outlet]);
+        final pitch = PitchDetector(
+          input: mix.outlet,
+          windowSize: 1024,
+          hopSize: 256,
+          minFrequency: 50.0,
+          maxFrequency: 1000.0,
+        );
 
-      final pipeline = compilePipeline(root: pitch, context: context).pipeline!;
-      final proc = pipeline.processorOf(pitch);
+        final pipeline = compilePipeline(
+          root: pitch,
+          context: context,
+        ).pipeline!;
+        final proc = pipeline.processorOf(pitch);
 
-      for (int i = 0; i < 45; i++) {
-        pipeline.process();
-      }
+        for (int i = 0; i < 45; i++) {
+          pipeline.process();
+        }
 
-      expect(proc.isPitched, isTrue);
-      // Must lock onto E2 (~82.41 Hz), NOT E3 (~164.81 Hz)!
-      expect(proc.frequency, closeTo(lowE, 0.2));
-      expect(proc.clarity, greaterThan(0.95));
-    });
+        expect(proc.isPitched, isTrue);
+        // Must lock onto E2 (~82.41 Hz), NOT E3 (~164.81 Hz)!
+        expect(proc.frequency, closeTo(lowE, 0.2));
+        expect(proc.clarity, greaterThan(0.95));
+      },
+    );
 
     test('tracks high frequency (880 Hz) with parabolic sub-sample accuracy', () {
       // At 44.1 kHz, 880 Hz has period 50.1136 samples; integer lag 50 would

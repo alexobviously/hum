@@ -168,7 +168,8 @@ class WebAudioInputDriver({
           ..['noiseSuppression'] = noiseSuppression.toJS
           ..['autoGainControl'] = autoGainControl.toJS;
         if (deviceId != null) {
-          audioConstraints['deviceId'] = (JSObject()..['exact'] = deviceId!.toJS);
+          audioConstraints['deviceId'] = (JSObject()
+            ..['exact'] = deviceId!.toJS);
         }
 
         final constraints = web.MediaStreamConstraints(

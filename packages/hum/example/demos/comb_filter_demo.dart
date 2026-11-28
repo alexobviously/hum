@@ -15,8 +15,7 @@ void main(List<String> args) => runDemo(
   name: 'comb_filter_demo',
   tempo: const Tempo(120),
   bars: 4,
-  description:
-      'Physical modeling string melody: noise impulse burst into tuned resonant CombFilter',
+  description: 'Physical modeling string melody: noise impulse burst into tuned resonant CombFilter',
   args: args,
   builder: (context, tempo, _) {
     // 1. Master clock at 16th notes

@@ -129,7 +129,8 @@ class TelemetryRegistry {
     }
 
     if (_entries.isEmpty) return;
-    for (final MapEntry(key: node, value: id) in diff.snapshot.nodeIds.entries) {
+    for (final MapEntry(key: node, value: id)
+        in diff.snapshot.nodeIds.entries) {
       final entry = _entries[id];
       if (entry != null) {
         entry.updateNode(node);

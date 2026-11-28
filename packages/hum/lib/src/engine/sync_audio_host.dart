@@ -231,7 +231,13 @@ class SyncAudioHost({
     }
 
     _engine.configureInputs(inputDriver?.numChannels ?? 0);
-    _runPlaybackLoop(session, outputDriver, inputDriver, safetyGuard, completer);
+    _runPlaybackLoop(
+      session,
+      outputDriver,
+      inputDriver,
+      safetyGuard,
+      completer,
+    );
   }
 
   void _runPlaybackLoop(

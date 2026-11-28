@@ -11,8 +11,7 @@ void main(List<String> args) => runDemo(
   name: 'chorus_demo',
   tempo: const Tempo(120),
   bars: 4,
-  description:
-      '80s Synthwave lead transformed by Chorus.toStereo into a lush Juno-106 style pad',
+  description: '80s Synthwave lead transformed by Chorus.toStereo into a lush Juno-106 style pad',
   args: args,
   builder: (context, tempo, _) {
     // 1. 16th-note clock

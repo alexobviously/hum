@@ -196,9 +196,7 @@ class WavetableOscillatorProcessor({
 
     for (int i = 0; i < n; i++) {
       final double freq = freqBuf != null ? freqBuf[i] : staticFreq;
-      final double pos = posBuf != null
-          ? posBuf[i].clamp(0.0, 1.0)
-          : staticPos;
+      final double pos = posBuf != null ? posBuf[i].clamp(0.0, 1.0) : staticPos;
 
       final double phaseInc = freq * invSr;
 
@@ -226,7 +224,10 @@ class WavetableOscillatorProcessor({
         final double absInc = phaseInc < 0.0 ? -phaseInc : phaseInc;
         final double ratio = absInc * frameSize;
         final double mipFloat = ratio > 1.0
-            ? (math.log(ratio) * _invLn2).clamp(0.0, (_numMipLevels - 1).toDouble())
+            ? (math.log(ratio) * _invLn2).clamp(
+                0.0,
+                (_numMipLevels - 1).toDouble(),
+              )
             : 0.0;
         final int mipA = mipFloat.floor();
         final int mipB = mipA + 1 < _numMipLevels ? mipA + 1 : mipA;

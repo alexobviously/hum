@@ -98,53 +98,59 @@ void main() {
       expect(outRight[1], closeTo(0.999969, 1e-4));
     });
 
-    test('interleavePcm16 replaces NaN and Infinity with 0 without throwing', () {
-      final ch0 = Float32List.fromList([
-        double.nan,
-        double.infinity,
-        double.negativeInfinity,
-        0.5,
-      ]);
-      final target = Int16List(4);
+    test(
+      'interleavePcm16 replaces NaN and Infinity with 0 without throwing',
+      () {
+        final ch0 = Float32List.fromList([
+          double.nan,
+          double.infinity,
+          double.negativeInfinity,
+          0.5,
+        ]);
+        final target = Int16List(4);
 
-      interleavePcm16([ch0], target);
+        interleavePcm16([ch0], target);
 
-      expect(target, equals([0, 0, 0, 16384]));
-    });
+        expect(target, equals([0, 0, 0, 16384]));
+      },
+    );
 
-    test('sanitizeAudioSample and sanitizeAudioOutputs clamp and zero non-finite', () {
-      expect(sanitizeAudioSample(0.25), equals(0.25));
-      expect(sanitizeAudioSample(-0.75), equals(-0.75));
-      expect(sanitizeAudioSample(1.0), equals(1.0));
-      expect(sanitizeAudioSample(-1.0), equals(-1.0));
-      expect(sanitizeAudioSample(4.5), equals(1.0));
-      expect(sanitizeAudioSample(-3.2), equals(-1.0));
-      expect(sanitizeAudioSample(double.nan), equals(0.0));
-      expect(sanitizeAudioSample(double.infinity), equals(0.0));
-      expect(sanitizeAudioSample(double.negativeInfinity), equals(0.0));
+    test(
+      'sanitizeAudioSample and sanitizeAudioOutputs clamp and zero non-finite',
+      () {
+        expect(sanitizeAudioSample(0.25), equals(0.25));
+        expect(sanitizeAudioSample(-0.75), equals(-0.75));
+        expect(sanitizeAudioSample(1.0), equals(1.0));
+        expect(sanitizeAudioSample(-1.0), equals(-1.0));
+        expect(sanitizeAudioSample(4.5), equals(1.0));
+        expect(sanitizeAudioSample(-3.2), equals(-1.0));
+        expect(sanitizeAudioSample(double.nan), equals(0.0));
+        expect(sanitizeAudioSample(double.infinity), equals(0.0));
+        expect(sanitizeAudioSample(double.negativeInfinity), equals(0.0));
 
-      final left = Float32List.fromList([
-        0.25,
-        2.5,
-        -2.5,
-        double.nan,
-        double.infinity,
-        double.negativeInfinity,
-      ]);
-      final right = Float32List.fromList([
-        -0.5,
-        1.0,
-        -1.0,
-        10.0,
-        -10.0,
-        double.nan,
-      ]);
+        final left = Float32List.fromList([
+          0.25,
+          2.5,
+          -2.5,
+          double.nan,
+          double.infinity,
+          double.negativeInfinity,
+        ]);
+        final right = Float32List.fromList([
+          -0.5,
+          1.0,
+          -1.0,
+          10.0,
+          -10.0,
+          double.nan,
+        ]);
 
-      sanitizeAudioOutputs([left, right]);
+        sanitizeAudioOutputs([left, right]);
 
-      expect(left, equals([0.25, 1.0, -1.0, 0.0, 0.0, 0.0]));
-      expect(right, equals([-0.5, 1.0, -1.0, 1.0, -1.0, 0.0]));
-    });
+        expect(left, equals([0.25, 1.0, -1.0, 0.0, 0.0, 0.0]));
+        expect(right, equals([-0.5, 1.0, -1.0, 1.0, -1.0, 0.0]));
+      },
+    );
 
     test(
       'BufferInterleaver lazily allocates and produces correct byte views',

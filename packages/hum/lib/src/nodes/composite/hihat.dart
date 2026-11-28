@@ -123,8 +123,7 @@ class HiHat {
 
     final velocity = Sah.mono(trigger: trigger, input: trigger, threshold: 0.0);
     final metalOscs = [
-      for (final f in baseFreqs)
-        SquareOscillator(frequency: .value(f * tune)),
+      for (final f in baseFreqs) SquareOscillator(frequency: .value(f * tune)),
     ];
     final metalSum = Sum(inputs: [for (final o in metalOscs) o.outlet]);
 

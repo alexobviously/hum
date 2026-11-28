@@ -115,11 +115,17 @@ void main() {
         numChannels: 2,
         vectorSize: 64,
       );
-      expect(() => host.startPlayback(output: mismatchChannels), throwsArgumentError);
+      expect(
+        () => host.startPlayback(output: mismatchChannels),
+        throwsArgumentError,
+      );
 
       // Vector size mismatch throws ArgumentError
       final mismatchVector = MemoryAudioOutput(numChannels: 1, vectorSize: 128);
-      expect(() => host.startPlayback(output: mismatchVector), throwsArgumentError);
+      expect(
+        () => host.startPlayback(output: mismatchVector),
+        throwsArgumentError,
+      );
     });
 
     test('dispose automatically closes all sink nodes in graph', () async {
@@ -679,7 +685,10 @@ void main() {
 
         expect(guarded.length, greaterThan(0));
         final guardedBlock = guarded.bytes.buffer.asFloat32List().sublist(0, 8);
-        expect(guardedBlock, equals([0.5, -0.25, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0]));
+        expect(
+          guardedBlock,
+          equals([0.5, -0.25, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0]),
+        );
 
         // Opt-out: safetyGuard = false
         final raw = MemoryAudioOutput(numChannels: 1, vectorSize: 8);
@@ -726,7 +735,10 @@ void main() {
 
         expect(guarded.length, greaterThan(0));
         final guardedBlock = guarded.bytes.buffer.asFloat32List().sublist(0, 8);
-        expect(guardedBlock, equals([0.5, -0.25, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0]));
+        expect(
+          guardedBlock,
+          equals([0.5, -0.25, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0]),
+        );
 
         // Opt-out: safetyGuard = false
         final raw = MemoryAudioOutput(numChannels: 1, vectorSize: 8);
