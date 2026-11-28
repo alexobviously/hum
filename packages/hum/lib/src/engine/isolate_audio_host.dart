@@ -5,58 +5,58 @@ import 'dart:typed_data';
 import 'package:hum/hum.dart';
 
 /// Messages sent from [IsolateAudioHost] to the background audio isolate.
-sealed class const HostToEngineMessage();
+sealed class const _HostToEngineMessage();
 
-class const ApplyDiffMessage(final GraphDiff diff) extends HostToEngineMessage;
+class const _ApplyDiffMessage(final GraphDiff diff) extends _HostToEngineMessage;
 
-class const UpdateParamMessage(final int nodeId, final Object params)
-    extends HostToEngineMessage;
+class const _UpdateParamMessage(final int nodeId, final Object params)
+    extends _HostToEngineMessage;
 
-class const LoadBufferMessage({
+class const _LoadBufferMessage({
   required final BufferId id,
   required final int sampleRate,
   required final int numChannels,
   required final int length,
   final TransferableTypedData? data,
-}) extends HostToEngineMessage;
+}) extends _HostToEngineMessage;
 
-class const UnloadBufferMessage(final BufferId id) extends HostToEngineMessage;
+class const _UnloadBufferMessage(final BufferId id) extends _HostToEngineMessage;
 
-class const RenderBlocksMessage(final int count, final SendPort replyPort)
-    extends HostToEngineMessage;
+class const _RenderBlocksMessage(final int count, final SendPort replyPort)
+    extends _HostToEngineMessage;
 
-class const StartPlaybackMessage({
+class const _StartPlaybackMessage({
   required final int session,
   required final SendPort replyPort,
   final AudioOutput? workerOutput,
   final AudioInput? workerInput,
   final SendPort? audioDataPort,
   final bool safetyGuard = true,
-}) extends HostToEngineMessage;
+}) extends _HostToEngineMessage;
 
-class const StopPlaybackMessage(final SendPort replyPort)
-    extends HostToEngineMessage;
+class const _StopPlaybackMessage(final SendPort replyPort)
+    extends _HostToEngineMessage;
 
-class const DisposeMessage([final SendPort? replyPort])
-    extends HostToEngineMessage;
+class const _DisposeMessage([final SendPort? replyPort])
+    extends _HostToEngineMessage;
 
 /// Messages sent from the background audio isolate to [IsolateAudioHost].
-sealed class const EngineToHostMessage();
+sealed class const _EngineToHostMessage();
 
-class const WorkerReadyMessage(final SendPort engineSendPort)
-    extends EngineToHostMessage;
+class const _WorkerReadyMessage(final SendPort engineSendPort)
+    extends _EngineToHostMessage;
 
-class const PlaybackErrorMessage({
+class const _PlaybackErrorMessage({
   required final int session,
   required final Object error,
   final String? stackTrace,
-}) extends EngineToHostMessage;
+}) extends _EngineToHostMessage;
 
-class const TelemetryBatchMessage({
+class const _TelemetryBatchMessage({
   required final Int32List meta,
   required final Float32List data,
   required final int count,
-}) extends EngineToHostMessage;
+}) extends _EngineToHostMessage;
 
 /// Top-level entrypoint for the background audio worker isolate.
 void _audioWorkerEntry(
@@ -68,14 +68,14 @@ void _audioWorkerEntry(
   args,
 ) {
   final workerReceivePort = ReceivePort();
-  args.hostSendPort.send(WorkerReadyMessage(workerReceivePort.sendPort));
+  args.hostSendPort.send(_WorkerReadyMessage(workerReceivePort.sendPort));
 
   final engine = AudioEngine(
     context: args.context,
     telemetryInterval: args.telemetryInterval,
     onTelemetry: (meta, data, count) {
       args.hostSendPort.send(
-        TelemetryBatchMessage(meta: meta, data: data, count: count),
+        _TelemetryBatchMessage(meta: meta, data: data, count: count),
       );
     },
   );
@@ -144,7 +144,7 @@ void _audioWorkerEntry(
   void reportPlaybackError(int session, Object error, StackTrace stackTrace) {
     safeSendError(
       (err, stack) => args.hostSendPort.send(
-        PlaybackErrorMessage(session: session, error: err, stackTrace: stack),
+        _PlaybackErrorMessage(session: session, error: err, stackTrace: stack),
       ),
       error,
       stackTrace,
@@ -290,11 +290,11 @@ void _audioWorkerEntry(
 
   workerReceivePort.listen((message) async {
     switch (message) {
-      case ApplyDiffMessage(:final diff):
+      case _ApplyDiffMessage(:final diff):
         engine.applyDiff(diff);
-      case UpdateParamMessage(:final nodeId, :final params):
+      case _UpdateParamMessage(:final nodeId, :final params):
         engine.updateParam(nodeId, params);
-      case LoadBufferMessage(
+      case _LoadBufferMessage(
         :final id,
         :final sampleRate,
         :final numChannels,
@@ -321,9 +321,9 @@ void _audioWorkerEntry(
           );
         }
         engine.loadBuffer(id, buffer);
-      case UnloadBufferMessage(:final id):
+      case _UnloadBufferMessage(:final id):
         engine.unloadBuffer(id);
-      case RenderBlocksMessage(:final count, :final replyPort):
+      case _RenderBlocksMessage(:final count, :final replyPort):
         final numChannels = engine.numChannels;
         final totalBlocks = <Float32List>[];
         for (int i = 0; i < count; i++) {
@@ -333,7 +333,7 @@ void _audioWorkerEntry(
           }
         }
         replyPort.send(totalBlocks);
-      case StartPlaybackMessage(
+      case _StartPlaybackMessage(
         :final session,
         :final replyPort,
         :final workerOutput,
@@ -386,13 +386,6 @@ void _audioWorkerEntry(
             completeStopWaiters(session);
             return;
           }
-          if (session != activeSession || !isPlaying || isDisposed) {
-            await closeDriverOnce(driver, waitForExit: !isDisposed);
-            await closeInputDriverOnce(inputDriver, waitForExit: !isDisposed);
-            completeStartWaiter(session);
-            completeStopWaiters(session);
-            return;
-          }
         }
         if (session != activeSession || !isPlaying || isDisposed) {
           await closeDriverOnce(driver, waitForExit: !isDisposed);
@@ -408,7 +401,7 @@ void _audioWorkerEntry(
             StopwatchPlaybackPacer(context: context);
         completeStartWaiter(session);
         runPlaybackLoop(session, driver, inputDriver, pacer, safetyGuard);
-      case StopPlaybackMessage(:final replyPort):
+      case _StopPlaybackMessage(:final replyPort):
         if (isPlaying) {
           final stoppedSession = activeSession;
           activeSession = 0;
@@ -418,7 +411,7 @@ void _audioWorkerEntry(
         } else {
           replyPort.send(null);
         }
-      case DisposeMessage(:final replyPort):
+      case _DisposeMessage(:final replyPort):
         isDisposed = true;
         isPlaying = false;
         activeSession = 0;
@@ -492,17 +485,17 @@ class IsolateAudioHost._({
     late final StreamSubscription<Object?> hostPortSub;
     hostPortSub = hostReceivePort.listen((message) {
       switch (message) {
-        case WorkerReadyMessage(:final engineSendPort):
+        case _WorkerReadyMessage(:final engineSendPort):
           if (!readyCompleter.isCompleted) {
             readyCompleter.complete(engineSendPort);
           }
-        case PlaybackErrorMessage(
+        case _PlaybackErrorMessage(
           :final session,
           :final error,
           :final stackTrace,
         ):
           host._handleWorkerPlaybackError(session, error, stackTrace);
-        case TelemetryBatchMessage(:final meta, :final data, :final count):
+        case _TelemetryBatchMessage(:final meta, :final data, :final count):
           host._telemetry.dispatch(meta, data, count);
       }
     });
@@ -545,7 +538,7 @@ class IsolateAudioHost._({
     final diff = diffGraph(_currentSnapshot, newSnapshot);
 
     if (diff.isNotEmpty) {
-      _engineSendPort.send(ApplyDiffMessage(diff));
+      _engineSendPort.send(_ApplyDiffMessage(diff));
     }
 
     _currentSnapshot = diff.snapshot;
@@ -558,14 +551,14 @@ class IsolateAudioHost._({
     if (_isDisposed) return;
     final id = _currentSnapshot.nodeIds[node];
     if (id != null) {
-      _engineSendPort.send(UpdateParamMessage(id, params));
+      _engineSendPort.send(_UpdateParamMessage(id, params));
     }
   }
 
   @override
   void updateById(int nodeId, Object params) {
     if (_isDisposed) return;
-    _engineSendPort.send(UpdateParamMessage(nodeId, params));
+    _engineSendPort.send(_UpdateParamMessage(nodeId, params));
   }
 
   @override
@@ -582,7 +575,7 @@ class IsolateAudioHost._({
         ? TransferableTypedData.fromList(buffer.channels)
         : null;
     _engineSendPort.send(
-      LoadBufferMessage(
+      _LoadBufferMessage(
         id: id,
         sampleRate: buffer.sampleRate,
         numChannels: buffer.numChannels,
@@ -601,7 +594,7 @@ class IsolateAudioHost._({
   @override
   void unloadBuffer(BufferHandle handle) {
     if (_isDisposed) return;
-    _engineSendPort.send(UnloadBufferMessage(handle.id));
+    _engineSendPort.send(_UnloadBufferMessage(handle.id));
   }
 
   @override
@@ -610,7 +603,7 @@ class IsolateAudioHost._({
       throw StateError('Cannot renderBlocks on a disposed AudioHost.');
     }
     final replyPort = ReceivePort();
-    _engineSendPort.send(RenderBlocksMessage(count, replyPort.sendPort));
+    _engineSendPort.send(_RenderBlocksMessage(count, replyPort.sendPort));
     final blocks = await replyPort.first as List<Float32List>;
     return blocks;
   }
@@ -692,7 +685,7 @@ class IsolateAudioHost._({
 
     if (output == null || output.isIsolateSendable) {
       _engineSendPort.send(
-        StartPlaybackMessage(
+        _StartPlaybackMessage(
           session: session,
           replyPort: startReplyPort.sendPort,
           workerOutput: output,
@@ -757,7 +750,7 @@ class IsolateAudioHost._({
       }
     });
     _engineSendPort.send(
-      StartPlaybackMessage(
+      _StartPlaybackMessage(
         session: session,
         replyPort: startReplyPort.sendPort,
         workerInput: input,
@@ -820,7 +813,7 @@ class IsolateAudioHost._({
     _isPlaying = false;
     ++_playbackSession;
     final stopReplyPort = ReceivePort();
-    _engineSendPort.send(StopPlaybackMessage(stopReplyPort.sendPort));
+    _engineSendPort.send(_StopPlaybackMessage(stopReplyPort.sendPort));
     await stopReplyPort.first;
     stopReplyPort.close();
     _audioReceivePort?.close();
@@ -837,7 +830,7 @@ class IsolateAudioHost._({
       await stopPlayback();
     }
     final replyPort = ReceivePort();
-    _engineSendPort.send(DisposeMessage(replyPort.sendPort));
+    _engineSendPort.send(_DisposeMessage(replyPort.sendPort));
     await replyPort.first;
     replyPort.close();
     _audioReceivePort?.close();
