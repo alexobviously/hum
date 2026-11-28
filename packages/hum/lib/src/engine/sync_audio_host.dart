@@ -128,7 +128,11 @@ class SyncAudioHost({
   }
 
   @override
-  Future<void> startPlayback({AudioOutput? output, AudioInput? input}) async {
+  Future<void> startPlayback({
+    AudioOutput? output,
+    AudioInput? input,
+    bool safetyGuard = true,
+  }) async {
     if (_isDisposed) {
       throw StateError('Cannot startPlayback on a disposed AudioHost.');
     }
@@ -227,13 +231,14 @@ class SyncAudioHost({
     }
 
     _engine.configureInputs(inputDriver?.numChannels ?? 0);
-    _runPlaybackLoop(session, outputDriver, inputDriver, completer);
+    _runPlaybackLoop(session, outputDriver, inputDriver, safetyGuard, completer);
   }
 
   void _runPlaybackLoop(
     int session,
     AudioOutputDriver? outputDriver,
     AudioInputDriver? inputDriver,
+    bool safetyGuard,
     Completer<void> completer,
   ) async {
     final pacer = _activePacer =
@@ -251,7 +256,12 @@ class SyncAudioHost({
 
         inputDriver?.read(_engine.inputs);
         _engine.process();
-        outputDriver?.write(_engine.outputs);
+        if (outputDriver != null) {
+          if (safetyGuard) {
+            sanitizeAudioOutputs(_engine.outputs, context.vectorSize);
+          }
+          outputDriver.write(_engine.outputs);
+        }
         pacer.onBlockProcessed();
       }
     } catch (e, st) {

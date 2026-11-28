@@ -653,7 +653,139 @@ void main() {
         await host.dispose();
       },
     );
+
+    test(
+      'SyncAudioHost safetyGuard sanitizes non-finite and clamps outputs by default, and can be opted out',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
+        final host = AudioHost.sync(context: context);
+        final source = _PatternNode(const [
+          0.5,
+          -0.25,
+          5.0,
+          -5.0,
+          double.nan,
+          double.infinity,
+          double.negativeInfinity,
+          0.0,
+        ]);
+        host.setGraph(root: source.out);
+
+        // Default: safetyGuard = true
+        final guarded = MemoryAudioOutput(numChannels: 1, vectorSize: 8);
+        await host.startPlayback(output: guarded);
+        await Future.delayed(const Duration(milliseconds: 20));
+        await host.stopPlayback();
+
+        expect(guarded.length, greaterThan(0));
+        final guardedBlock = guarded.bytes.buffer.asFloat32List().sublist(0, 8);
+        expect(guardedBlock, equals([0.5, -0.25, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0]));
+
+        // Opt-out: safetyGuard = false
+        final raw = MemoryAudioOutput(numChannels: 1, vectorSize: 8);
+        await host.startPlayback(output: raw, safetyGuard: false);
+        await Future.delayed(const Duration(milliseconds: 20));
+        await host.stopPlayback();
+
+        expect(raw.length, greaterThan(0));
+        final rawBlock = raw.bytes.buffer.asFloat32List().sublist(0, 8);
+        expect(rawBlock[0], equals(0.5));
+        expect(rawBlock[1], equals(-0.25));
+        expect(rawBlock[2], equals(5.0));
+        expect(rawBlock[3], equals(-5.0));
+        expect(rawBlock[4].isNaN, isTrue);
+        expect(rawBlock[5], equals(double.infinity));
+        expect(rawBlock[6], equals(double.negativeInfinity));
+
+        await host.dispose();
+      },
+    );
+
+    test(
+      'IsolateAudioHost safetyGuard sanitizes non-finite and clamps outputs by default, and can be opted out',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 8);
+        final host = await IsolateAudioHost.spawn(context: context);
+        final source = _PatternNode(const [
+          0.5,
+          -0.25,
+          5.0,
+          -5.0,
+          double.nan,
+          double.infinity,
+          double.negativeInfinity,
+          0.0,
+        ]);
+        host.setGraph(root: source.out);
+
+        // Default: safetyGuard = true
+        final guarded = MemoryAudioOutput(numChannels: 1, vectorSize: 8);
+        await host.startPlayback(output: guarded);
+        await Future.delayed(const Duration(milliseconds: 30));
+        await host.stopPlayback();
+
+        expect(guarded.length, greaterThan(0));
+        final guardedBlock = guarded.bytes.buffer.asFloat32List().sublist(0, 8);
+        expect(guardedBlock, equals([0.5, -0.25, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0]));
+
+        // Opt-out: safetyGuard = false
+        final raw = MemoryAudioOutput(numChannels: 1, vectorSize: 8);
+        await host.startPlayback(output: raw, safetyGuard: false);
+        await Future.delayed(const Duration(milliseconds: 30));
+        await host.stopPlayback();
+
+        expect(raw.length, greaterThan(0));
+        final rawBlock = raw.bytes.buffer.asFloat32List().sublist(0, 8);
+        expect(rawBlock[0], equals(0.5));
+        expect(rawBlock[1], equals(-0.25));
+        expect(rawBlock[2], equals(5.0));
+        expect(rawBlock[3], equals(-5.0));
+        expect(rawBlock[4].isNaN, isTrue);
+        expect(rawBlock[5], equals(double.infinity));
+        expect(rawBlock[6], equals(double.negativeInfinity));
+
+        await host.dispose();
+      },
+    );
   });
+}
+
+class _PatternNode(final List<double> pattern)
+    extends AudioNode<_PatternProcessor> {
+  @override
+  List<Inlet> get inlets => const [];
+
+  @override
+  List<Outlet> get outlets => [Outlet(node: this, index: 0)];
+
+  @override
+  _PatternProcessor createProcessor() => _PatternProcessor(pattern);
+
+  @override
+  Object get params => ();
+
+  @override
+  List<Object?> get fixedProps => [pattern];
+
+  @override
+  List<Object?> get dynamicProps => const [];
+}
+
+class _PatternProcessor(final List<double> pattern) implements AudioProcessor {
+  @override
+  void update(Object params) {}
+
+  @override
+  void process(
+    ProcessContext context,
+    List<Float32List> inputs,
+    List<Float32List> outputs,
+  ) {
+    final out = outputs[0];
+    for (int i = 0; i < context.vectorSize; i++) {
+      out[i] = pattern[i % pattern.length];
+    }
+  }
 }
 
 class const _WorkerProbeAudioOutput({

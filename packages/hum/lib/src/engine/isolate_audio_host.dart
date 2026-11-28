@@ -31,6 +31,7 @@ class const StartPlaybackMessage({
   final AudioOutput? workerOutput,
   final AudioInput? workerInput,
   final SendPort? audioDataPort,
+  final bool safetyGuard = true,
 }) extends HostToEngineMessage;
 
 class const StopPlaybackMessage(final SendPort replyPort)
@@ -226,6 +227,7 @@ void _audioWorkerEntry(
     AudioOutputDriver? driver,
     AudioInputDriver? inputDriver,
     PlaybackPacer pacer,
+    bool safetyGuard,
   ) async {
     Object? loopError;
     StackTrace? loopStack;
@@ -243,8 +245,14 @@ void _audioWorkerEntry(
         engine.process();
 
         if (driver != null) {
+          if (safetyGuard) {
+            sanitizeAudioOutputs(engine.outputs, context.vectorSize);
+          }
           driver.write(engine.outputs);
         } else if (activeAudioPort != null) {
+          if (safetyGuard) {
+            sanitizeAudioOutputs(engine.outputs, context.vectorSize);
+          }
           final numChannels = engine.numChannels;
           final channelCopies = <Float32List>[
             for (int ch = 0; ch < numChannels; ch++)
@@ -331,6 +339,7 @@ void _audioWorkerEntry(
         :final workerOutput,
         :final workerInput,
         :final audioDataPort,
+        :final safetyGuard,
       ):
         if (isPlaying || isDisposed) {
           replyPort.send(null);
@@ -398,7 +407,7 @@ void _audioWorkerEntry(
             inputDriver?.createPacer(context) ??
             StopwatchPlaybackPacer(context: context);
         completeStartWaiter(session);
-        runPlaybackLoop(session, driver, inputDriver, pacer);
+        runPlaybackLoop(session, driver, inputDriver, pacer, safetyGuard);
       case StopPlaybackMessage(:final replyPort):
         if (isPlaying) {
           final stoppedSession = activeSession;
@@ -638,7 +647,11 @@ class IsolateAudioHost._({
   }
 
   @override
-  Future<void> startPlayback({AudioOutput? output, AudioInput? input}) async {
+  Future<void> startPlayback({
+    AudioOutput? output,
+    AudioInput? input,
+    bool safetyGuard = true,
+  }) async {
     if (_isDisposed) {
       throw StateError('Cannot startPlayback on a disposed AudioHost.');
     }
@@ -684,6 +697,7 @@ class IsolateAudioHost._({
           replyPort: startReplyPort.sendPort,
           workerOutput: output,
           workerInput: input,
+          safetyGuard: safetyGuard,
         ),
       );
       final reply = await startReplyPort.first;
@@ -748,6 +762,7 @@ class IsolateAudioHost._({
         replyPort: startReplyPort.sendPort,
         workerInput: input,
         audioDataPort: audioReceivePort.sendPort,
+        safetyGuard: safetyGuard,
       ),
     );
     final reply = await startReplyPort.first;

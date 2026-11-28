@@ -84,10 +84,19 @@ abstract class const AudioHost() {
   /// writing to physical output devices (driving in-graph sinks, analysis
   /// nodes, or input-only graphs).
   ///
+  /// When [safetyGuard] is `true` (the default) and [output] is provided,
+  /// non-finite output samples (`NaN`, `±Infinity`) are replaced with `0.0` and
+  /// finite samples are clamped to `[-1.0, 1.0]` before writing to [output].
+  /// Pass `safetyGuard: false` to opt out and send raw unclamped floats.
+  ///
   /// Throws [StateError] if playback is already active or if no graph is loaded.
   /// Throws [ArgumentError] if [output] or [input] channel count or vector size
   /// does not match the active graph context.
-  Future<void> startPlayback({AudioOutput? output, AudioInput? input});
+  Future<void> startPlayback({
+    AudioOutput? output,
+    AudioInput? input,
+    bool safetyGuard = true,
+  });
 
   /// Stops continuous real-time audio playback.
   Future<void> stopPlayback();

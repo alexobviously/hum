@@ -1,8 +1,41 @@
 import 'dart:typed_data';
 
-import '../nodes/utils/clamp.dart';
-
 // TODO: look at doing SIMD for all this stuff
+
+/// Sanitizes a single audio sample for hardware output: replaces non-finite
+/// values (`NaN`, `±Infinity`) with `0.0` and clamps finite samples to `[-1.0, 1.0]`.
+///
+/// Samples already within `[-1.0, 1.0]` are returned bit-for-bit unchanged.
+@pragma('vm:prefer-inline')
+double sanitizeAudioSample(double sample) {
+  if (!sample.isFinite) return 0.0;
+  if (sample < -1.0) return -1.0;
+  if (sample > 1.0) return 1.0;
+  return sample;
+}
+
+/// Sanitizes [channels] in-place for safe hardware playback.
+///
+/// Replaces non-finite values (`NaN`, `±Infinity`) with `0.0` and clamps finite
+/// samples to `[-1.0, 1.0]`. Samples already within `[-1.0, 1.0]` are left
+/// untouched. Zero heap allocations.
+@pragma('vm:prefer-inline')
+void sanitizeAudioOutputs(List<Float32List> channels, [int? vectorSize]) {
+  for (int c = 0; c < channels.length; c++) {
+    final buf = channels[c];
+    final size = vectorSize ?? buf.length;
+    for (int i = 0; i < size; i++) {
+      final s = buf[i];
+      if (!s.isFinite) {
+        buf[i] = 0.0;
+      } else if (s < -1.0) {
+        buf[i] = -1.0;
+      } else if (s > 1.0) {
+        buf[i] = 1.0;
+      }
+    }
+  }
+}
 
 /// Interleaves multi-channel audio from [channels] into the pre-allocated [target] buffer.
 ///
@@ -44,7 +77,8 @@ void interleaveFloats(
 
 /// Interleaves multi-channel float audio from [channels] into 16-bit integer PCM in [target].
 ///
-/// Input float values are clamped to `[-1.0, 1.0]` and scaled to `[-32768, 32767]`.
+/// Non-finite values (`NaN`, `±Infinity`) are replaced with `0.0`, finite values
+/// are clamped to `[-1.0, 1.0]`, and scaled to `[-32767, 32767]`.
 /// Fast paths are provided for mono and stereo channels.
 @pragma('vm:prefer-inline')
 void interleavePcm16(
@@ -59,7 +93,7 @@ void interleavePcm16(
   if (numChannels == 1) {
     final ch = channels[0];
     for (int s = 0; s < size; s++) {
-      final sample = ch[s].fastClamp(-1.0, 1.0);
+      final sample = sanitizeAudioSample(ch[s]);
       target[s] = (sample * 32767.0).round();
     }
     return;
@@ -70,8 +104,8 @@ void interleavePcm16(
     final right = channels[1];
     int writeIdx = 0;
     for (int s = 0; s < size; s++) {
-      final sampleL = left[s].fastClamp(-1.0, 1.0);
-      final sampleR = right[s].fastClamp(-1.0, 1.0);
+      final sampleL = sanitizeAudioSample(left[s]);
+      final sampleR = sanitizeAudioSample(right[s]);
       target[writeIdx++] = (sampleL * 32767.0).round();
       target[writeIdx++] = (sampleR * 32767.0).round();
     }
@@ -81,7 +115,7 @@ void interleavePcm16(
   int writeIdx = 0;
   for (int s = 0; s < size; s++) {
     for (int c = 0; c < numChannels; c++) {
-      final sample = channels[c][s].fastClamp(-1.0, 1.0);
+      final sample = sanitizeAudioSample(channels[c][s]);
       target[writeIdx++] = (sample * 32767.0).round();
     }
   }
