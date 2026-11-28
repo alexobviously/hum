@@ -124,7 +124,7 @@ class Synth({
       probability: .value((sparkle * 0.78).clamp(0.0, 0.85)),
       seed: 7,
     );
-    final sparkleEnv = Decay.ar(
+    final sparkleEnv = Decay(
       trigger: sparkleGate.a,
       attack: const .value(0.004),
       decay: const .value(0.055),

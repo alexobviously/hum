@@ -1,3 +1,6 @@
+## 0.1.3
+* Signal input for envelope parameters in `Adsr` and `Decay` now work as expected.
+
 ## 0.1.2
 
 * Optimisation: engine topology epochs, allowing nodes that should change when topology changes to more easily detect changes, without comparing every buffer, e.g. nodes that cache SIMD views.

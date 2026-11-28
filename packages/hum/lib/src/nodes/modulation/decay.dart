@@ -27,11 +27,10 @@ typedef DecayParams = ({
   DecayCurve? curve,
 });
 
-/// Type aliases for [Decay].
-typedef Ar = Decay;
+/// Type alias for [Decay].
 typedef DecayEnvelope = Decay;
 
-/// A one-shot, trigger-driven Decay and Attack-Decay (AR) envelope generator.
+/// A one-shot, trigger-driven Decay and Attack-Decay envelope generator.
 ///
 /// Designed specifically for percussion (kick pitch sweeps, snare bodies, hi-hats),
 /// plucks, and modular modulation transients.
@@ -55,6 +54,8 @@ class Decay({
   final DecayCurve curve = .exponential,
 }) extends AudioNode<DecayProcessor> {
   static const triggerInlet = 0;
+  static const decayInlet = 1;
+  static const attackInlet = 2;
 
   /// Creates a pure one-shot decay envelope with instant (0s) attack.
   factory pure({
@@ -68,22 +69,11 @@ class Decay({
     curve: curve,
   );
 
-  /// Creates an Attack-Decay (AR) envelope with configurable attack and decay times.
-  factory ar({
-    required Outlet trigger,
-    ControlParam<double> attack = const .value(0.01),
-    ControlParam<double> decay = const .value(0.1),
-    DecayCurve curve = .exponential,
-  }) => Decay(
-    trigger: trigger,
-    attack: attack,
-    decay: decay,
-    curve: curve,
-  );
-
   @override
   List<Inlet> get inlets => [
     Inlet(node: this, index: triggerInlet, source: trigger),
+    Inlet(node: this, index: decayInlet, source: decay.outletOrNull),
+    Inlet(node: this, index: attackInlet, source: attack.outletOrNull),
   ];
 
   @override
@@ -99,8 +89,8 @@ class Decay({
 
   @override
   DecayProcessor createProcessor() => DecayProcessor(
-    decay: decay.valueOrNull ?? 0.1,
-    attack: attack.valueOrNull ?? 0.0,
+    decay: decay.valueOrNull,
+    attack: attack.valueOrNull,
     curve: curve,
   );
 
@@ -114,16 +104,16 @@ class Decay({
 
 class DecayProcessor implements AudioProcessor {
   DecayProcessor({
-    required this.decay,
+    this.decay = 0.1,
     this.attack = 0.0,
     this.curve = .exponential,
   });
 
-  /// Decay time in seconds.
-  double decay;
+  /// Decay time in seconds. If null, driven by [Decay.decayInlet].
+  double? decay;
 
-  /// Attack time in seconds (0.0 for instant 1-sample rise).
-  double attack;
+  /// Attack time in seconds (0.0 for instant 1-sample rise). If null, driven by [Decay.attackInlet].
+  double? attack;
 
   /// Envelope curve style.
   DecayCurve curve;
@@ -151,9 +141,24 @@ class DecayProcessor implements AudioProcessor {
   @override
   void update(Object params) {
     final p = params as DecayParams;
-    if (p.decay != null) decay = p.decay!;
-    if (p.attack != null) attack = p.attack!;
+    decay = p.decay;
+    attack = p.attack;
     if (p.curve != null) curve = p.curve!;
+  }
+
+  @pragma('vm:prefer-inline')
+  void _updateAttackCache(double rawAttack, double sampleRate) {
+    _cachedAttack = rawAttack;
+    _aTime = rawAttack > 0.0001 ? rawAttack : 0.0001;
+    _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
+  }
+
+  @pragma('vm:prefer-inline')
+  void _updateDecayCache(double rawDecay, double sampleRate) {
+    _cachedDecay = rawDecay;
+    final double dTime = rawDecay > 0.0001 ? rawDecay : 0.0001;
+    _expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
+    _linDecayRate = 1.0 / (dTime * sampleRate);
   }
 
   @override
@@ -166,83 +171,160 @@ class DecayProcessor implements AudioProcessor {
     final triggerBuffer = inputs[Decay.triggerInlet];
     final sampleRate = context.sampleRate.toDouble();
 
-    final bool hasAttack = attack > 0.0;
-    final DecayCurve activeCurve = curve;
-
-    if (decay != _cachedDecay ||
-        attack != _cachedAttack ||
-        sampleRate != _cachedSampleRate) {
-      _cachedDecay = decay;
-      _cachedAttack = attack;
+    if (sampleRate != _cachedSampleRate) {
       _cachedSampleRate = sampleRate;
-
-      final double dTime = decay > 0.0001 ? decay : 0.0001;
-      _aTime = attack > 0.0001 ? attack : 0.0001;
-
-      _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
-      _expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
-      _linDecayRate = 1.0 / (dTime * sampleRate);
+      _cachedDecay = -1.0;
+      _cachedAttack = -1.0;
     }
 
-    final double expAttackCoeff = _expAttackCoeff;
-    final double expDecayCoeff = _expDecayCoeff;
-    final double linDecayRate = _linDecayRate;
-    final double aTime = _aTime;
+    final bool hasDecaySignal =
+        decay == null && inputs.length > Decay.decayInlet;
+    final bool hasAttackSignal =
+        attack == null && inputs.length > Decay.attackInlet;
+
+    final double staticDecay = decay ?? 0.1;
+    final double staticAttack = attack ?? 0.0;
+    final DecayCurve activeCurve = curve;
+
+    if (!hasDecaySignal && staticDecay != _cachedDecay) {
+      _updateDecayCache(staticDecay, sampleRate);
+    }
+    if (!hasAttackSignal && staticAttack != _cachedAttack) {
+      _updateAttackCache(staticAttack, sampleRate);
+    }
 
     double currentLevel = level;
     DecayState currentState = state;
     bool lastTrigger = _lastTrigger;
     double linAttackRate = _linearAttackRate;
 
-    for (int i = 0; i < output.length; i++) {
-      final bool triggerHigh = triggerBuffer[i] > 0.0;
-      final bool isRisingEdge = !lastTrigger && triggerHigh;
-      lastTrigger = triggerHigh;
+    if (!hasDecaySignal && !hasAttackSignal) {
+      final bool hasAttack = staticAttack > 0.0;
+      final double expAttackCoeff = _expAttackCoeff;
+      final double expDecayCoeff = _expDecayCoeff;
+      final double linDecayRate = _linDecayRate;
+      final double aTime = _aTime;
 
-      if (isRisingEdge) {
-        if (!hasAttack) {
-          currentLevel = 1.0;
-          currentState = .decay;
-          output[i] = 1.0;
-          continue;
-        } else {
-          currentState = .attack;
-          if (activeCurve == .linear) {
-            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
-          }
-        }
-      }
+      for (int i = 0; i < output.length; i++) {
+        final bool triggerHigh = triggerBuffer[i] > 0.0;
+        final bool isRisingEdge = !lastTrigger && triggerHigh;
+        lastTrigger = triggerHigh;
 
-      switch (currentState) {
-        case .idle:
-          currentLevel = 0.0;
-
-        case .attack:
-          switch (activeCurve) {
-            case .exponential:
-              currentLevel += expAttackCoeff * (1.5 - currentLevel);
-            case .linear:
-              currentLevel += linAttackRate;
-          }
-          if (currentLevel >= 1.0) {
+        if (isRisingEdge) {
+          if (!hasAttack) {
             currentLevel = 1.0;
             currentState = .decay;
+            output[i] = 1.0;
+            continue;
+          } else {
+            currentState = .attack;
+            if (activeCurve == .linear) {
+              linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
+            }
           }
+        }
 
-        case .decay:
-          switch (activeCurve) {
-            case .exponential:
-              currentLevel += expDecayCoeff * (-0.01 - currentLevel);
-            case .linear:
-              currentLevel -= linDecayRate;
-          }
-          if (currentLevel <= 0.0005) {
+        switch (currentState) {
+          case .idle:
             currentLevel = 0.0;
-            currentState = .idle;
-          }
-      }
 
-      output[i] = currentLevel;
+          case .attack:
+            switch (activeCurve) {
+              case .exponential:
+                currentLevel += expAttackCoeff * (1.5 - currentLevel);
+              case .linear:
+                currentLevel += linAttackRate;
+            }
+            if (currentLevel >= 1.0) {
+              currentLevel = 1.0;
+              currentState = .decay;
+            }
+
+          case .decay:
+            switch (activeCurve) {
+              case .exponential:
+                currentLevel += expDecayCoeff * (-0.01 - currentLevel);
+              case .linear:
+                currentLevel -= linDecayRate;
+            }
+            if (currentLevel <= 0.0005) {
+              currentLevel = 0.0;
+              currentState = .idle;
+            }
+        }
+
+        output[i] = currentLevel;
+      }
+    } else {
+      final decayBuffer = hasDecaySignal ? inputs[Decay.decayInlet] : null;
+      final attackBuffer = hasAttackSignal ? inputs[Decay.attackInlet] : null;
+
+      for (int i = 0; i < output.length; i++) {
+        final bool triggerHigh = triggerBuffer[i] > 0.0;
+        final bool isRisingEdge = !lastTrigger && triggerHigh;
+        lastTrigger = triggerHigh;
+
+        if (isRisingEdge) {
+          final double rawA = attackBuffer != null
+              ? attackBuffer[i]
+              : staticAttack;
+          if (rawA <= 0.0) {
+            currentLevel = 1.0;
+            currentState = .decay;
+            output[i] = 1.0;
+            continue;
+          } else {
+            currentState = .attack;
+            if (activeCurve == .linear) {
+              final double aTime = rawA > 0.0001 ? rawA : 0.0001;
+              linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
+            }
+          }
+        }
+
+        switch (currentState) {
+          case .idle:
+            currentLevel = 0.0;
+
+          case .attack:
+            switch (activeCurve) {
+              case .exponential:
+                if (attackBuffer != null) {
+                  final double rawA = attackBuffer[i];
+                  if (rawA != _cachedAttack) {
+                    _updateAttackCache(rawA, sampleRate);
+                  }
+                }
+                currentLevel += _expAttackCoeff * (1.5 - currentLevel);
+              case .linear:
+                currentLevel += linAttackRate;
+            }
+            if (currentLevel >= 1.0) {
+              currentLevel = 1.0;
+              currentState = .decay;
+            }
+
+          case .decay:
+            if (decayBuffer != null) {
+              final double rawD = decayBuffer[i];
+              if (rawD != _cachedDecay) {
+                _updateDecayCache(rawD, sampleRate);
+              }
+            }
+            switch (activeCurve) {
+              case .exponential:
+                currentLevel += _expDecayCoeff * (-0.01 - currentLevel);
+              case .linear:
+                currentLevel -= _linDecayRate;
+            }
+            if (currentLevel <= 0.0005) {
+              currentLevel = 0.0;
+              currentState = .idle;
+            }
+        }
+
+        output[i] = currentLevel;
+      }
     }
 
     level = currentLevel;

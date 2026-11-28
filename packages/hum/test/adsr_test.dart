@@ -15,10 +15,27 @@ void main() {
         release: const .value(0.1),
       );
 
-      expect(adsr.inlets.length, equals(1));
+      expect(adsr.inlets.length, equals(5));
       expect(adsr.inlets[Adsr.gateInlet].source, equals(dummyClock.gate));
+      expect(adsr.inlets[Adsr.attackInlet].source, isNull);
+      expect(adsr.inlets[Adsr.decayInlet].source, isNull);
+      expect(adsr.inlets[Adsr.sustainInlet].source, isNull);
+      expect(adsr.inlets[Adsr.releaseInlet].source, isNull);
       expect(adsr.outlets.length, equals(1));
       expect(adsr.outlet, equals(adsr.outlets.first));
+
+      final mod = Clock.bpm(60);
+      final modAdsr = Adsr(
+        gate: dummyClock.gate,
+        attack: .signal(mod.gate),
+        decay: .signal(mod.trigger),
+        sustain: .signal(mod.gate),
+        release: .signal(mod.trigger),
+      );
+      expect(modAdsr.inlets[Adsr.attackInlet].source, equals(mod.gate));
+      expect(modAdsr.inlets[Adsr.decayInlet].source, equals(mod.trigger));
+      expect(modAdsr.inlets[Adsr.sustainInlet].source, equals(mod.gate));
+      expect(modAdsr.inlets[Adsr.releaseInlet].source, equals(mod.trigger));
     });
 
     test('stays idle at 0.0 when gate is low', () {
@@ -196,6 +213,83 @@ void main() {
       // Because clock starts high, adsr immediately enters attack and starts rising
       expect(pipeline.outputs[0][0], greaterThan(0.0));
       expect(pipeline.outputs[0][63], greaterThan(pipeline.outputs[0][0]));
+    });
+
+    test('supports signal-modulated attack, decay, sustain, and release', () {
+      const sampleRate = 1000;
+      const vectorSize = 120;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final dummy = Clock.bpm(120);
+      final adsr = Adsr(
+        gate: dummy.gate,
+        attack: .signal(dummy.gate),
+        decay: .signal(dummy.gate),
+        sustain: .signal(dummy.gate),
+        release: .signal(dummy.gate),
+        curve: AdsrCurve.linear,
+      );
+      final processor = adsr.createProcessor();
+      expect(processor.attack, isNull);
+      expect(processor.decay, isNull);
+      expect(processor.sustain, isNull);
+      expect(processor.release, isNull);
+
+      final gate = Float32List(vectorSize);
+      final attackBuf = Float32List(vectorSize);
+      final decayBuf = Float32List(vectorSize);
+      final sustainBuf = Float32List(vectorSize);
+      final releaseBuf = Float32List(vectorSize);
+
+      for (int i = 0; i < vectorSize; i++) {
+        gate[i] = i < 70 ? 1.0 : 0.0;
+        attackBuf[i] = 0.01; // 10 samples
+        decayBuf[i] = 0.02; // 20 samples
+        sustainBuf[i] = i < 50 ? 0.4 : 0.8; // changes mid-sustain
+        releaseBuf[i] = 0.02; // 20 samples
+      }
+
+      final outputs = [Float32List(vectorSize)];
+      processor.process(
+        context,
+        [gate, attackBuf, decayBuf, sustainBuf, releaseBuf],
+        outputs,
+      );
+
+      final out = outputs[0];
+      // Peaks at sample 9 (10-sample linear attack)
+      expect(out[9], closeTo(1.0, 0.01));
+      // Decays to sustain 0.4 by sample 30
+      expect(out[35], closeTo(0.4, 0.01));
+      // Follows modulated sustain up to 0.8 at sample 55
+      expect(out[55], closeTo(0.8, 0.01));
+      // Releases after sample 70 and reaches idle
+      expect(out[75], lessThan(0.8));
+      expect(out[100], equals(0.0));
+      expect(processor.state, equals(AdsrState.idle));
+    });
+
+    test('compiles signal-modulated Adsr in AudioPipeline', () {
+      final clock = Clock.bpm(120, pulseWidth: const .value(0.5));
+      final sustainMod = clock.gate.mult(0.25);
+      final adsr = Adsr(
+        gate: clock.gate,
+        attack: const .value(0.001),
+        decay: const .value(0.001),
+        sustain: .signal(sustainMod.outlet),
+        release: const .value(0.01),
+        curve: AdsrCurve.linear,
+      );
+
+      final context = ProcessContext(sampleRate: 1000, vectorSize: 32);
+      final pipeline = compilePipeline(root: adsr, context: context).pipeline!;
+      pipeline.process();
+
+      // After 1-sample attack + 1-sample decay, holds at sustain signal 0.25
+      expect(pipeline.outputs[0][10], closeTo(0.25, 0.01));
     });
   });
 }

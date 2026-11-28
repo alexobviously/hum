@@ -44,10 +44,18 @@ class Adsr({
   final AdsrCurve curve = .exponential,
 }) extends AudioNode<AdsrProcessor> {
   static const gateInlet = 0;
+  static const attackInlet = 1;
+  static const decayInlet = 2;
+  static const sustainInlet = 3;
+  static const releaseInlet = 4;
 
   @override
   List<Inlet> get inlets => [
     Inlet(node: this, index: gateInlet, source: gate),
+    Inlet(node: this, index: attackInlet, source: attack.outletOrNull),
+    Inlet(node: this, index: decayInlet, source: decay.outletOrNull),
+    Inlet(node: this, index: sustainInlet, source: sustain.outletOrNull),
+    Inlet(node: this, index: releaseInlet, source: release.outletOrNull),
   ];
 
   @override
@@ -63,10 +71,10 @@ class Adsr({
 
   @override
   AdsrProcessor createProcessor() => AdsrProcessor(
-    attack: attack.valueOrNull ?? 0.01,
-    decay: decay.valueOrNull ?? 0.1,
-    sustain: sustain.valueOrNull ?? 0.7,
-    release: release.valueOrNull ?? 0.3,
+    attack: attack.valueOrNull,
+    decay: decay.valueOrNull,
+    sustain: sustain.valueOrNull,
+    release: release.valueOrNull,
     curve: curve,
   );
 
@@ -82,24 +90,24 @@ class Adsr({
 
 class AdsrProcessor implements AudioProcessor {
   AdsrProcessor({
-    required this.attack,
-    required this.decay,
-    required this.sustain,
-    required this.release,
+    this.attack = 0.01,
+    this.decay = 0.1,
+    this.sustain = 0.7,
+    this.release = 0.3,
     this.curve = .exponential,
   });
 
-  /// Attack time in seconds.
-  double attack;
+  /// Attack time in seconds. If null, driven by [Adsr.attackInlet].
+  double? attack;
 
-  /// Decay time in seconds.
-  double decay;
+  /// Decay time in seconds. If null, driven by [Adsr.decayInlet].
+  double? decay;
 
-  /// Sustain level (0.0 to 1.0).
-  double sustain;
+  /// Sustain level (0.0 to 1.0). If null, driven by [Adsr.sustainInlet].
+  double? sustain;
 
-  /// Release time in seconds.
-  double release;
+  /// Release time in seconds. If null, driven by [Adsr.releaseInlet].
+  double? release;
 
   /// Envelope curve style.
   AdsrCurve curve;
@@ -124,6 +132,7 @@ class AdsrProcessor implements AudioProcessor {
   double _cachedSampleRate = -1.0;
 
   double _aTime = 0.01;
+  double _dTime = 0.1;
   double _sLevel = 0.7;
   double _expAttackCoeff = 0.0;
   double _expDecayCoeff = 0.0;
@@ -134,11 +143,38 @@ class AdsrProcessor implements AudioProcessor {
   @override
   void update(Object params) {
     final p = params as AdsrParams;
-    if (p.attack != null) attack = p.attack!;
-    if (p.decay != null) decay = p.decay!;
-    if (p.sustain != null) sustain = p.sustain!;
-    if (p.release != null) release = p.release!;
+    attack = p.attack;
+    decay = p.decay;
+    sustain = p.sustain;
+    release = p.release;
     if (p.curve != null) curve = p.curve!;
+  }
+
+  @pragma('vm:prefer-inline')
+  void _updateAttackCache(double rawAttack, double sampleRate) {
+    _cachedAttack = rawAttack;
+    _aTime = rawAttack > 0.0001 ? rawAttack : 0.0001;
+    // Analog RC exponential coefficient:
+    // Attack targets 1.5 (overshoot) to cross 1.0 in a finite time with punchy convex curvature.
+    // ln(1.5 / (1.5 - 1.0)) = ln(3.0) ~= 1.098612
+    _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
+  }
+
+  @pragma('vm:prefer-inline')
+  void _updateDecayCache(double rawDecay, double sLevel, double sampleRate) {
+    _cachedDecay = rawDecay;
+    _dTime = rawDecay > 0.0001 ? rawDecay : 0.0001;
+    _expDecayCoeff = 1.0 - math.exp(-3.0 / (_dTime * sampleRate));
+    _linDecayRate = (1.0 - sLevel) / (_dTime * sampleRate);
+  }
+
+  @pragma('vm:prefer-inline')
+  void _updateReleaseCache(double rawRelease, double sampleRate) {
+    _cachedRelease = rawRelease;
+    final double rTime = rawRelease > 0.0001 ? rawRelease : 0.0001;
+    // Release targets -0.01 (undershoot) to cleanly hit 0.0 in finite time.
+    _expReleaseCoeff = 1.0 - math.exp(-3.0 / (rTime * sampleRate));
+    _linReleaseRate = 1.0 / (rTime * sampleRate);
   }
 
   @override
@@ -151,43 +187,42 @@ class AdsrProcessor implements AudioProcessor {
     final gateBuffer = inputs[Adsr.gateInlet];
     final sampleRate = context.sampleRate.toDouble();
 
-    // Cache parameters and coefficients when parameters or sample rate change
-    if (attack != _cachedAttack ||
-        decay != _cachedDecay ||
-        sustain != _cachedSustain ||
-        release != _cachedRelease ||
-        sampleRate != _cachedSampleRate) {
-      _cachedAttack = attack;
-      _cachedDecay = decay;
-      _cachedSustain = sustain;
-      _cachedRelease = release;
+    if (sampleRate != _cachedSampleRate) {
       _cachedSampleRate = sampleRate;
-
-      _aTime = attack > 0.0001 ? attack : 0.0001;
-      final double dTime = decay > 0.0001 ? decay : 0.0001;
-      _sLevel = sustain.fastClamp(0.0, 1.0);
-      final double rTime = release > 0.0001 ? release : 0.0001;
-
-      // Analog RC exponential coefficients:
-      // Attack targets 1.5 (overshoot) to cross 1.0 in a finite time with punchy convex curvature.
-      // ln(1.5 / (1.5 - 1.0)) = ln(3.0) ~= 1.098612
-      _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
-      _expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
-      // Release targets -0.01 (undershoot) to cleanly hit 0.0 in finite time.
-      _expReleaseCoeff = 1.0 - math.exp(-3.0 / (rTime * sampleRate));
-
-      // Linear rates per sample
-      _linDecayRate = (1.0 - _sLevel) / (dTime * sampleRate);
-      _linReleaseRate = 1.0 / (rTime * sampleRate);
+      _cachedAttack = -1.0;
+      _cachedDecay = -1.0;
+      _cachedSustain = -1.0;
+      _cachedRelease = -1.0;
     }
 
-    final double sLevel = _sLevel;
-    final double aTime = _aTime;
-    final double expAttackCoeff = _expAttackCoeff;
-    final double expDecayCoeff = _expDecayCoeff;
-    final double expReleaseCoeff = _expReleaseCoeff;
-    final double linDecayRate = _linDecayRate;
-    final double linReleaseRate = _linReleaseRate;
+    final bool hasAttackSignal =
+        attack == null && inputs.length > Adsr.attackInlet;
+    final bool hasDecaySignal =
+        decay == null && inputs.length > Adsr.decayInlet;
+    final bool hasSustainSignal =
+        sustain == null && inputs.length > Adsr.sustainInlet;
+    final bool hasReleaseSignal =
+        release == null && inputs.length > Adsr.releaseInlet;
+
+    final double staticAttack = attack ?? 0.01;
+    final double staticDecay = decay ?? 0.1;
+    final double staticSustain = sustain ?? 0.7;
+    final double staticRelease = release ?? 0.3;
+
+    if (!hasSustainSignal && staticSustain != _cachedSustain) {
+      _cachedSustain = staticSustain;
+      _sLevel = staticSustain.fastClamp(0.0, 1.0);
+      _cachedDecay = -1.0; // Recompute _linDecayRate for new sustain level
+    }
+    if (!hasAttackSignal && staticAttack != _cachedAttack) {
+      _updateAttackCache(staticAttack, sampleRate);
+    }
+    if (!hasDecaySignal && staticDecay != _cachedDecay) {
+      _updateDecayCache(staticDecay, _sLevel, sampleRate);
+    }
+    if (!hasReleaseSignal && staticRelease != _cachedRelease) {
+      _updateReleaseCache(staticRelease, sampleRate);
+    }
 
     double currentLevel = level;
     AdsrState currentState = state;
@@ -196,60 +231,166 @@ class AdsrProcessor implements AudioProcessor {
 
     final bool isExp = curve == AdsrCurve.exponential;
 
-    for (int i = 0; i < output.length; i++) {
-      final bool gateHigh = gateBuffer[i] > 0.0;
+    if (!hasAttackSignal &&
+        !hasDecaySignal &&
+        !hasSustainSignal &&
+        !hasReleaseSignal) {
+      final double sLevel = _sLevel;
+      final double aTime = _aTime;
+      final double expAttackCoeff = _expAttackCoeff;
+      final double expDecayCoeff = _expDecayCoeff;
+      final double expReleaseCoeff = _expReleaseCoeff;
+      final double linDecayRate = _linDecayRate;
+      final double linReleaseRate = _linReleaseRate;
 
-      // Edge detection
-      if (!lastGate && gateHigh) {
-        // Gate Rising Edge: Trigger Note On / Attack
-        currentState = .attack;
-        if (!isExp) {
-          linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
+      for (int i = 0; i < output.length; i++) {
+        final bool gateHigh = gateBuffer[i] > 0.0;
+
+        // Edge detection
+        if (!lastGate && gateHigh) {
+          // Gate Rising Edge: Trigger Note On / Attack
+          currentState = .attack;
+          if (!isExp) {
+            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
+          }
+        } else if (lastGate && !gateHigh && currentState != .idle) {
+          // Gate Falling Edge: Trigger Note Off / Release
+          currentState = .release;
         }
-      } else if (lastGate && !gateHigh && currentState != .idle) {
-        // Gate Falling Edge: Trigger Note Off / Release
-        currentState = .release;
-      }
-      lastGate = gateHigh;
+        lastGate = gateHigh;
 
-      // State machine evaluation
-      switch (currentState) {
-        case .idle:
-          currentLevel = 0.0;
-
-        case .attack:
-          currentLevel += isExp
-              ? expAttackCoeff * (1.5 - currentLevel)
-              : linAttackRate;
-
-          if (currentLevel >= 1.0) {
-            currentLevel = 1.0;
-            currentState = .decay;
-          }
-
-        case .decay:
-          currentLevel += isExp
-              ? expDecayCoeff * (sLevel - currentLevel)
-              : -linDecayRate;
-          if (currentLevel <= sLevel || currentLevel - sLevel <= 0.0005) {
-            currentLevel = sLevel;
-            currentState = .sustain;
-          }
-
-        case .sustain:
-          currentLevel = sLevel;
-
-        case .release:
-          currentLevel += isExp
-              ? expReleaseCoeff * (-0.01 - currentLevel)
-              : -linReleaseRate;
-          if (currentLevel <= 0.0005) {
+        // State machine evaluation
+        switch (currentState) {
+          case .idle:
             currentLevel = 0.0;
-            currentState = .idle;
-          }
-      }
 
-      output[i] = currentLevel;
+          case .attack:
+            currentLevel += isExp
+                ? expAttackCoeff * (1.5 - currentLevel)
+                : linAttackRate;
+
+            if (currentLevel >= 1.0) {
+              currentLevel = 1.0;
+              currentState = .decay;
+            }
+
+          case .decay:
+            currentLevel += isExp
+                ? expDecayCoeff * (sLevel - currentLevel)
+                : -linDecayRate;
+            if (currentLevel <= sLevel || currentLevel - sLevel <= 0.0005) {
+              currentLevel = sLevel;
+              currentState = .sustain;
+            }
+
+          case .sustain:
+            currentLevel = sLevel;
+
+          case .release:
+            currentLevel += isExp
+                ? expReleaseCoeff * (-0.01 - currentLevel)
+                : -linReleaseRate;
+            if (currentLevel <= 0.0005) {
+              currentLevel = 0.0;
+              currentState = .idle;
+            }
+        }
+
+        output[i] = currentLevel;
+      }
+    } else {
+      final attackBuffer = hasAttackSignal ? inputs[Adsr.attackInlet] : null;
+      final decayBuffer = hasDecaySignal ? inputs[Adsr.decayInlet] : null;
+      final sustainBuffer = hasSustainSignal ? inputs[Adsr.sustainInlet] : null;
+      final releaseBuffer = hasReleaseSignal ? inputs[Adsr.releaseInlet] : null;
+
+      for (int i = 0; i < output.length; i++) {
+        final bool gateHigh = gateBuffer[i] > 0.0;
+
+        // Edge detection
+        if (!lastGate && gateHigh) {
+          currentState = .attack;
+          if (!isExp) {
+            final double rawA = attackBuffer != null
+                ? attackBuffer[i]
+                : staticAttack;
+            final double aTime = rawA > 0.0001 ? rawA : 0.0001;
+            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
+          }
+        } else if (lastGate && !gateHigh && currentState != .idle) {
+          currentState = .release;
+        }
+        lastGate = gateHigh;
+
+        // State machine evaluation
+        switch (currentState) {
+          case .idle:
+            currentLevel = 0.0;
+
+          case .attack:
+            if (isExp) {
+              if (attackBuffer != null) {
+                final double rawA = attackBuffer[i];
+                if (rawA != _cachedAttack) {
+                  _updateAttackCache(rawA, sampleRate);
+                }
+              }
+              currentLevel += _expAttackCoeff * (1.5 - currentLevel);
+            } else {
+              currentLevel += linAttackRate;
+            }
+
+            if (currentLevel >= 1.0) {
+              currentLevel = 1.0;
+              currentState = .decay;
+            }
+
+          case .decay:
+            final double sLevel = sustainBuffer != null
+                ? sustainBuffer[i].fastClamp(0.0, 1.0)
+                : _sLevel;
+            if (decayBuffer != null) {
+              final double rawD = decayBuffer[i];
+              if (rawD != _cachedDecay) {
+                _updateDecayCache(rawD, sLevel, sampleRate);
+              }
+            }
+            if (isExp) {
+              currentLevel += _expDecayCoeff * (sLevel - currentLevel);
+            } else {
+              final double linRate = sustainBuffer != null
+                  ? (1.0 - sLevel) / (_dTime * sampleRate)
+                  : _linDecayRate;
+              currentLevel -= linRate;
+            }
+            if (currentLevel <= sLevel || currentLevel - sLevel <= 0.0005) {
+              currentLevel = sLevel;
+              currentState = .sustain;
+            }
+
+          case .sustain:
+            currentLevel = sustainBuffer != null
+                ? sustainBuffer[i].fastClamp(0.0, 1.0)
+                : _sLevel;
+
+          case .release:
+            if (releaseBuffer != null) {
+              final double rawR = releaseBuffer[i];
+              if (rawR != _cachedRelease) {
+                _updateReleaseCache(rawR, sampleRate);
+              }
+            }
+            currentLevel += isExp
+                ? _expReleaseCoeff * (-0.01 - currentLevel)
+                : -_linReleaseRate;
+            if (currentLevel <= 0.0005) {
+              currentLevel = 0.0;
+              currentState = .idle;
+            }
+        }
+
+        output[i] = currentLevel;
+      }
     }
 
     level = currentLevel;

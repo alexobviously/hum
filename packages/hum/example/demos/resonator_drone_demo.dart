@@ -53,11 +53,11 @@ void main(List<String> args) => runDemo(
     final leveled = Compressor.stereo(
       reverb.left,
       reverb.right,
-      threshold: const .value(-12.0),
-      ratio: const .value(2.5),
+      threshold: const .value(-34.0),
+      ratio: const .value(4.0),
       attack: const .value(0.05),
       release: const .value(0.2),
-      makeupGain: const .value(2.0),
+      makeupGain: const .value(20.0),
     );
 
     return Out.stereo(left: leveled.left, right: leveled.right);
