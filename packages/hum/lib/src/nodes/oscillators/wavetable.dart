@@ -73,6 +73,7 @@ class const WavetableHandle({
 /// [WavetableHandle] for [WavetableOscillator].
 class Wavetable._(
   final AudioBuffer _audioBuffer, {
+
   /// Level-0 single-cycle frame length in samples.
   required final int frameSize,
 
@@ -424,3 +425,11 @@ void _fft(Float64List re, Float64List im, {required bool inverse}) {
     }
   }
 }
+
+// Format is like this for mipmapped wavetables:
+//
+// AudioBuffer (e.g. Wavetable.basicShapes(), frameSize = 2048):
+//   channel[0] (sine):     [ oct 0 (2048) | oct 1 (1024) | oct 2 (512) | ... | oct 8 (8) ]
+//   channel[1] (triangle): [ oct 0 (2048) | oct 1 (1024) | oct 2 (512) | ... | oct 8 (8) ]
+//   channel[2] (saw):      [ oct 0 (2048) | oct 1 (1024) | oct 2 (512) | ... | oct 8 (8) ]
+//   channel[3] (square):   [ oct 0 (2048) | oct 1 (1024) | oct 2 (512) | ... | oct 8 (8) ]
