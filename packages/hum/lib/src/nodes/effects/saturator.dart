@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
+// TODO: consider oversampling, I think technically this node produces aliasing rn
+
 /// Available non-linear transfer curves for [Saturator].
 enum SaturationMode {
   /// Hyperbolic tangent saturation.
