@@ -341,47 +341,51 @@ class SubprocessSourceProcessor implements DisposableAudioProcessor {
 
   void _onData(List<int> chunk) {
     if (_isClosed) return;
-    int len = chunk.length;
+    final int len = chunk.length;
     if (len == 0) return;
 
     final int bytesPerSample = format == .float32 ? 4 : 2;
     final int frameBytes = numChannels * bytesPerSample;
 
-    // Guard against oversized chunk
-    Uint8List data;
-    if (len > _capacity) {
-      data = Uint8List.fromList(chunk.sublist(len - _capacity));
-      len = data.length;
-    } else if (chunk is Uint8List) {
-      data = chunk;
-    } else {
-      data = Uint8List.fromList(chunk);
-    }
-
-    // Drop oldest frames if incoming data exceeds available capacity
+    // Drop oldest whole frames if incoming data exceeds available capacity,
+    // preserving exact frame & channel byte alignment even for oversized chunks.
+    int startOffset = 0;
     if (_availableBytes + len > _capacity) {
       final int overflow = (_availableBytes + len) - _capacity;
       final int framesToDrop = (overflow + frameBytes - 1) ~/ frameBytes;
       final int bytesToDrop = framesToDrop * frameBytes;
-      if (bytesToDrop >= _availableBytes) {
-        _availableBytes = 0;
-        _readIndex = _writeIndex;
-      } else {
+      if (bytesToDrop <= _availableBytes) {
         _availableBytes -= bytesToDrop;
         _readIndex = (_readIndex + bytesToDrop) & _mask;
+      } else {
+        startOffset = bytesToDrop - _availableBytes;
+        _availableBytes = 0;
+        _readIndex = _writeIndex;
       }
     }
 
+    final int bytesToWrite = len - startOffset;
+    if (bytesToWrite <= 0) return;
+
+    final Uint8List data = chunk is Uint8List
+        ? chunk
+        : Uint8List.fromList(chunk);
+
     final int writeIdx = _writeIndex;
     final int toEnd = _capacity - writeIdx;
-    if (len <= toEnd) {
-      _ringBuffer.setRange(writeIdx, writeIdx + len, data);
+    if (bytesToWrite <= toEnd) {
+      _ringBuffer.setRange(writeIdx, writeIdx + bytesToWrite, data, startOffset);
     } else {
-      _ringBuffer.setRange(writeIdx, _capacity, data);
-      _ringBuffer.setRange(0, len - toEnd, data, toEnd);
+      _ringBuffer.setRange(writeIdx, _capacity, data, startOffset);
+      _ringBuffer.setRange(
+        0,
+        bytesToWrite - toEnd,
+        data,
+        startOffset + toEnd,
+      );
     }
-    _writeIndex = (writeIdx + len) & _mask;
-    _availableBytes += len;
+    _writeIndex = (writeIdx + bytesToWrite) & _mask;
+    _availableBytes += bytesToWrite;
 
     // Apply backpressure if buffer exceeds high watermark
     if (!_isPaused && _availableBytes >= _highWatermark) {

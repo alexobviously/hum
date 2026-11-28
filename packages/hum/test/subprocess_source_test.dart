@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 import 'package:hum/io.dart';
@@ -224,6 +225,50 @@ void main() {
 
         expect(foundNonZero, isTrue);
         await proc.close();
+      },
+    );
+
+    test(
+      'preserves frame and channel alignment when an incoming chunk exceeds bufferCapacity',
+      () async {
+        // 3 channels * float32 = 12 bytes/frame.
+        // bufferCapacity = 16 bytes -> 2 frames (24 bytes) exceeds capacity.
+        // Dropping whole frames must discard frame 0 (12 bytes) and keep frame 1 [4, 5, 6].
+        final tempDir = Directory.systemTemp.createTempSync('hum_subproc_');
+        addTearDown(() => tempDir.deleteSync(recursive: true));
+        final rawFile = File('${tempDir.path}/frames.raw');
+        final payload = Float32List.fromList([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        rawFile.writeAsBytesSync(payload.buffer.asUint8List());
+
+        const vectorSize = 4;
+        final context = ProcessContext(
+          sampleRate: 44100,
+          vectorSize: vectorSize,
+        );
+        final proc = SubprocessSourceProcessor(
+          executable: 'cat',
+          arguments: [rawFile.path],
+          numChannels: 3,
+          format: WavFormat.float32,
+          bufferCapacity: 16,
+        );
+
+        await proc.ensureStarted();
+        for (int i = 0; i < 20 && proc.availableBytes == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+
+        final outputs = [
+          Float32List(vectorSize),
+          Float32List(vectorSize),
+          Float32List(vectorSize),
+        ];
+        proc.process(context, const [], outputs);
+        await proc.close();
+
+        expect(outputs[0][0], equals(4.0));
+        expect(outputs[1][0], equals(5.0));
+        expect(outputs[2][0], equals(6.0));
       },
     );
   });

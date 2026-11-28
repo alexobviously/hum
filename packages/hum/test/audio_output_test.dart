@@ -361,6 +361,117 @@ void main() {
         expect(okDriver.lastWaitForExit, isFalse);
       },
     );
+
+    test(
+      'PipedAudioOutputDriver drains child stderr so noisy subprocesses do not deadlock',
+      () async {
+        // Write 256 KB to stderr (exceeds OS pipe buffer) before draining stdin and exiting.
+        final output = PipedAudioOutput(
+          executable: 'sh',
+          arguments: const [
+            '-c',
+            'dd if=/dev/zero bs=1024 count=256 >&2 2>/dev/null; cat >/dev/null',
+          ],
+          numChannels: 1,
+          vectorSize: 4,
+        );
+        final AudioOutputDriver driver = output.createDriver();
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+
+        await driver.start(context);
+        driver.write([Float32List(4)]);
+
+        await driver
+            .close(waitForExit: true)
+            .timeout(const Duration(seconds: 2));
+        expect((driver as PipedAudioOutputDriver).isClosed, isTrue);
+      },
+    );
+
+    test(
+      'SubprocessSinkProcessor drains child stderr so noisy subprocesses do not deadlock',
+      () async {
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+        final proc = SubprocessSinkProcessor(
+          executable: 'sh',
+          arguments: const [
+            '-c',
+            'dd if=/dev/zero bs=1024 count=256 >&2 2>/dev/null; cat >/dev/null',
+          ],
+          numChannels: 1,
+        );
+
+        await proc.ensureStarted();
+        proc.process(context, [Float32List(4)], const []);
+
+        await proc
+            .close(waitForExit: true)
+            .timeout(const Duration(seconds: 2));
+        expect(proc.isClosed, isTrue);
+      },
+    );
+
+    test(
+      'PipedAudioOutputDriver.start throws ProcessException when executable cannot spawn',
+      () async {
+        final output = PipedAudioOutput(
+          executable: '__nonexistent_hum_executable__',
+          numChannels: 1,
+          vectorSize: 4,
+        );
+        final AudioOutputDriver driver = output.createDriver();
+        final context = ProcessContext(sampleRate: 44100, vectorSize: 4);
+
+        await expectLater(
+          () async => await driver.start(context),
+          throwsA(isA<ProcessException>()),
+        );
+        expect((driver as PipedAudioOutputDriver).isClosed, isTrue);
+      },
+    );
+
+    test(
+      'PipedAudioOutputDriver handles broken pipe cleanly when child exits prematurely',
+      () async {
+        final unhandledErrors = <Object>[];
+        final done = Completer<void>();
+        unawaited(
+          runZonedGuarded(
+            () async {
+              final output = PipedAudioOutput(
+                executable: 'sh',
+                arguments: const ['-c', 'exit 0'],
+                numChannels: 1,
+                vectorSize: 1024,
+              );
+              final AudioOutputDriver driver = output.createDriver();
+              final context = ProcessContext(
+                sampleRate: 44100,
+                vectorSize: 1024,
+              );
+
+              await driver.start(context);
+              await (driver as PipedAudioOutputDriver).process?.exitCode;
+
+              // Write several blocks to the already-closed stdin pipe.
+              for (int i = 0; i < 8; i++) {
+                driver.write([Float32List(1024)]);
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+              await driver.close(waitForExit: false);
+              if (!done.isCompleted) done.complete();
+            },
+            (error, _) {
+              unhandledErrors.add(error);
+              if (!done.isCompleted) done.complete();
+            },
+          ),
+        );
+
+        await done.future.timeout(const Duration(seconds: 2));
+        expect(unhandledErrors, isEmpty);
+      },
+    );
   });
 }
 

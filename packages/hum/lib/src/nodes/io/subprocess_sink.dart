@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -109,6 +110,8 @@ class SubprocessSinkProcessor({
 }) implements DisposableAudioProcessor {
   Process? _process;
   IOSink? _stdin;
+  StreamSubscription<List<int>>? _stdoutSub;
+  StreamSubscription<List<int>>? _stderrSub;
   BufferInterleaver? _interleaver;
   final List<Uint8List> _pendingBuffer = [];
   bool _isSpawning = false;
@@ -133,7 +136,28 @@ class SubprocessSinkProcessor({
           }
           _process = p;
           _stdin = p.stdin;
+          // Drain stdout and stderr so the child process cannot block on full OS pipe buffers.
+          _stdoutSub = p.stdout.listen((_) {});
+          _stderrSub = p.stderr.listen((_) {});
+          // Absorb broken-pipe errors when the child exits prematurely.
+          unawaited(
+            p.stdin.done.catchError((Object _) {
+              _isClosed = true;
+              _stdin = null;
+              _pendingBuffer.clear();
+            }),
+          );
+          unawaited(
+            p.exitCode.then((_) {
+              if (identical(_process, p)) {
+                _isClosed = true;
+                _stdin = null;
+                _pendingBuffer.clear();
+              }
+            }),
+          );
           for (final pending in _pendingBuffer) {
+            if (_stdin == null || _isClosed) break;
             _stdin!.add(pending);
           }
           _pendingBuffer.clear();
@@ -209,6 +233,14 @@ class SubprocessSinkProcessor({
     } else {
       _process?.kill();
     }
+    try {
+      await _stdoutSub?.cancel();
+    } catch (_) {}
+    _stdoutSub = null;
+    try {
+      await _stderrSub?.cancel();
+    } catch (_) {}
+    _stderrSub = null;
     _process = null;
     _stdin = null;
     _pendingBuffer.clear();

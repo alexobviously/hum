@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -128,7 +129,9 @@ class PipedAudioOutputDriver({
 }) extends AudioOutputDriver {
   BufferInterleaver? _interleaver;
   final List<Uint8List> _pendingBuffer = [];
-  bool _isSpawning = false;
+  Future<void>? _startFuture;
+  StreamSubscription<List<int>>? _stdoutSub;
+  StreamSubscription<List<int>>? _stderrSub;
   bool _isClosed = false;
 
   /// Whether this driver has been closed (including permanently disabled on spawn error).
@@ -137,35 +140,59 @@ class PipedAudioOutputDriver({
   /// The active child subprocess, if spawned.
   Process? get process => _process;
 
-  void _ensureStarted() {
-    if (_sink != null || _isSpawning || _isClosed || executable == null) return;
-    _isSpawning = true;
-    Process.start(executable!, arguments)
-        .then((p) {
-          _isSpawning = false;
-          if (_isClosed) {
-            _pendingBuffer.clear();
-            p.kill();
-            return;
-          }
-          _process = p;
-          _sink = p.stdin;
-          for (final pending in _pendingBuffer) {
-            _sink!.add(pending);
-          }
-          _pendingBuffer.clear();
-        })
-        .catchError((_) {
-          _isSpawning = false;
+  Future<void> _ensureStarted() {
+    if (_sink != null || _isClosed || executable == null) {
+      return Future<void>.value();
+    }
+    return _startFuture ??= _spawnProcess();
+  }
+
+  Future<void> _spawnProcess() async {
+    try {
+      final p = await Process.start(executable!, arguments);
+      if (_isClosed) {
+        _pendingBuffer.clear();
+        p.kill();
+        return;
+      }
+      _process = p;
+      _sink = p.stdin;
+      // Drain stdout and stderr so the child process cannot block on full OS pipe buffers.
+      _stdoutSub = p.stdout.listen((_) {});
+      _stderrSub = p.stderr.listen((_) {});
+      // Absorb broken-pipe errors when the child exits prematurely.
+      unawaited(
+        p.stdin.done.catchError((Object _) {
           _isClosed = true;
+          _sink = null;
           _pendingBuffer.clear();
-        });
+        }),
+      );
+      unawaited(
+        p.exitCode.then((_) {
+          if (identical(_process, p)) {
+            _isClosed = true;
+            _sink = null;
+            _pendingBuffer.clear();
+          }
+        }),
+      );
+      for (final pending in _pendingBuffer) {
+        if (_sink == null || _isClosed) break;
+        _sink!.add(pending);
+      }
+      _pendingBuffer.clear();
+    } catch (_) {
+      _isClosed = true;
+      _pendingBuffer.clear();
+      rethrow;
+    } finally {
+      _startFuture = null;
+    }
   }
 
   @override
-  void start(ProcessContext context) {
-    _ensureStarted();
-  }
+  Future<void> start(ProcessContext context) => _ensureStarted();
 
   @override
   void write(List<Float32List> channels) {
@@ -184,28 +211,46 @@ class PipedAudioOutputDriver({
       _sink!.add(copiedBytes);
     } else if (executable != null) {
       _pendingBuffer.add(copiedBytes);
-      _ensureStarted();
+      unawaited(_ensureStarted().catchError((Object _) {}));
     }
   }
 
   @override
   Future<void> close({bool waitForExit = true}) async {
-    if (_isClosed) return;
+    final pendingStart = _startFuture;
     _isClosed = true;
-    while (_isSpawning) {
-      await Future.delayed(const Duration(milliseconds: 5));
+    if (pendingStart != null) {
+      try {
+        await pendingStart;
+      } catch (_) {}
+    }
+    final sink = _sink;
+    _sink = null;
+    if (sink != null) {
+      try {
+        if (waitForExit) {
+          await sink.flush();
+        }
+        await sink.close();
+      } catch (_) {}
+    }
+    final process = _process;
+    _process = null;
+    if (process != null) {
+      if (waitForExit) {
+        await process.exitCode;
+      } else {
+        process.kill();
+      }
     }
     try {
-      await _sink?.flush();
-      await _sink?.close();
+      await _stdoutSub?.cancel();
     } catch (_) {}
-    if (waitForExit && _process != null) {
-      await _process!.exitCode;
-    } else {
-      _process?.kill();
-    }
-    _process = null;
-    _sink = null;
+    _stdoutSub = null;
+    try {
+      await _stderrSub?.cancel();
+    } catch (_) {}
+    _stderrSub = null;
     _pendingBuffer.clear();
   }
 }
