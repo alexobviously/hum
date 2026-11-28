@@ -109,7 +109,7 @@ class const GraphSnapshot({
     ];
 
     return AudioPipeline(
-      context: context,
+      context: context.epoch > 0 ? context : context.withEpoch(1),
       steps: pipelineSteps,
       outputs: pipelineOutputs,
     );

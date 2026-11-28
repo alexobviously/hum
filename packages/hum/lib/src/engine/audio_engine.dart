@@ -52,6 +52,8 @@ class AudioEngine({
   List<EngineStep> _steps = [];
   List<Float32List> _inputs = const [];
   List<Float32List> _outputs = [];
+  int _topologyEpoch = 0;
+  late ProcessContext _processContext = context;
   List<_TelemetryEmitterSlot> _telemetryEmitters = const [];
   Float32List _telemetryData = Float32List(0);
   Int32List _telemetryMeta = Int32List(0);
@@ -126,6 +128,10 @@ class AudioEngine({
   /// The number of buffers in the allocated buffer pool.
   int get bufferPoolSize => _bufferPool.length;
 
+  /// Monotonic counter incremented whenever the execution schedule or buffer
+  /// slot assignments change.
+  int get topologyEpoch => _topologyEpoch;
+
   /// Retrieves the active processor for [nodeId], or null if not registered.
   T? processorOf<T extends AudioProcessor>(int nodeId) =>
       switch (_processors[nodeId]) {
@@ -186,6 +192,9 @@ class AudioEngine({
       _outputs = [
         for (final slot in schedule.outputSlots) _bufferPool[slot],
       ];
+
+      _topologyEpoch++;
+      _processContext = context.withEpoch(_topologyEpoch);
     }
   }
 
@@ -199,8 +208,9 @@ class AudioEngine({
   /// Zero heap allocations occur during this call.
   @pragma('vm:prefer-inline')
   void process() {
+    final ctx = _processContext;
     for (int i = 0; i < _steps.length; i++) {
-      _steps[i].process(context);
+      _steps[i].process(ctx);
     }
 
     final callback = onTelemetry;

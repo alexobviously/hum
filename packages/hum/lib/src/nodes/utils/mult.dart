@@ -93,9 +93,8 @@ class MultProcessor implements AudioProcessor {
   // To prevent 'zipper' noises when adjusting value sharply
   late final SmoothedValue _smoother = SmoothedValue(value ?? 0.0);
 
-  // Cached SIMD vector views
-  // TODO: harden with engine epochs once available
-  Float32List? _lastOut;
+  // Cached SIMD vector views invalidated on topology epoch change.
+  int _lastEpoch = -1;
   List<SimdList>? _out4;
   List<SimdList>? _in4;
   SimdList? _val4;
@@ -127,10 +126,9 @@ class MultProcessor implements AudioProcessor {
     final value = this.value;
     final vs = context.vectorSize;
 
-    // Lazy initialization, happens in first block
-    // TODO: harden with engine epochs once available
-    if (!identical(_lastOut, outputs[0])) {
-      _lastOut = outputs[0];
+    final epoch = context.epoch;
+    if (epoch == 0 || epoch != _lastEpoch) {
+      _lastEpoch = epoch;
       _out4 = [
         for (int c = 0; c < numChannels; c++) SIMD.view(outputs[c], vs),
       ];

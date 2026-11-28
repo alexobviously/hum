@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:hum/hum.dart';
 import 'package:test/test.dart';
 
@@ -239,5 +241,76 @@ void main() {
       expect(left[1], isNot(equals(0.0)));
       expect(left[1], closeTo(right[1], 1e-6));
     });
+
+    test('topologyEpoch increments only when schedule changes', () {
+      const context = ProcessContext(sampleRate: 44100, vectorSize: 64);
+      expect(context.epoch, equals(0));
+
+      final engine = AudioEngine(context: context);
+      expect(engine.topologyEpoch, equals(0));
+
+      // Initial graph -> epoch 1.
+      final osc1 = SineOscillator(frequency: const .value(440));
+      final snap1 = compileGraph(root: Out.mono(osc1.outlet)).snapshot!;
+      final diff1 = diffGraph(GraphSnapshot.empty, snap1);
+      engine.applyDiff(diff1);
+      expect(engine.topologyEpoch, equals(1));
+
+      // Param-only update -> schedule unchanged -> epoch stays 1.
+      final osc2 = SineOscillator(frequency: const .value(880));
+      final snap2 = compileGraph(root: Out.mono(osc2.outlet)).snapshot!;
+      final diff2 = diffGraph(diff1.snapshot, snap2);
+      engine.applyDiff(diff2);
+      expect(engine.topologyEpoch, equals(1));
+
+      // Topology change (insert Mult) -> epoch 2.
+      final osc3 = SineOscillator(frequency: const .value(880));
+      final mult = Mult.mono(input: osc3.outlet, value: const .value(0.5));
+      final snap3 = compileGraph(root: Out.mono(mult.outlet)).snapshot!;
+      final diff3 = diffGraph(diff2.snapshot, snap3);
+      engine.applyDiff(diff3);
+      expect(engine.topologyEpoch, equals(2));
+    });
+
+    test(
+      'SIMD processors rebind views on epoch bump even when output buffer is identical',
+      () {
+        const baseCtx = ProcessContext(sampleRate: 48000, vectorSize: 16);
+        final ctx1 = baseCtx.withEpoch(1);
+        final ctx2 = baseCtx.withEpoch(2);
+
+        final inA = Float32List(16)..fillRange(0, 16, 1.0);
+        final inB = Float32List(16)..fillRange(0, 16, 2.0);
+        final inC = Float32List(16)..fillRange(0, 16, 5.0);
+        final sameOut = Float32List(16);
+
+        // Sum: swap second input buffer while keeping `sameOut` identical.
+        final sum = SumProcessor(numInputs: 2);
+        sum.process(ctx1, [inA, inB], [sameOut]);
+        expect(sameOut[0], closeTo(3.0, 1e-6));
+        sum.process(ctx2, [inA, inC], [sameOut]);
+        expect(sameOut[0], closeTo(6.0, 1e-6));
+
+        // Mult: swap input buffer while keeping `sameOut` identical.
+        final mult = MultProcessor(value: 2.0, numChannels: 1, interpTime: 0.0);
+        final emptyVal = Float32List(16);
+        mult.process(ctx1, [emptyVal, inA], [sameOut]);
+        expect(sameOut[0], closeTo(2.0, 1e-6));
+        mult.process(ctx2, [emptyVal, inC], [sameOut]);
+        expect(sameOut[0], closeTo(10.0, 1e-6));
+
+        // Crossfade: swap input B buffer while keeping `sameOut` identical.
+        final xfade = CrossfadeProcessor(
+          numChannels: 1,
+          position: 1.0,
+          mode: .linear,
+          interpTime: 0.0,
+        );
+        xfade.process(ctx1, [emptyVal, inA, inB], [sameOut]);
+        expect(sameOut[0], closeTo(2.0, 1e-6));
+        xfade.process(ctx2, [emptyVal, inA, inC], [sameOut]);
+        expect(sameOut[0], closeTo(5.0, 1e-6));
+      },
+    );
   });
 }

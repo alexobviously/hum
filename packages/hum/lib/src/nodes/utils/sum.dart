@@ -53,8 +53,8 @@ class SumProcessor implements AudioProcessor {
 
   SumProcessor({required this.numInputs});
 
-  // Cached SIMD vector views
-  Float32List? _lastOut;
+  // Cached SIMD vector views invalidated on topology epoch change.
+  int _lastEpoch = -1;
   SimdList? _out4;
   List<SimdList>? _in4;
 
@@ -82,9 +82,9 @@ class SumProcessor implements AudioProcessor {
       return;
     }
 
-    // lazy initialisation, happens in first block
-    if (!identical(_lastOut, out)) {
-      _lastOut = out;
+    final epoch = context.epoch;
+    if (epoch == 0 || epoch != _lastEpoch) {
+      _lastEpoch = epoch;
       _out4 = SIMD.view(out, vs);
       _in4 = [
         for (int c = 0; c < numInputs; c++) SIMD.view(inputs[c], vs),

@@ -172,9 +172,8 @@ class CrossfadeProcessor implements AudioProcessor {
   // To prevent 'zipper' noises when adjusting position sharply
   late final SmoothedValue _posSmoother = SmoothedValue(position ?? 0.0);
 
-  // Cached SIMD vector views
-  // TODO: harden with engine epochs once available
-  Float32List? _lastOut;
+  // Cached SIMD vector views invalidated on topology epoch change.
+  int _lastEpoch = -1;
   List<SimdList>? _out4;
   List<SimdList>? _inA4;
   List<SimdList>? _inB4;
@@ -210,9 +209,9 @@ class CrossfadeProcessor implements AudioProcessor {
         ? Crossfade.audioInletOffset
         : 0;
 
-    // Lazy initialization, happens in first block
-    // TODO: harden with engine epochs once available
-    if (!identical(_lastOut, outputs[0])) {
+    final epoch = context.epoch;
+    if (epoch == 0 || epoch != _lastEpoch) {
+      _lastEpoch = epoch;
       _initViews(inputs, outputs, audioOffset, length);
     }
 
@@ -263,7 +262,6 @@ class CrossfadeProcessor implements AudioProcessor {
     int audioOffset,
     int length,
   ) {
-    _lastOut = outputs[0];
     _out4 = [
       for (int c = 0; c < numChannels; c++) SIMD.view(outputs[c], length),
     ];
