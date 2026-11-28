@@ -2,6 +2,7 @@
 
 * Optimisation: engine topology epochs, allowing nodes that should change when topology changes to more easily detect changes, without comparing every buffer, e.g. nodes that cache SIMD views.
 * Optimisation: use graph colouring to reuse buffers once their lifecycle has ended, e.g. A -> B -> C, A's output buffer is not needed after B, so we can reuse it for C.
+* Wavetable synthesis: `WavetableOscillator`, with `Wavetable` buffer wrapper and utilities.
 
 ## 0.1.1
 

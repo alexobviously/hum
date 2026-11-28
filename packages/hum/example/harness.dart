@@ -13,6 +13,41 @@ import 'package:hum/io.dart';
 typedef DemoBuilder =
     Object Function(ProcessContext context, Tempo tempo, ArgResults args);
 
+/// Lightweight buffer/wavetable registry for demos that use [SamplePlayer] or
+/// [WavetableOscillator] with [runDemo].
+///
+/// Pre-allocated handles are loaded automatically into the underlying
+/// [AudioHost] (for `--play`) or [AudioPipeline] (for `--offline` / `--bench`).
+class DemoBuffers {
+  final Map<BufferId, AudioBuffer> _buffers = {};
+  int _nextId = 1;
+
+  /// Registers [buffer] and returns a [BufferHandle] usable in demo graphs.
+  BufferHandle loadBuffer(AudioBuffer buffer) {
+    final id = BufferId(_nextId++);
+    _buffers[id] = buffer;
+    return BufferHandle(
+      id: id,
+      sampleRate: buffer.sampleRate,
+      numChannels: buffer.numChannels,
+      length: buffer.length,
+    );
+  }
+
+  /// Registers [table] and returns a [WavetableHandle] usable in demo graphs.
+  WavetableHandle loadWavetable(Wavetable table) {
+    final handle = loadBuffer(table.toAudioBuffer());
+    return WavetableHandle(
+      buffer: handle,
+      frameSize: table.frameSize,
+      numFrames: table.numFrames,
+      mipmapped: table.mipmapped,
+    );
+  }
+
+  Map<BufferId, AudioBuffer> get _all => _buffers;
+}
+
 /// Supported real-time audio playback engines.
 /// Auto checks what you have in path.
 enum AudioPlayerMode { auto, ffplay, sox }
@@ -178,6 +213,7 @@ Future<void> runDemo({
   List<String> args = const [],
   String? description,
   void Function(ArgParser parser)? configureArgs,
+  DemoBuffers? buffers,
 }) async {
   final options = DemoOptions.parse(
     args,
@@ -207,6 +243,8 @@ Future<void> runDemo({
   final rawResult = builder(context, effectiveTempo, options.rawArgs!);
   final terminal = _resolveTerminal(rawResult);
 
+  final demoBuffers = buffers?._all;
+
   if (options.bench) {
     await _runBenchmark(
       name: name,
@@ -219,6 +257,7 @@ Future<void> runDemo({
       isWorker: options.benchWorker,
       verboseGc: options.verboseGc,
       args: args,
+      buffers: demoBuffers,
     );
   } else if (options.play) {
     await _runLivePlayback(
@@ -229,6 +268,7 @@ Future<void> runDemo({
       sampleRate: effectiveSr,
       vectorSize: effectiveVs,
       playerMode: options.player,
+      buffers: demoBuffers,
     );
   } else {
     _runOfflineBounce(
@@ -240,6 +280,7 @@ Future<void> runDemo({
       sampleRate: effectiveSr,
       vectorSize: effectiveVs,
       outputPath: outputPath,
+      buffers: demoBuffers,
     );
   }
 }
@@ -292,6 +333,7 @@ void _runOfflineBounce({
   required int sampleRate,
   required int vectorSize,
   required String outputPath,
+  Map<BufferId, AudioBuffer>? buffers,
 }) {
   final file = File(outputPath);
   file.parent.createSync(recursive: true);
@@ -299,7 +341,11 @@ void _runOfflineBounce({
   final channels = _extractOutlets(terminal);
   final wav = WavSink.file(channels: channels, path: outputPath);
 
-  final compileResult = compilePipeline(root: wav, context: context);
+  final compileResult = compilePipeline(
+    root: wav,
+    context: context,
+    buffers: buffers,
+  );
   if (compileResult.hasErrors) {
     stderr.writeln('❌ Graph compilation failed:');
     for (final diag in compileResult.diagnostics) {
@@ -351,6 +397,7 @@ Future<void> _runLivePlayback({
   required int sampleRate,
   required int vectorSize,
   required AudioPlayerMode playerMode,
+  Map<BufferId, AudioBuffer>? buffers,
 }) async {
   final numChannels = terminal.inlets.length;
   PipedAudioOutput? output;
@@ -371,6 +418,12 @@ Future<void> _runLivePlayback({
         vectorSize: vectorSize,
       ),
     );
+
+    if (buffers != null) {
+      for (final buffer in buffers.values) {
+        host.loadBuffer(buffer);
+      }
+    }
 
     final diagnostics = host.setGraph(root: terminal);
     if (diagnostics.isNotEmpty) {
@@ -488,6 +541,7 @@ Future<void> _runBenchmark({
   required bool isWorker,
   bool verboseGc = false,
   required List<String> args,
+  Map<BufferId, AudioBuffer>? buffers,
 }) async {
   if (!isWorker) {
     // Parent process: try to spawn a worker process with --verbose_gc to capture exact allocation metrics
@@ -538,7 +592,11 @@ Future<void> _runBenchmark({
   }
 
   // Worker or in-process execution
-  final compileResult = compilePipeline(root: terminal, context: context);
+  final compileResult = compilePipeline(
+    root: terminal,
+    context: context,
+    buffers: buffers,
+  );
   if (compileResult.hasErrors) {
     stderr.writeln('❌ Graph compilation failed:');
     for (final diag in compileResult.diagnostics) {
