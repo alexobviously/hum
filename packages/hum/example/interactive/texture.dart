@@ -573,14 +573,14 @@ void main(List<String> args) async {
     await completer.future;
   } finally {
     await meterSub?.cancel();
+    stdin.lineMode = oldLineMode;
+    stdin.echoMode = oldEchoMode;
     await stdinSub.cancel();
     await host.stopPlayback();
     await host.dispose();
     stdout.write(
       '\x1b]22;default\x1b\\\x1b[?1000l\x1b[?1002l\x1b[?1006l\x1b[?25h\x1b[?1049l',
     );
-    stdin.lineMode = oldLineMode;
-    stdin.echoMode = oldEchoMode;
     stdout.writeln('Bye bye!');
     exit(0);
   }

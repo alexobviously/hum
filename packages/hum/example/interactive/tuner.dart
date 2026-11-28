@@ -184,11 +184,11 @@ void main(List<String> args) async {
     await completer.future;
   } finally {
     renderTimer.cancel();
+    stdin.lineMode = oldLineMode;
+    stdin.echoMode = oldEchoMode;
     await stdinSub.cancel();
     await host.stopPlayback();
     await host.dispose();
-    stdin.lineMode = oldLineMode;
-    stdin.echoMode = oldEchoMode;
     stdout.write('\x1b[?25h\x1b[?1049l\nBye bye!\n');
     exit(0);
   }
