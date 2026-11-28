@@ -3,16 +3,6 @@ import 'dart:typed_data';
 
 import 'package:hum/hum.dart';
 
-/// The curvature shape used by [Adsr].
-enum AdsrCurve {
-  /// Pure linear ramps between stages.
-  linear,
-
-  /// Punchy exponential charge for attack and natural exponential discharge
-  /// for decay and release, mimicking classic analog RC synthesizer circuits.
-  exponential,
-}
-
 /// The operational state of the [Adsr] state machine.
 enum AdsrState {
   idle,
@@ -27,7 +17,8 @@ typedef AdsrParams = ({
   double? decay,
   double? sustain,
   double? release,
-  AdsrCurve? curve,
+  EnvelopeCurve? curve,
+  double interpTime,
 });
 
 /// Attack-Decay-Sustain-Release (ADSR) envelope generator.
@@ -41,7 +32,8 @@ class Adsr({
   final ControlParam<double> decay = const .value(0.1),
   final ControlParam<double> sustain = const .value(0.7),
   final ControlParam<double> release = const .value(0.3),
-  final AdsrCurve curve = .exponential,
+  final EnvelopeCurve curve = .exponential,
+  final double interpTime = 0.02,
 }) extends AudioNode<AdsrProcessor> {
   static const gateInlet = 0;
   static const attackInlet = 1;
@@ -67,7 +59,14 @@ class Adsr({
   List<Object?> get fixedProps => const [];
 
   @override
-  List<Object?> get dynamicProps => [attack, decay, sustain, release, curve];
+  List<Object?> get dynamicProps => [
+    attack,
+    decay,
+    sustain,
+    release,
+    curve,
+    interpTime,
+  ];
 
   @override
   AdsrProcessor createProcessor() => AdsrProcessor(
@@ -76,6 +75,7 @@ class Adsr({
     sustain: sustain.valueOrNull,
     release: release.valueOrNull,
     curve: curve,
+    interpTime: interpTime,
   );
 
   @override
@@ -85,32 +85,34 @@ class Adsr({
     sustain: sustain.valueOrNull,
     release: release.valueOrNull,
     curve: curve,
+    interpTime: interpTime,
   );
 }
 
-class AdsrProcessor implements AudioProcessor {
-  AdsrProcessor({
-    this.attack = 0.01,
-    this.decay = 0.1,
-    this.sustain = 0.7,
-    this.release = 0.3,
-    this.curve = .exponential,
-  });
-
+class AdsrProcessor({
   /// Attack time in seconds. If null, driven by [Adsr.attackInlet].
-  double? attack;
+  var double? attack = 0.01,
 
   /// Decay time in seconds. If null, driven by [Adsr.decayInlet].
-  double? decay;
+  var double? decay = 0.1,
 
   /// Sustain level (0.0 to 1.0). If null, driven by [Adsr.sustainInlet].
-  double? sustain;
+  var double? sustain = 0.7,
 
   /// Release time in seconds. If null, driven by [Adsr.releaseInlet].
-  double? release;
+  var double? release = 0.3,
 
   /// Envelope curve style.
-  AdsrCurve curve;
+  var EnvelopeCurve curve = .exponential,
+
+  /// Smoothing ramp time (seconds) for static [sustain] updates.
+  var double interpTime = 0.02,
+}) implements AudioProcessor {
+  // ln(1.5 / (1.5 - 1.0)) = ln(3.0): crosses 1.0 at t = attack with 0.5 overshoot.
+  static const double _expAttackLog = 1.0986122886681098;
+  // ln(1.05 / 0.05) = ln(21.0): crosses target at t = time with 5% undershoot.
+  static const double _expDecayLog = 3.044522437723423;
+  static const double _expUndershoot = 0.05;
 
   /// Current envelope output amplitude (0.0 to 1.0).
   double level = 0.0;
@@ -127,8 +129,12 @@ class AdsrProcessor implements AudioProcessor {
   /// Linear rate accumulator for release scaled from the level at note-off.
   double _linearReleaseRate = 0.0;
 
-  /// Envelope level captured on gate falling edge (for linear release scaling).
+  /// Envelope level captured on gate falling edge (for release scaling).
   double _releaseStartLevel = 0.0;
+
+  late final SmoothedValue _sustainSmoother = SmoothedValue(
+    (sustain ?? 0.7).fastClamp(0.0, 1.0),
+  );
 
   // Cached coefficients for zero-allocation steady-state processing
   double _cachedAttack = -1.0;
@@ -140,7 +146,6 @@ class AdsrProcessor implements AudioProcessor {
   double _aTime = 0.01;
   double _dTime = 0.1;
   double _rTime = 0.3;
-  double _sLevel = 0.7;
   double _expAttackCoeff = 0.0;
   double _expDecayCoeff = 0.0;
   double _expReleaseCoeff = 0.0;
@@ -154,23 +159,30 @@ class AdsrProcessor implements AudioProcessor {
     sustain = p.sustain;
     release = p.release;
     if (p.curve != null) curve = p.curve!;
+    interpTime = p.interpTime;
+
+    if (p.sustain != null) {
+      final clamped = p.sustain!.fastClamp(0.0, 1.0);
+      if (interpTime <= 0.0) {
+        _sustainSmoother.snapTo(clamped);
+      } else {
+        _sustainSmoother.setTarget(clamped);
+      }
+    }
   }
 
   @pragma('vm:prefer-inline')
   void _updateAttackCache(double rawAttack, double sampleRate) {
     _cachedAttack = rawAttack;
     _aTime = rawAttack > 0.0001 ? rawAttack : 0.0001;
-    // Analog RC exponential coefficient:
-    // Attack targets 1.5 (overshoot) to cross 1.0 in a finite time with punchy convex curvature.
-    // ln(1.5 / (1.5 - 1.0)) = ln(3.0) ~= 1.098612
-    _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
+    _expAttackCoeff = 1.0 - math.exp(-_expAttackLog / (_aTime * sampleRate));
   }
 
   @pragma('vm:prefer-inline')
   void _updateDecayCache(double rawDecay, double sLevel, double sampleRate) {
     _cachedDecay = rawDecay;
     _dTime = rawDecay > 0.0001 ? rawDecay : 0.0001;
-    _expDecayCoeff = 1.0 - math.exp(-3.0 / (_dTime * sampleRate));
+    _expDecayCoeff = 1.0 - math.exp(-_expDecayLog / (_dTime * sampleRate));
     _linDecayRate = (1.0 - sLevel) / (_dTime * sampleRate);
   }
 
@@ -178,8 +190,7 @@ class AdsrProcessor implements AudioProcessor {
   void _updateReleaseCache(double rawRelease, double sampleRate) {
     _cachedRelease = rawRelease;
     _rTime = rawRelease > 0.0001 ? rawRelease : 0.0001;
-    // Release targets -0.01 (undershoot) to cleanly hit 0.0 in finite time.
-    _expReleaseCoeff = 1.0 - math.exp(-3.0 / (_rTime * sampleRate));
+    _expReleaseCoeff = 1.0 - math.exp(-_expDecayLog / (_rTime * sampleRate));
   }
 
   @override
@@ -200,6 +211,8 @@ class AdsrProcessor implements AudioProcessor {
       _cachedRelease = -1.0;
     }
 
+    _sustainSmoother.configure(sampleRate: sampleRate, rampTime: interpTime);
+
     final bool hasAttackSignal =
         attack == null && inputs.length > Adsr.attackInlet;
     final bool hasDecaySignal =
@@ -211,19 +224,21 @@ class AdsrProcessor implements AudioProcessor {
 
     final double staticAttack = attack ?? 0.01;
     final double staticDecay = decay ?? 0.1;
-    final double staticSustain = sustain ?? 0.7;
     final double staticRelease = release ?? 0.3;
+    final bool isSustainSettled = _sustainSmoother.isSettled;
+    final double settledSustain = _sustainSmoother.current;
 
-    if (!hasSustainSignal && staticSustain != _cachedSustain) {
-      _cachedSustain = staticSustain;
-      _sLevel = staticSustain.fastClamp(0.0, 1.0);
+    if (!hasSustainSignal &&
+        isSustainSettled &&
+        settledSustain != _cachedSustain) {
+      _cachedSustain = settledSustain;
       _cachedDecay = -1.0; // Recompute _linDecayRate for new sustain level
     }
     if (!hasAttackSignal && staticAttack != _cachedAttack) {
       _updateAttackCache(staticAttack, sampleRate);
     }
     if (!hasDecaySignal && staticDecay != _cachedDecay) {
-      _updateDecayCache(staticDecay, _sLevel, sampleRate);
+      _updateDecayCache(staticDecay, settledSustain, sampleRate);
     }
     if (!hasReleaseSignal && staticRelease != _cachedRelease) {
       _updateReleaseCache(staticRelease, sampleRate);
@@ -236,13 +251,15 @@ class AdsrProcessor implements AudioProcessor {
     double linReleaseRate = _linearReleaseRate;
     double releaseStartLevel = _releaseStartLevel;
 
-    final bool isExp = curve == AdsrCurve.exponential;
+    final bool isExp = curve == EnvelopeCurve.exponential;
 
     if (!hasAttackSignal &&
         !hasDecaySignal &&
         !hasSustainSignal &&
-        !hasReleaseSignal) {
-      final double sLevel = _sLevel;
+        !hasReleaseSignal &&
+        isSustainSettled) {
+      final double sLevel = settledSustain;
+      final double decayTarget = sLevel - _expUndershoot * (1.0 - sLevel);
       final double aTime = _aTime;
       final double rTime = _rTime;
       final double expAttackCoeff = _expAttackCoeff;
@@ -260,9 +277,14 @@ class AdsrProcessor implements AudioProcessor {
           linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
         } else if (lastGate && !gateHigh && currentState != .idle) {
           // Gate Falling Edge: Trigger Note Off / Release
-          currentState = .release;
           releaseStartLevel = currentLevel;
-          linReleaseRate = releaseStartLevel / (rTime * sampleRate);
+          if (releaseStartLevel <= 0.0) {
+            currentLevel = 0.0;
+            currentState = .idle;
+          } else {
+            currentState = .release;
+            linReleaseRate = releaseStartLevel / (rTime * sampleRate);
+          }
         }
         lastGate = gateHigh;
 
@@ -283,9 +305,9 @@ class AdsrProcessor implements AudioProcessor {
 
           case .decay:
             currentLevel += isExp
-                ? expDecayCoeff * (sLevel - currentLevel)
+                ? expDecayCoeff * (decayTarget - currentLevel)
                 : -linDecayRate;
-            if (currentLevel <= sLevel || currentLevel - sLevel <= 0.0005) {
+            if (currentLevel <= sLevel) {
               currentLevel = sLevel;
               currentState = .sustain;
             }
@@ -295,9 +317,10 @@ class AdsrProcessor implements AudioProcessor {
 
           case .release:
             currentLevel += isExp
-                ? expReleaseCoeff * (-0.01 - currentLevel)
+                ? expReleaseCoeff *
+                      (-_expUndershoot * releaseStartLevel - currentLevel)
                 : -linReleaseRate;
-            if (currentLevel <= 0.0005) {
+            if (currentLevel <= 0.0) {
               currentLevel = 0.0;
               currentState = .idle;
             }
@@ -313,6 +336,9 @@ class AdsrProcessor implements AudioProcessor {
 
       for (int i = 0; i < output.length; i++) {
         final bool gateHigh = gateBuffer[i] > 0.0;
+        final double sLevel = sustainBuffer != null
+            ? sustainBuffer[i].fastClamp(0.0, 1.0)
+            : _sustainSmoother.next();
 
         // Edge detection
         if (!lastGate && gateHigh) {
@@ -323,13 +349,18 @@ class AdsrProcessor implements AudioProcessor {
           final double aTime = rawA > 0.0001 ? rawA : 0.0001;
           linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
         } else if (lastGate && !gateHigh && currentState != .idle) {
-          currentState = .release;
           releaseStartLevel = currentLevel;
-          final double rawR = releaseBuffer != null
-              ? releaseBuffer[i]
-              : staticRelease;
-          final double rTime = rawR > 0.0001 ? rawR : 0.0001;
-          linReleaseRate = releaseStartLevel / (rTime * sampleRate);
+          if (releaseStartLevel <= 0.0) {
+            currentLevel = 0.0;
+            currentState = .idle;
+          } else {
+            currentState = .release;
+            final double rawR = releaseBuffer != null
+                ? releaseBuffer[i]
+                : staticRelease;
+            final double rTime = rawR > 0.0001 ? rawR : 0.0001;
+            linReleaseRate = releaseStartLevel / (rTime * sampleRate);
+          }
         }
         lastGate = gateHigh;
 
@@ -357,9 +388,6 @@ class AdsrProcessor implements AudioProcessor {
             }
 
           case .decay:
-            final double sLevel = sustainBuffer != null
-                ? sustainBuffer[i].fastClamp(0.0, 1.0)
-                : _sLevel;
             if (decayBuffer != null) {
               final double rawD = decayBuffer[i];
               if (rawD != _cachedDecay) {
@@ -367,22 +395,20 @@ class AdsrProcessor implements AudioProcessor {
               }
             }
             if (isExp) {
-              currentLevel += _expDecayCoeff * (sLevel - currentLevel);
+              final double decayTarget =
+                  sLevel - _expUndershoot * (1.0 - sLevel);
+              currentLevel += _expDecayCoeff * (decayTarget - currentLevel);
             } else {
-              final double linRate = sustainBuffer != null
-                  ? (1.0 - sLevel) / (_dTime * sampleRate)
-                  : _linDecayRate;
+              final double linRate = (1.0 - sLevel) / (_dTime * sampleRate);
               currentLevel -= linRate;
             }
-            if (currentLevel <= sLevel || currentLevel - sLevel <= 0.0005) {
+            if (currentLevel <= sLevel) {
               currentLevel = sLevel;
               currentState = .sustain;
             }
 
           case .sustain:
-            currentLevel = sustainBuffer != null
-                ? sustainBuffer[i].fastClamp(0.0, 1.0)
-                : _sLevel;
+            currentLevel = sLevel;
 
           case .release:
             if (releaseBuffer != null) {
@@ -393,9 +419,10 @@ class AdsrProcessor implements AudioProcessor {
               linReleaseRate = releaseStartLevel / (_rTime * sampleRate);
             }
             currentLevel += isExp
-                ? _expReleaseCoeff * (-0.01 - currentLevel)
+                ? _expReleaseCoeff *
+                      (-_expUndershoot * releaseStartLevel - currentLevel)
                 : -linReleaseRate;
-            if (currentLevel <= 0.0005) {
+            if (currentLevel <= 0.0) {
               currentLevel = 0.0;
               currentState = .idle;
             }

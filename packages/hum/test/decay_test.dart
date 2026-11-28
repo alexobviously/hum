@@ -72,7 +72,7 @@ void main() {
         trigger: clock.trigger,
         decay: const .value(0.05), // 50 samples
         attack: const .value(0.0), // Instant attack
-        curve: DecayCurve.exponential,
+        curve: EnvelopeCurve.exponential,
       );
       final processor = decay.createProcessor();
 
@@ -114,7 +114,7 @@ void main() {
         trigger: clock.trigger,
         decay: const .value(0.04), // 40 samples
         attack: const .value(0.0),
-        curve: DecayCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = decay.createProcessor();
 
@@ -149,7 +149,7 @@ void main() {
         trigger: clock.trigger,
         attack: const .value(0.02), // 20 samples
         decay: const .value(0.04), // 40 samples
-        curve: DecayCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = decay.createProcessor();
 
@@ -187,7 +187,7 @@ void main() {
         final decay = Decay(
           trigger: clock.trigger,
           decay: const .value(0.02), // 20 samples
-          curve: DecayCurve.linear,
+          curve: EnvelopeCurve.linear,
         );
         final processor = decay.createProcessor();
 
@@ -225,7 +225,7 @@ void main() {
       final decay = Decay(
         trigger: clock.trigger,
         decay: const .value(0.05), // 50 samples
-        curve: DecayCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = decay.createProcessor();
 
@@ -268,7 +268,7 @@ void main() {
             trigger: clock.trigger,
             decay: const .value(0.25),
             attack: const .value(0.01),
-            curve: DecayCurve.linear,
+            curve: EnvelopeCurve.linear,
           ),
         );
         pipeline.process();
@@ -278,12 +278,12 @@ void main() {
 
     test('Outlet.decay extension syntax constructs Decay node', () {
       final clock = Clock.bpm(120);
-      final decay = clock.trigger.decay(0.05, 0.005, DecayCurve.linear);
+      final decay = clock.trigger.decay(0.05, 0.005, EnvelopeCurve.linear);
 
       expect(decay, isA<Decay>());
       expect(decay.params.decay, equals(0.05));
       expect(decay.params.attack, equals(0.005));
-      expect(decay.params.curve, equals(DecayCurve.linear));
+      expect(decay.params.curve, equals(EnvelopeCurve.linear));
     });
 
     test('supports signal-modulated decay and attack times', () {
@@ -299,7 +299,7 @@ void main() {
         trigger: clock.trigger,
         decay: .signal(clock.gate),
         attack: .signal(clock.gate),
-        curve: DecayCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = decay.createProcessor();
       expect(processor.decay, isNull);
@@ -342,7 +342,7 @@ void main() {
       final decay = Decay.pure(
         trigger: clock.trigger,
         time: .signal(decayTime.outlet),
-        curve: DecayCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
 
       final context = ProcessContext(sampleRate: 1000, vectorSize: 32);
@@ -361,7 +361,7 @@ void main() {
         trigger: clock.trigger,
         attack: const .value(0.05), // 50 samples
         decay: const .value(0.03), // 30 samples
-        curve: DecayCurve.exponential,
+        curve: EnvelopeCurve.exponential,
       );
       final processor = decay.createProcessor();
 
@@ -380,7 +380,7 @@ void main() {
       expect(midLevel, lessThan(1.0));
 
       // Switch to linear mid-attack
-      processor.update((decay: 0.03, attack: 0.05, curve: DecayCurve.linear));
+      processor.update((decay: 0.03, attack: 0.05, curve: EnvelopeCurve.linear));
 
       // Block 2: should finish rising to 1.0, decay, and return to idle
       final trigger2 = Float32List(100);
@@ -398,6 +398,36 @@ void main() {
       }
       expect(peak, closeTo(1.0, 0.01));
       expect(out2[0].last, equals(0.0));
+      expect(processor.state, equals(DecayState.idle));
+    });
+
+    test('exponential decay finishes at configured time', () {
+      const sampleRate = 1000;
+      const vectorSize = 80;
+      final clock = Clock.bpm(120);
+      final decay = Decay(
+        trigger: clock.trigger,
+        decay: const .value(0.04), // 40 samples
+        attack: const .value(0.0),
+        curve: EnvelopeCurve.exponential,
+      );
+      final processor = decay.createProcessor();
+
+      final triggerBuf = Float32List(vectorSize);
+      triggerBuf[0] = 1.0;
+
+      final outputs = [Float32List(vectorSize)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize),
+        [triggerBuf],
+        outputs,
+      );
+
+      final out = outputs[0];
+      expect(out[0], equals(1.0));
+      // Still decaying before 40 samples, idle right at/after 40 samples
+      expect(out[35], greaterThan(0.0));
+      expect(out[41], equals(0.0));
       expect(processor.state, equals(DecayState.idle));
     });
   });

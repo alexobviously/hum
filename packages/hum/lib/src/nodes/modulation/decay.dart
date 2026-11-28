@@ -5,15 +5,6 @@ import 'package:hum/hum.dart';
 
 // TODO: fully check this code, it's LLM generated
 
-/// The curvature shape used by [Decay].
-enum DecayCurve {
-  /// Pure linear ramp down to 0.0.
-  linear,
-
-  /// Natural exponential discharge mimicking analog RC envelope circuits.
-  exponential,
-}
-
 /// The operational state of the [Decay] state machine.
 enum DecayState {
   idle,
@@ -24,7 +15,7 @@ enum DecayState {
 typedef DecayParams = ({
   double? decay,
   double? attack,
-  DecayCurve? curve,
+  EnvelopeCurve? curve,
 });
 
 /// Type alias for [Decay].
@@ -51,7 +42,7 @@ class Decay({
   required final Outlet trigger,
   final ControlParam<double> decay = const .value(0.1),
   final ControlParam<double> attack = const .value(0.0),
-  final DecayCurve curve = .exponential,
+  final EnvelopeCurve curve = .exponential,
 }) extends AudioNode<DecayProcessor> {
   static const triggerInlet = 0;
   static const decayInlet = 1;
@@ -61,7 +52,7 @@ class Decay({
   factory pure({
     required Outlet trigger,
     ControlParam<double> time = const .value(0.1),
-    DecayCurve curve = .exponential,
+    EnvelopeCurve curve = .exponential,
   }) => Decay(
     trigger: trigger,
     decay: time,
@@ -110,8 +101,13 @@ class DecayProcessor({
   var double? attack = 0.0,
 
   /// Envelope curve style.
-  var DecayCurve curve = .exponential,
+  var EnvelopeCurve curve = .exponential,
 }) implements AudioProcessor {
+  // ln(1.5 / (1.5 - 1.0)) = ln(3.0): crosses 1.0 at t = attack with 0.5 overshoot.
+  static const double _expAttackLog = 1.0986122886681098;
+  // ln(1.05 / 0.05) = ln(21.0): crosses 0.0 at t = decay with 5% undershoot.
+  static const double _expDecayLog = 3.044522437723423;
+  static const double _expUndershoot = 0.05;
   /// Current envelope output amplitude (0.0 to 1.0).
   double level = 0.0;
 
@@ -144,14 +140,14 @@ class DecayProcessor({
   void _updateAttackCache(double rawAttack, double sampleRate) {
     _cachedAttack = rawAttack;
     _aTime = rawAttack > 0.0001 ? rawAttack : 0.0001;
-    _expAttackCoeff = 1.0 - math.exp(-1.098612 / (_aTime * sampleRate));
+    _expAttackCoeff = 1.0 - math.exp(-_expAttackLog / (_aTime * sampleRate));
   }
 
   @pragma('vm:prefer-inline')
   void _updateDecayCache(double rawDecay, double sampleRate) {
     _cachedDecay = rawDecay;
     final double dTime = rawDecay > 0.0001 ? rawDecay : 0.0001;
-    _expDecayCoeff = 1.0 - math.exp(-3.0 / (dTime * sampleRate));
+    _expDecayCoeff = 1.0 - math.exp(-_expDecayLog / (dTime * sampleRate));
     _linDecayRate = 1.0 / (dTime * sampleRate);
   }
 
@@ -178,7 +174,7 @@ class DecayProcessor({
 
     final double staticDecay = decay ?? 0.1;
     final double staticAttack = attack ?? 0.0;
-    final DecayCurve activeCurve = curve;
+    final EnvelopeCurve activeCurve = curve;
 
     if (!hasDecaySignal && staticDecay != _cachedDecay) {
       _updateDecayCache(staticDecay, sampleRate);
@@ -236,11 +232,11 @@ class DecayProcessor({
           case .decay:
             switch (activeCurve) {
               case .exponential:
-                currentLevel += expDecayCoeff * (-0.01 - currentLevel);
+                currentLevel += expDecayCoeff * (-_expUndershoot - currentLevel);
               case .linear:
                 currentLevel -= linDecayRate;
             }
-            if (currentLevel <= 0.0005) {
+            if (currentLevel <= 0.0) {
               currentLevel = 0.0;
               currentState = .idle;
             }
@@ -304,11 +300,11 @@ class DecayProcessor({
             }
             switch (activeCurve) {
               case .exponential:
-                currentLevel += _expDecayCoeff * (-0.01 - currentLevel);
+                currentLevel += _expDecayCoeff * (-_expUndershoot - currentLevel);
               case .linear:
                 currentLevel -= _linDecayRate;
             }
-            if (currentLevel <= 0.0005) {
+            if (currentLevel <= 0.0) {
               currentLevel = 0.0;
               currentState = .idle;
             }
@@ -330,7 +326,7 @@ extension OutletDecayExtension on Outlet {
   Decay decay([
     double time = 0.1,
     double attack = 0.0,
-    DecayCurve curve = DecayCurve.exponential,
+    EnvelopeCurve curve = EnvelopeCurve.exponential,
   ]) => Decay(
     trigger: this,
     decay: .value(time),

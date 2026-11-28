@@ -54,6 +54,7 @@ export 'src/nodes/modulation/branch.dart';
 export 'src/nodes/modulation/chance.dart';
 export 'src/nodes/modulation/clock.dart';
 export 'src/nodes/modulation/decay.dart';
+export 'src/nodes/modulation/envelope_curve.dart';
 export 'src/nodes/modulation/step_sequencer.dart';
 export 'src/nodes/oscillators/oscillator_node.dart';
 export 'src/nodes/oscillators/sawtooth_oscillator.dart';

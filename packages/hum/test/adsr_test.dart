@@ -72,7 +72,7 @@ void main() {
         decay: const .value(0.03), // 30 samples
         sustain: const .value(0.5), // holds at 0.5
         release: const .value(0.02), // 20 samples
-        curve: AdsrCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = adsr.createProcessor();
 
@@ -116,7 +116,7 @@ void main() {
         decay: const .value(0.03),
         sustain: const .value(0.4),
         release: const .value(0.02),
-        curve: AdsrCurve.exponential,
+        curve: EnvelopeCurve.exponential,
       );
       final processor = adsr.createProcessor();
 
@@ -230,7 +230,7 @@ void main() {
         decay: .signal(dummy.gate),
         sustain: .signal(dummy.gate),
         release: .signal(dummy.gate),
-        curve: AdsrCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = adsr.createProcessor();
       expect(processor.attack, isNull);
@@ -281,7 +281,7 @@ void main() {
         decay: const .value(0.001),
         sustain: .signal(sustainMod.outlet),
         release: const .value(0.01),
-        curve: AdsrCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
 
       final context = ProcessContext(sampleRate: 1000, vectorSize: 32);
@@ -307,7 +307,7 @@ void main() {
         decay: const .value(0.01), // 10 samples
         sustain: const .value(0.5),
         release: const .value(0.04), // 40 samples
-        curve: AdsrCurve.linear,
+        curve: EnvelopeCurve.linear,
       );
       final processor = adsr.createProcessor();
 
@@ -339,7 +339,7 @@ void main() {
         decay: const .value(0.02),
         sustain: const .value(0.5),
         release: const .value(0.02),
-        curve: AdsrCurve.exponential,
+        curve: EnvelopeCurve.exponential,
       );
       final processor = adsr.createProcessor();
 
@@ -362,7 +362,8 @@ void main() {
         decay: 0.02,
         sustain: 0.5,
         release: 0.02,
-        curve: AdsrCurve.linear,
+        curve: EnvelopeCurve.linear,
+        interpTime: 0.02,
       ));
 
       // Block 2: continue holding gate; should rise past midLevel, peak at 1.0, and reach sustain
@@ -381,6 +382,90 @@ void main() {
       }
       expect(peak, closeTo(1.0, 0.01));
       expect(processor.state, equals(AdsrState.sustain));
+    });
+
+    test('smooths live sustain updates without hard jumps', () {
+      const sampleRate = 1000;
+      final dummy = Clock.bpm(120);
+      final adsr = Adsr(
+        gate: dummy.gate,
+        attack: const .value(0.005),
+        decay: const .value(0.005),
+        sustain: const .value(0.2),
+        release: const .value(0.02),
+        curve: EnvelopeCurve.linear,
+      );
+      final processor = adsr.createProcessor();
+
+      // Reach steady sustain at 0.2
+      final gate1 = Float32List(24)..fillRange(0, 24, 1.0);
+      final out1 = [Float32List(24)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: 24),
+        [gate1],
+        out1,
+      );
+      expect(processor.state, equals(AdsrState.sustain));
+      expect(out1[0].last, closeTo(0.2, 0.001));
+
+      // Jump sustain from 0.2 to 0.8 while holding gate
+      processor.update((
+        attack: 0.005,
+        decay: 0.005,
+        sustain: 0.8,
+        release: 0.02,
+        curve: EnvelopeCurve.linear,
+        interpTime: 0.02,
+      ));
+
+      final gate2 = Float32List(40)..fillRange(0, 40, 1.0);
+      final out2 = [Float32List(40)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: 40),
+        [gate2],
+        out2,
+      );
+
+      // Should glide smoothly rather than stepping straight to 0.8 on sample 0
+      expect(out2[0][0], greaterThan(0.2));
+      expect(out2[0][0], lessThan(0.5));
+      expect(out2[0].last, closeTo(0.8, 0.01));
+    });
+
+    test('exponential decay and release finish at configured times', () {
+      const sampleRate = 1000;
+      const vectorSize = 120;
+      final dummy = Clock.bpm(120);
+      final adsr = Adsr(
+        gate: dummy.gate,
+        attack: const .value(0.01), // 10 samples
+        decay: const .value(0.03), // 30 samples
+        sustain: const .value(0.4),
+        release: const .value(0.03), // 30 samples
+        curve: EnvelopeCurve.exponential,
+      );
+      final processor = adsr.createProcessor();
+
+      // Gate high for 60 samples (attack 0..9, decay 10..39, sustain 40..59),
+      // then release from sample 60..89.
+      final gate = Float32List(vectorSize);
+      for (int i = 0; i < 60; i++) {
+        gate[i] = 1.0;
+      }
+      final outputs = [Float32List(vectorSize)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: vectorSize),
+        [gate],
+        outputs,
+      );
+
+      final out = outputs[0];
+      // Decay finishes around sample 40 (10 + 30)
+      expect(out[41], closeTo(0.4, 0.005));
+      // Release finishes around sample 90 (60 + 30)
+      expect(out[85], greaterThan(0.0));
+      expect(out[91], equals(0.0));
+      expect(processor.state, equals(AdsrState.idle));
     });
   });
 }
