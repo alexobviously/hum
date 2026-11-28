@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
@@ -60,6 +63,8 @@ class const DemoOptions({
   final bool play = false,
   final AudioPlayerMode player = .auto,
   final bool offline = false,
+  final bool analyse = false,
+  final bool json = false,
   final bool bench = false,
   final bool benchWorker = false,
   final bool verboseGc = false,
@@ -96,6 +101,18 @@ class const DemoOptions({
         'offline',
         negatable: false,
         help: 'Bounce audio offline to WAV (default)',
+      )
+      ..addFlag(
+        'analyse',
+        abbr: 'a',
+        negatable: false,
+        help:
+            'Analyse signal levels, clipping, spectral balance, and bar dynamics (standalone or with --offline)',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Format --analyse report as JSON (implies --analyse)',
       )
       ..addFlag(
         'bench',
@@ -181,10 +198,14 @@ class const DemoOptions({
     final isBench = results.flag('bench') || results.flag('bench-worker');
     final isWorker = results.flag('bench-worker');
     final hasGraph = results.flag('graph');
+    final isJson = results.flag('json');
+    final hasAnalyse = results.flag('analyse') || isJson;
     final hasFfplay = results.flag('ffplay');
     final hasSox = results.flag('sox');
     final hasPlay = results.flag('play') || hasFfplay || hasSox;
-    final isOffline = results.flag('offline') || (!hasPlay && !isBench && !hasGraph);
+    final isOffline =
+        results.flag('offline') ||
+        (!hasPlay && !isBench && !hasGraph && !hasAnalyse);
 
     final AudioPlayerMode playerMode = switch ((hasFfplay, hasSox)) {
       (true, _) => .ffplay,
@@ -193,9 +214,16 @@ class const DemoOptions({
     };
 
     return DemoOptions(
-      play: hasPlay && !results.flag('offline') && !isBench && !hasGraph,
+      play:
+          hasPlay &&
+          !results.flag('offline') &&
+          !isBench &&
+          !hasGraph &&
+          !hasAnalyse,
       player: playerMode,
       offline: isOffline,
+      analyse: hasAnalyse,
+      json: isJson,
       bench: isBench,
       benchWorker: isWorker,
       verboseGc: results.flag('verbose-gc'),
@@ -287,6 +315,18 @@ Future<void> runDemo({
       playerMode: options.player,
       buffers: demoBuffers,
     );
+  } else if (options.analyse && !options.offline) {
+    _runAnalyse(
+      name: name,
+      terminal: terminal,
+      context: context,
+      tempo: effectiveTempo,
+      bars: effectiveBars,
+      sampleRate: effectiveSr,
+      vectorSize: effectiveVs,
+      jsonOutput: options.json,
+      buffers: demoBuffers,
+    );
   } else {
     _runOfflineBounce(
       name: name,
@@ -297,6 +337,8 @@ Future<void> runDemo({
       sampleRate: effectiveSr,
       vectorSize: effectiveVs,
       outputPath: outputPath,
+      analyse: options.analyse,
+      jsonOutput: options.json,
       buffers: demoBuffers,
     );
   }
@@ -340,7 +382,8 @@ List<Outlet> _extractOutlets(AudioNode node) => switch (node) {
   AudioNode(:final inlets) => [for (final i in inlets) ?i.source],
 };
 
-/// Executes offline bouncing directly to a WAV file.
+/// Executes offline bouncing directly to a WAV file, optionally running signal
+/// analysis in the same pass.
 void _runOfflineBounce({
   required String name,
   required TerminalNode terminal,
@@ -350,6 +393,8 @@ void _runOfflineBounce({
   required int sampleRate,
   required int vectorSize,
   required String outputPath,
+  bool analyse = false,
+  bool jsonOutput = false,
   Map<BufferId, AudioBuffer>? buffers,
 }) {
   final file = File(outputPath);
@@ -380,13 +425,31 @@ void _runOfflineBounce({
   );
   final durationSec = (tempo.bar * bars).toStringAsFixed(1);
 
-  stdout.writeln(
-    '🎵 [hum] Bouncing $bars bars of "$name" ($durationSec s at ${tempo.bpm.toStringAsFixed(0)} BPM)...',
-  );
+  final analyser = analyse
+      ? _AudioAnalyser(
+          numChannels: pipeline.numChannels,
+          sampleRate: sampleRate,
+          bars: bars,
+          samplesPerBar: (tempo.bar * sampleRate).round().clamp(1, 1 << 30),
+        )
+      : null;
+
+  if (!jsonOutput) {
+    stdout.writeln(
+      '🎵 [hum] Bouncing $bars bars of "$name" ($durationSec s at ${tempo.bpm.toStringAsFixed(0)} BPM)...',
+    );
+  }
 
   final stopwatch = Stopwatch()..start();
-  for (int i = 0; i < totalBlocks; i++) {
-    pipeline.process();
+  if (analyser != null) {
+    for (int i = 0; i < totalBlocks; i++) {
+      pipeline.process();
+      analyser.feed(pipeline.outputs);
+    }
+  } else {
+    for (int i = 0; i < totalBlocks; i++) {
+      pipeline.process();
+    }
   }
   stopwatch.stop();
 
@@ -398,11 +461,86 @@ void _runOfflineBounce({
   final speedFactor = (double.parse(durationSec) / (elapsedMs / 1000.0))
       .toStringAsFixed(1);
 
-  stdout.writeln(
-    '✅ [hum] Rendered to $outputPath ($sizeMb MB in ${elapsedMs}ms, ${speedFactor}x real-time)',
+  if (!jsonOutput) {
+    stdout.writeln(
+      '✅ [hum] Rendered to $outputPath ($sizeMb MB in ${elapsedMs}ms, ${speedFactor}x real-time)',
+    );
+    stdout.writeln('   To play: ffplay -autoexit -nodisp $outputPath');
+    stdout.writeln('   Or run:  dart run <script> --play');
+  }
+
+  if (analyser != null) {
+    _emitAnalysisReport(
+      analyser: analyser,
+      name: name,
+      tempo: tempo,
+      bars: bars,
+      sampleRate: sampleRate,
+      vectorSize: vectorSize,
+      elapsedMs: elapsedMs,
+      outputPath: outputPath,
+      jsonOutput: jsonOutput,
+    );
+  }
+}
+
+/// Executes standalone in-memory signal analysis without writing a WAV file.
+void _runAnalyse({
+  required String name,
+  required TerminalNode terminal,
+  required ProcessContext context,
+  required Tempo tempo,
+  required int bars,
+  required int sampleRate,
+  required int vectorSize,
+  required bool jsonOutput,
+  Map<BufferId, AudioBuffer>? buffers,
+}) {
+  final compileResult = compilePipeline(
+    root: terminal,
+    context: context,
+    buffers: buffers,
   );
-  stdout.writeln('   To play: ffplay -autoexit -nodisp $outputPath');
-  stdout.writeln('   Or run:  dart run <script> --play');
+  if (compileResult.hasErrors) {
+    stderr.writeln('❌ Graph compilation failed:');
+    for (final diag in compileResult.diagnostics) {
+      stderr.writeln('   $diag');
+    }
+    exitCode = 1;
+    return;
+  }
+
+  final pipeline = compileResult.pipeline!;
+  final totalBlocks = tempo.blocksFor(
+    bars: bars.toDouble(),
+    sampleRate: sampleRate,
+    vectorSize: vectorSize,
+  );
+
+  final analyser = _AudioAnalyser(
+    numChannels: pipeline.numChannels,
+    sampleRate: sampleRate,
+    bars: bars,
+    samplesPerBar: (tempo.bar * sampleRate).round().clamp(1, 1 << 30),
+  );
+
+  final stopwatch = Stopwatch()..start();
+  for (int i = 0; i < totalBlocks; i++) {
+    pipeline.process();
+    analyser.feed(pipeline.outputs);
+  }
+  stopwatch.stop();
+
+  _emitAnalysisReport(
+    analyser: analyser,
+    name: name,
+    tempo: tempo,
+    bars: bars,
+    sampleRate: sampleRate,
+    vectorSize: vectorSize,
+    elapsedMs: stopwatch.elapsedMilliseconds,
+    jsonOutput: jsonOutput,
+  );
 }
 
 /// Executes real-time live playback via piped subprocess audio.
@@ -848,5 +986,328 @@ void _displayInProcessReport({
   stdout.writeln(
     '${'║ DSP Load:       ${dspLoadPct.toStringAsFixed(3)}% of audio callback budget'.padRight(67)}║',
   );
+  stdout.writeln('╚$border╝');
+}
+
+/// Stateful, block-fed signal analyser capturing per-channel levels, health
+/// checks, 4-band spectral energy balance, and per-bar dynamics.
+class _AudioAnalyser {
+  _AudioAnalyser({
+    required this.numChannels,
+    required this.sampleRate,
+    required this.bars,
+    required this.samplesPerBar,
+  }) : _peaks = List<double>.filled(numChannels, 0.0),
+       _sumSq = List<double>.filled(numChannels, 0.0),
+       _sum = List<double>.filled(numChannels, 0.0),
+       _clips = List<int>.filled(numChannels, 0),
+       _nanOrInf = List<int>.filled(numChannels, 0),
+       _finiteCounts = List<int>.filled(numChannels, 0),
+       _barPeaks = List<double>.filled(bars, 0.0),
+       _barSumSq = List<double>.filled(bars, 0.0),
+       _barCounts = List<int>.filled(bars, 0),
+       _a100 = math.exp(-2.0 * math.pi * 100.0 / sampleRate),
+       _a500 = math.exp(-2.0 * math.pi * 500.0 / sampleRate),
+       _a2k = math.exp(-2.0 * math.pi * 2000.0 / sampleRate);
+
+  final int numChannels;
+  final int sampleRate;
+  final int bars;
+  final int samplesPerBar;
+
+  final List<double> _peaks;
+  final List<double> _sumSq;
+  final List<double> _sum;
+  final List<int> _clips;
+  final List<int> _nanOrInf;
+  final List<int> _finiteCounts;
+
+  final List<double> _barPeaks;
+  final List<double> _barSumSq;
+  final List<int> _barCounts;
+
+  final double _a100;
+  final double _a500;
+  final double _a2k;
+
+  double _lp100 = 0.0;
+  double _lp500 = 0.0;
+  double _lp2k = 0.0;
+  double _eSub = 0.0;
+  double _eLow = 0.0;
+  double _eMid = 0.0;
+  double _eHigh = 0.0;
+
+  int _totalFrames = 0;
+
+  int get totalFrames => _totalFrames;
+
+  void feed(List<Float32List> outputs) {
+    if (outputs.isEmpty) return;
+    final frames = outputs.first.length;
+    final chCount = math.min(numChannels, outputs.length);
+    final invCh = chCount > 0 ? 1.0 / chCount : 0.0;
+
+    for (int i = 0; i < frames; i++) {
+      double mono = 0.0;
+      double framePeak = 0.0;
+      double frameSqSum = 0.0;
+      int finiteInFrame = 0;
+
+      for (int c = 0; c < chCount; c++) {
+        final x = outputs[c][i];
+        if (!x.isFinite) {
+          _nanOrInf[c]++;
+          continue;
+        }
+        final absX = x.abs();
+        if (absX > _peaks[c]) _peaks[c] = absX;
+        if (absX >= 1.0) _clips[c]++;
+        _sumSq[c] += x * x;
+        _sum[c] += x;
+        _finiteCounts[c]++;
+
+        if (absX > framePeak) framePeak = absX;
+        frameSqSum += x * x;
+        mono += x;
+        finiteInFrame++;
+      }
+
+      if (finiteInFrame > 0) {
+        mono *= invCh;
+        _lp100 = (1.0 - _a100) * mono + _a100 * _lp100;
+        _lp500 = (1.0 - _a500) * mono + _a500 * _lp500;
+        _lp2k = (1.0 - _a2k) * mono + _a2k * _lp2k;
+
+        final sub = _lp100;
+        final low = _lp500 - _lp100;
+        final mid = _lp2k - _lp500;
+        final high = mono - _lp2k;
+
+        _eSub += sub * sub;
+        _eLow += low * low;
+        _eMid += mid * mid;
+        _eHigh += high * high;
+      }
+
+      final barIdx = (_totalFrames ~/ samplesPerBar).clamp(0, bars - 1);
+      if (framePeak > _barPeaks[barIdx]) _barPeaks[barIdx] = framePeak;
+      _barSumSq[barIdx] += frameSqSum * invCh;
+      _barCounts[barIdx]++;
+
+      _totalFrames++;
+    }
+  }
+
+  Map<String, Object?> toReportMap({
+    required String name,
+    required Tempo tempo,
+    required int vectorSize,
+    required int elapsedMs,
+    String? outputPath,
+  }) {
+    final channels = <Map<String, Object?>>[];
+    double overallPeak = 0.0;
+    double overallSumSq = 0.0;
+    int overallFinite = 0;
+    int totalClips = 0;
+    int totalNanOrInf = 0;
+
+    for (int c = 0; c < numChannels; c++) {
+      final count = _finiteCounts[c];
+      final peak = _peaks[c];
+      final rms = count > 0 ? math.sqrt(_sumSq[c] / count) : 0.0;
+      final dc = count > 0 ? _sum[c] / count : 0.0;
+      final peakDb = gainToDb(peak);
+      final rmsDb = gainToDb(rms);
+      final crestDb = peak > 1e-6 && rms > 1e-6 ? peakDb - rmsDb : 0.0;
+
+      if (peak > overallPeak) overallPeak = peak;
+      overallSumSq += _sumSq[c];
+      overallFinite += count;
+      totalClips += _clips[c];
+      totalNanOrInf += _nanOrInf[c];
+
+      channels.add({
+        'index': c,
+        'label': _channelLabel(c, numChannels),
+        'peak': _round(peak, 6),
+        'peakDb': _round(peakDb, 2),
+        'rms': _round(rms, 6),
+        'rmsDb': _round(rmsDb, 2),
+        'crestDb': _round(crestDb, 2),
+        'dcOffset': _round(dc, 6),
+        'clips': _clips[c],
+        'nanOrInf': _nanOrInf[c],
+        'silent': peak <= 1e-6,
+      });
+    }
+
+    final overallRms =
+        overallFinite > 0 ? math.sqrt(overallSumSq / overallFinite) : 0.0;
+    final overallPeakDb = gainToDb(overallPeak);
+    final overallRmsDb = gainToDb(overallRms);
+    final overallCrestDb =
+        overallPeak > 1e-6 && overallRms > 1e-6 ? overallPeakDb - overallRmsDb : 0.0;
+
+    final totalBandEnergy = _eSub + _eLow + _eMid + _eHigh;
+    final invBand = totalBandEnergy > 1e-12 ? 100.0 / totalBandEnergy : 0.0;
+
+    final timeline = <Map<String, Object?>>[
+      for (int b = 0; b < bars; b++)
+        () {
+          final count = _barCounts[b];
+          final rms = count > 0 ? math.sqrt(_barSumSq[b] / count) : 0.0;
+          return {
+            'bar': b + 1,
+            'peakDb': _round(gainToDb(_barPeaks[b]), 2),
+            'rmsDb': _round(gainToDb(rms), 2),
+          };
+        }(),
+    ];
+
+    return {
+      'name': name,
+      'outputPath': ?outputPath,
+      'bpm': tempo.bpm,
+      'bars': bars,
+      'sampleRate': sampleRate,
+      'vectorSize': vectorSize,
+      'numChannels': numChannels,
+      'totalFrames': _totalFrames,
+      'durationSec': _round(_totalFrames / sampleRate, 3),
+      'renderTimeMs': elapsedMs,
+      'overall': {
+        'peak': _round(overallPeak, 6),
+        'peakDb': _round(overallPeakDb, 2),
+        'rms': _round(overallRms, 6),
+        'rmsDb': _round(overallRmsDb, 2),
+        'crestDb': _round(overallCrestDb, 2),
+        'clips': totalClips,
+        'nanOrInf': totalNanOrInf,
+        'silent': overallPeak <= 1e-6,
+      },
+      'channels': channels,
+      'bandsPct': {
+        'sub_lt100Hz': _round(_eSub * invBand, 1),
+        'low_100_500Hz': _round(_eLow * invBand, 1),
+        'mid_500_2kHz': _round(_eMid * invBand, 1),
+        'high_gt2kHz': _round(_eHigh * invBand, 1),
+      },
+      'barsTimeline': timeline,
+    };
+  }
+}
+
+String _channelLabel(int index, int total) {
+  if (total == 1) return 'Mono';
+  if (total == 2) return index == 0 ? 'L' : 'R';
+  return 'Ch$index';
+}
+
+double _round(double value, int decimals) {
+  final factor = math.pow(10, decimals);
+  return (value * factor).roundToDouble() / factor;
+}
+
+void _emitAnalysisReport({
+  required _AudioAnalyser analyser,
+  required String name,
+  required Tempo tempo,
+  required int bars,
+  required int sampleRate,
+  required int vectorSize,
+  required int elapsedMs,
+  String? outputPath,
+  required bool jsonOutput,
+}) {
+  final report = analyser.toReportMap(
+    name: name,
+    tempo: tempo,
+    vectorSize: vectorSize,
+    elapsedMs: elapsedMs,
+    outputPath: outputPath,
+  );
+
+  if (jsonOutput) {
+    stdout.writeln(const JsonEncoder.withIndent('  ').convert(report));
+    return;
+  }
+
+  final overall = report['overall']! as Map<String, Object?>;
+  final channels = report['channels']! as List<Map<String, Object?>>;
+  final bands = report['bandsPct']! as Map<String, Object?>;
+  final timeline = report['barsTimeline']! as List<Map<String, Object?>>;
+
+  final totalClips = overall['clips']! as int;
+  final totalNan = overall['nanOrInf']! as int;
+  final isSilent = overall['silent']! as bool;
+
+  final String status;
+  if (totalNan > 0) {
+    status = '❌ $totalNan NaN/Inf';
+  } else if (isSilent) {
+    status = '⚠️  SILENT';
+  } else if (totalClips > 0) {
+    status = '⚠️  CLIPPING ($totalClips)';
+  } else {
+    status = '✅ Clean (0 clips, 0 NaN/Inf)';
+  }
+
+  final durationSec = (report['durationSec']! as double).toStringAsFixed(2);
+  final border = '═' * 66;
+  String row(String text) => '${'║ $text'.padRight(67)}║';
+
+  stdout.writeln('╔$border╗');
+  stdout.writeln(row('📊 [hum] Signal Analysis: $name'));
+  stdout.writeln('╠$border╣');
+  stdout.writeln(
+    row(
+      'Duration:   ${durationSec}s ($bars bars @ ${tempo.bpm.round()} BPM, ${analyser.numChannels}ch)',
+    ),
+  );
+  stdout.writeln(
+    row(
+      'Format:     $sampleRate Hz | VS $vectorSize | Rendered in ${elapsedMs}ms',
+    ),
+  );
+  stdout.writeln(row('Health:     $status'));
+  stdout.writeln('╠$border╣');
+
+  for (final ch in channels) {
+    final label = (ch['label']! as String).padRight(4);
+    final peakDb = (ch['peakDb']! as double).toStringAsFixed(2).padLeft(7);
+    final rmsDb = (ch['rmsDb']! as double).toStringAsFixed(2).padLeft(7);
+    final crest = (ch['crestDb']! as double).toStringAsFixed(1).padLeft(5);
+    final dc = (ch['dcOffset']! as double).toStringAsFixed(4).padLeft(7);
+    stdout.writeln(
+      row('$label Peak:$peakDb dB | RMS:$rmsDb dB | Crest:$crest | DC:$dc'),
+    );
+  }
+
+  stdout.writeln('╠$border╣');
+  final sub = (bands['sub_lt100Hz']! as double).toStringAsFixed(1);
+  final low = (bands['low_100_500Hz']! as double).toStringAsFixed(1);
+  final mid = (bands['mid_500_2kHz']! as double).toStringAsFixed(1);
+  final high = (bands['high_gt2kHz']! as double).toStringAsFixed(1);
+  stdout.writeln(
+    row('Spectrum:   <100:$sub% | 100-500:$low% | 500-2k:$mid% | >2k:$high%'),
+  );
+
+  stdout.writeln('╠$border╣');
+  stdout.writeln(row('Per-Bar RMS / Peak (dBFS):'));
+  final buf = StringBuffer();
+  for (int i = 0; i < timeline.length; i++) {
+    final entry = timeline[i];
+    final barNum = (entry['bar']! as int).toString().padLeft(2, '0');
+    final rms = (entry['rmsDb']! as double).toStringAsFixed(1).padLeft(5);
+    final peak = (entry['peakDb']! as double).toStringAsFixed(1).padLeft(5);
+    if (buf.isNotEmpty) buf.write('  ');
+    buf.write('B$barNum:$rms/$peak');
+    if ((i + 1) % 3 == 0 || i == timeline.length - 1) {
+      stdout.writeln(row(buf.toString()));
+      buf.clear();
+    }
+  }
   stdout.writeln('╚$border╝');
 }
