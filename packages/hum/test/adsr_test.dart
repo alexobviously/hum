@@ -291,5 +291,96 @@ void main() {
       // After 1-sample attack + 1-sample decay, holds at sustain signal 0.25
       expect(pipeline.outputs[0][10], closeTo(0.25, 0.01));
     });
+
+    test('linear release takes full release time when sustain < 1.0', () {
+      const sampleRate = 1000;
+      const vectorSize = 80;
+      final context = ProcessContext(
+        sampleRate: sampleRate,
+        vectorSize: vectorSize,
+      );
+
+      final dummy = Clock.bpm(120);
+      final adsr = Adsr(
+        gate: dummy.gate,
+        attack: const .value(0.01), // 10 samples
+        decay: const .value(0.01), // 10 samples
+        sustain: const .value(0.5),
+        release: const .value(0.04), // 40 samples
+        curve: AdsrCurve.linear,
+      );
+      final processor = adsr.createProcessor();
+
+      final gate = Float32List(vectorSize);
+      for (int i = 0; i < 30; i++) {
+        gate[i] = 1.0;
+      }
+
+      final outputs = [Float32List(vectorSize)];
+      processor.process(context, [gate], outputs);
+
+      final out = outputs[0];
+      expect(out[29], closeTo(0.5, 0.01));
+      // Halfway through 40-sample release (sample 30 + 20 = 50): ~0.25
+      expect(out[50], closeTo(0.25, 0.02));
+      // Near end of release (sample 68): still releasing
+      expect(out[68], greaterThan(0.0));
+      // At end of release (sample 70): idle at 0.0
+      expect(out[70], equals(0.0));
+      expect(processor.state, equals(AdsrState.idle));
+    });
+
+    test('switching curve from exponential to linear mid-attack completes attack', () {
+      const sampleRate = 1000;
+      final dummy = Clock.bpm(120);
+      final adsr = Adsr(
+        gate: dummy.gate,
+        attack: const .value(0.05), // 50 samples
+        decay: const .value(0.02),
+        sustain: const .value(0.5),
+        release: const .value(0.02),
+        curve: AdsrCurve.exponential,
+      );
+      final processor = adsr.createProcessor();
+
+      // Block 1: 12 samples into exponential attack
+      final gate1 = Float32List(12)..fillRange(0, 12, 1.0);
+      final out1 = [Float32List(12)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: 12),
+        [gate1],
+        out1,
+      );
+      final midLevel = out1[0].last;
+      expect(processor.state, equals(AdsrState.attack));
+      expect(midLevel, greaterThan(0.0));
+      expect(midLevel, lessThan(1.0));
+
+      // Switch to linear mid-attack
+      processor.update((
+        attack: 0.05,
+        decay: 0.02,
+        sustain: 0.5,
+        release: 0.02,
+        curve: AdsrCurve.linear,
+      ));
+
+      // Block 2: continue holding gate; should rise past midLevel, peak at 1.0, and reach sustain
+      final gate2 = Float32List(80)..fillRange(0, 80, 1.0);
+      final out2 = [Float32List(80)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: 80),
+        [gate2],
+        out2,
+      );
+
+      expect(out2[0][0], greaterThan(midLevel));
+      double peak = 0.0;
+      for (final s in out2[0]) {
+        if (s > peak) peak = s;
+      }
+      expect(peak, closeTo(1.0, 0.01));
+      expect(processor.state, equals(AdsrState.sustain));
+    });
   });
 }

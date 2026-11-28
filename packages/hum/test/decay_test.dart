@@ -353,5 +353,52 @@ void main() {
       expect(pipeline.outputs[0][5], closeTo(0.5, 0.02));
       expect(pipeline.outputs[0][10], equals(0.0));
     });
+
+    test('switching curve from exponential to linear mid-attack completes envelope', () {
+      const sampleRate = 1000;
+      final clock = Clock.bpm(120);
+      final decay = Decay(
+        trigger: clock.trigger,
+        attack: const .value(0.05), // 50 samples
+        decay: const .value(0.03), // 30 samples
+        curve: DecayCurve.exponential,
+      );
+      final processor = decay.createProcessor();
+
+      // Block 1: trigger at sample 0, 12 samples into exponential attack
+      final trigger1 = Float32List(12);
+      trigger1[0] = 1.0;
+      final out1 = [Float32List(12)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: 12),
+        [trigger1],
+        out1,
+      );
+      final midLevel = out1[0].last;
+      expect(processor.state, equals(DecayState.attack));
+      expect(midLevel, greaterThan(0.0));
+      expect(midLevel, lessThan(1.0));
+
+      // Switch to linear mid-attack
+      processor.update((decay: 0.03, attack: 0.05, curve: DecayCurve.linear));
+
+      // Block 2: should finish rising to 1.0, decay, and return to idle
+      final trigger2 = Float32List(100);
+      final out2 = [Float32List(100)];
+      processor.process(
+        ProcessContext(sampleRate: sampleRate, vectorSize: 100),
+        [trigger2],
+        out2,
+      );
+
+      expect(out2[0][0], greaterThan(midLevel));
+      double peak = 0.0;
+      for (final s in out2[0]) {
+        if (s > peak) peak = s;
+      }
+      expect(peak, closeTo(1.0, 0.01));
+      expect(out2[0].last, equals(0.0));
+      expect(processor.state, equals(DecayState.idle));
+    });
   });
 }

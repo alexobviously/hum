@@ -102,27 +102,21 @@ class Decay({
   );
 }
 
-class DecayProcessor implements AudioProcessor {
-  DecayProcessor({
-    this.decay = 0.1,
-    this.attack = 0.0,
-    this.curve = .exponential,
-  });
-
+class DecayProcessor({
   /// Decay time in seconds. If null, driven by [Decay.decayInlet].
-  double? decay;
+  var double? decay = 0.1,
 
   /// Attack time in seconds (0.0 for instant 1-sample rise). If null, driven by [Decay.attackInlet].
-  double? attack;
+  var double? attack = 0.0,
 
   /// Envelope curve style.
-  DecayCurve curve;
-
+  var DecayCurve curve = .exponential,
+}) implements AudioProcessor {
   /// Current envelope output amplitude (0.0 to 1.0).
   double level = 0.0;
 
   /// Active state of the envelope.
-  DecayState state = DecayState.idle;
+  DecayState state = .idle;
 
   /// Trigger state in previous sample (for rising edge detection).
   bool _lastTrigger = false;
@@ -218,9 +212,8 @@ class DecayProcessor implements AudioProcessor {
             continue;
           } else {
             currentState = .attack;
-            if (activeCurve == .linear) {
-              linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
-            }
+            // Computed regardless of curve because it could switch mid-attack.
+            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
           }
         }
 
@@ -275,10 +268,8 @@ class DecayProcessor implements AudioProcessor {
             continue;
           } else {
             currentState = .attack;
-            if (activeCurve == .linear) {
-              final double aTime = rawA > 0.0001 ? rawA : 0.0001;
-              linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
-            }
+            final double aTime = rawA > 0.0001 ? rawA : 0.0001;
+            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
           }
         }
 

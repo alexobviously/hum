@@ -124,6 +124,12 @@ class AdsrProcessor implements AudioProcessor {
   /// Linear rate accumulator for attack when retriggered mid-flight.
   double _linearAttackRate = 0.0;
 
+  /// Linear rate accumulator for release scaled from the level at note-off.
+  double _linearReleaseRate = 0.0;
+
+  /// Envelope level captured on gate falling edge (for linear release scaling).
+  double _releaseStartLevel = 0.0;
+
   // Cached coefficients for zero-allocation steady-state processing
   double _cachedAttack = -1.0;
   double _cachedDecay = -1.0;
@@ -133,12 +139,12 @@ class AdsrProcessor implements AudioProcessor {
 
   double _aTime = 0.01;
   double _dTime = 0.1;
+  double _rTime = 0.3;
   double _sLevel = 0.7;
   double _expAttackCoeff = 0.0;
   double _expDecayCoeff = 0.0;
   double _expReleaseCoeff = 0.0;
   double _linDecayRate = 0.0;
-  double _linReleaseRate = 0.0;
 
   @override
   void update(Object params) {
@@ -171,10 +177,9 @@ class AdsrProcessor implements AudioProcessor {
   @pragma('vm:prefer-inline')
   void _updateReleaseCache(double rawRelease, double sampleRate) {
     _cachedRelease = rawRelease;
-    final double rTime = rawRelease > 0.0001 ? rawRelease : 0.0001;
+    _rTime = rawRelease > 0.0001 ? rawRelease : 0.0001;
     // Release targets -0.01 (undershoot) to cleanly hit 0.0 in finite time.
-    _expReleaseCoeff = 1.0 - math.exp(-3.0 / (rTime * sampleRate));
-    _linReleaseRate = 1.0 / (rTime * sampleRate);
+    _expReleaseCoeff = 1.0 - math.exp(-3.0 / (_rTime * sampleRate));
   }
 
   @override
@@ -228,6 +233,8 @@ class AdsrProcessor implements AudioProcessor {
     AdsrState currentState = state;
     bool lastGate = _lastGate;
     double linAttackRate = _linearAttackRate;
+    double linReleaseRate = _linearReleaseRate;
+    double releaseStartLevel = _releaseStartLevel;
 
     final bool isExp = curve == AdsrCurve.exponential;
 
@@ -237,11 +244,11 @@ class AdsrProcessor implements AudioProcessor {
         !hasReleaseSignal) {
       final double sLevel = _sLevel;
       final double aTime = _aTime;
+      final double rTime = _rTime;
       final double expAttackCoeff = _expAttackCoeff;
       final double expDecayCoeff = _expDecayCoeff;
       final double expReleaseCoeff = _expReleaseCoeff;
       final double linDecayRate = _linDecayRate;
-      final double linReleaseRate = _linReleaseRate;
 
       for (int i = 0; i < output.length; i++) {
         final bool gateHigh = gateBuffer[i] > 0.0;
@@ -250,12 +257,12 @@ class AdsrProcessor implements AudioProcessor {
         if (!lastGate && gateHigh) {
           // Gate Rising Edge: Trigger Note On / Attack
           currentState = .attack;
-          if (!isExp) {
-            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
-          }
+          linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
         } else if (lastGate && !gateHigh && currentState != .idle) {
           // Gate Falling Edge: Trigger Note Off / Release
           currentState = .release;
+          releaseStartLevel = currentLevel;
+          linReleaseRate = releaseStartLevel / (rTime * sampleRate);
         }
         lastGate = gateHigh;
 
@@ -310,15 +317,19 @@ class AdsrProcessor implements AudioProcessor {
         // Edge detection
         if (!lastGate && gateHigh) {
           currentState = .attack;
-          if (!isExp) {
-            final double rawA = attackBuffer != null
-                ? attackBuffer[i]
-                : staticAttack;
-            final double aTime = rawA > 0.0001 ? rawA : 0.0001;
-            linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
-          }
+          final double rawA = attackBuffer != null
+              ? attackBuffer[i]
+              : staticAttack;
+          final double aTime = rawA > 0.0001 ? rawA : 0.0001;
+          linAttackRate = (1.0 - currentLevel) / (aTime * sampleRate);
         } else if (lastGate && !gateHigh && currentState != .idle) {
           currentState = .release;
+          releaseStartLevel = currentLevel;
+          final double rawR = releaseBuffer != null
+              ? releaseBuffer[i]
+              : staticRelease;
+          final double rTime = rawR > 0.0001 ? rawR : 0.0001;
+          linReleaseRate = releaseStartLevel / (rTime * sampleRate);
         }
         lastGate = gateHigh;
 
@@ -379,10 +390,11 @@ class AdsrProcessor implements AudioProcessor {
               if (rawR != _cachedRelease) {
                 _updateReleaseCache(rawR, sampleRate);
               }
+              linReleaseRate = releaseStartLevel / (_rTime * sampleRate);
             }
             currentLevel += isExp
                 ? _expReleaseCoeff * (-0.01 - currentLevel)
-                : -_linReleaseRate;
+                : -linReleaseRate;
             if (currentLevel <= 0.0005) {
               currentLevel = 0.0;
               currentState = .idle;
@@ -397,5 +409,7 @@ class AdsrProcessor implements AudioProcessor {
     state = currentState;
     _lastGate = lastGate;
     _linearAttackRate = linAttackRate;
+    _linearReleaseRate = linReleaseRate;
+    _releaseStartLevel = releaseStartLevel;
   }
 }
