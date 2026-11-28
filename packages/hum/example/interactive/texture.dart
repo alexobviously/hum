@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show exit, stderr, stdin, stdout;
+import 'dart:math' as math;
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
@@ -18,9 +19,17 @@ class ParamPair({
   required final String dimColour,
   final String Function(double x)? customFormatX,
   final String Function(double y)? customFormatY,
+  final double driftRadiusX = 0.22,
+  final double driftRadiusY = 0.22,
   var double x = 0.5,
   var double y = 0.5,
+  var bool driftEnabled = false,
 }) {
+  late double anchorX = x;
+  late double anchorY = y;
+  double _vx = 0.0;
+  double _vy = 0.0;
+
   String formatX() => customFormatX != null
       ? customFormatX!(x)
       : '${(x * 100).toStringAsFixed(0)}%';
@@ -28,33 +37,73 @@ class ParamPair({
   String formatY() => customFormatY != null
       ? customFormatY!(y)
       : '${(y * 100).toStringAsFixed(0)}%';
+
+  void setPosition(double newX, double newY) {
+    x = newX.clamp(0.0, 1.0);
+    y = newY.clamp(0.0, 1.0);
+    anchorX = x;
+    anchorY = y;
+    _vx = 0.0;
+    _vy = 0.0;
+  }
+
+  void nudgeY(double delta) => setPosition(x, y + delta);
+
+  void toggleDrift([bool? enabled]) {
+    driftEnabled = enabled ?? !driftEnabled;
+    if (driftEnabled) {
+      anchorX = x;
+      anchorY = y;
+    }
+    _vx = 0.0;
+    _vy = 0.0;
+  }
+
+  void stepDrift(math.Random rng, double dt) {
+    if (!driftEnabled) return;
+    const damping = 1.6;
+    const spring = 0.7;
+    final sqrtDt = math.sqrt(dt);
+    final impulseX = (rng.nextDouble() * 2.0 - 1.0) * 1.8 * driftRadiusX;
+    final impulseY = (rng.nextDouble() * 2.0 - 1.0) * 1.8 * driftRadiusY;
+
+    _vx += impulseX * sqrtDt - (spring * (x - anchorX) + damping * _vx) * dt;
+    _vy += impulseY * sqrtDt - (spring * (y - anchorY) + damping * _vy) * dt;
+
+    final minX = (anchorX - driftRadiusX).clamp(0.0, 1.0);
+    final maxX = (anchorX + driftRadiusX).clamp(0.0, 1.0);
+    final minY = (anchorY - driftRadiusY).clamp(0.0, 1.0);
+    final maxY = (anchorY + driftRadiusY).clamp(0.0, 1.0);
+
+    x = (x + _vx * dt).clamp(minX, maxX);
+    y = (y + _vy * dt).clamp(minY, maxY);
+  }
 }
 
 final availableChords = <Chord>[
-  .maj9(Note.parse('D3')),
-  .min7(Note.parse('A2')),
-  .sus2(Note.parse('E3')),
-  .maj7(Note.parse('F3')),
-  .min7(Note.parse('D3')),
-  .sus4(Note.parse('G2')),
-  .major(Note.parse('Bb2')),
-  .minor(Note.parse('C3')),
+  .maj9(.parse('D3')),
+  .min7(.parse('A2')),
+  .sus2(.parse('E3')),
+  .maj7(.parse('F3')),
+  .min7(.parse('D3')),
+  .sus4(.parse('G2')),
+  .major(.parse('Bb2')),
+  .minor(.parse('C3')),
 ];
 
 class Synth({
   required var Chord chord,
   var double brightness = 1.0,
-  var double q = 45.0,
+  var double q = 50.0,
   var double spread = 0.85,
+  var double filterCutoff = 950.0,
+  var double swarmLevel = 0.45,
+  var double sparkle = 0.45,
+  var double motion = 0.45,
   var double delayTime = 0.38,
-  var double delayFeedback = 0.40,
-  var double delayMix = 0.4,
-  var double reverbSize = 0.65,
-  var double reverbDamp = 0.40,
-  var double drive = 1.2,
-  var double vinylCrackle = 0.35,
-  var double swarmLevel = 0.20,
-  var double swarmDetune = 12.0,
+  var double space = 0.60,
+  var double drive = 1.8,
+  var double vinylCrackle = 0.30,
   var bool isMuted = false,
   var bool vinylEnabled = true,
   var bool swarmEnabled = true,
@@ -62,38 +111,95 @@ class Synth({
   Meter? meter;
 
   TerminalNode buildGraph() {
-    final noise = NoiseGenerator.pink();
+    // Excitation: steady pink noise bed + probabilistic resonant droplet bursts
+    final pink = NoiseGenerator.pink();
+    final white = NoiseGenerator.white();
+
+    final sparkleClock = Clock(
+      frequency: .value(1.8 + sparkle * 3.2),
+      pulseWidth: const .value(0.2),
+    );
+    final sparkleGate = Chance(
+      input: sparkleClock.trigger,
+      probability: .value((sparkle * 0.78).clamp(0.0, 0.85)),
+      seed: 7,
+    );
+    final sparkleEnv = Decay.ar(
+      trigger: sparkleGate.a,
+      attack: const .value(0.004),
+      decay: const .value(0.055),
+      curve: .exponential,
+    );
+    final burst = Mult.mono(
+      input: white.outlet,
+      value: .signal(sparkleEnv.outlet),
+    ).outlet.mult(sparkle * 2.2);
+
+    final excitation = pink.outlet.mult(0.85).outlet + burst.outlet;
+
+    // Subtle tape wow / pitch drift LFO on resonators
+    final driftDepth = motion * 0.009;
+    final driftLfo = SineOscillator(
+      frequency: const .value(0.13),
+    ).mapRange(1.0 - driftDepth, 1.0 + driftDepth);
+
     final reso = ResonatorBank.chord(
-      noise.outlet,
+      excitation,
       notes: chord.notes,
-      frequencyMultiplier: const .value(1.0),
+      frequencyMultiplier: .signal(driftLfo.outlet),
       q: .value(q),
       brightness: .value(brightness),
       spread: .value(spread),
     );
 
-    final resoL = reso.left.mult(0.65);
-    final resoR = reso.right.mult(0.65);
+    final resoL = reso.left.mult(3.2);
+    final resoR = reso.right.mult(3.2);
 
+    // Rich sawtooth swarm + slow LFO-swept lowpass SVF
     final effectiveSwarm = (swarmEnabled && !isMuted) ? swarmLevel : 0.0;
-    final swarm = Swarm(
+    final swarm = Swarm.sawtooth(
       frequency: .value(chord.root.hz),
-      waveform: SwarmWaveform.sine,
-      voices: 5,
-      detuneCents: swarmDetune,
+      voices: 7,
+      detuneCents: 14.0 + motion * 18.0,
       stereoSpread: spread,
     );
-    final swarmL = swarm.left.mult(effectiveSwarm);
-    final swarmR = swarm.right.mult(effectiveSwarm);
+    final minCut = (filterCutoff * (1.0 - 0.30 * motion - 0.10)).clamp(
+      60.0,
+      12000.0,
+    );
+    final maxCut = (filterCutoff * (1.0 + 0.45 * motion + 0.15)).clamp(
+      80.0,
+      14000.0,
+    );
+    final filterLfo = SineOscillator(
+      frequency: const .value(0.09),
+    ).mapRange(minCut, maxCut);
 
-    final combinedL = resoL.outlet + swarmL.outlet;
-    final combinedR = resoR.outlet + swarmR.outlet;
+    final svfL = SvfFilter(
+      input: swarm.left,
+      cutoff: .signal(filterLfo.outlet),
+      resonance: const .value(1.6),
+    );
+    final svfR = SvfFilter(
+      input: swarm.right,
+      cutoff: .signal(filterLfo.outlet),
+      resonance: const .value(1.6),
+    );
+
+    final swarmGain = effectiveSwarm * 0.42;
+    final swarmL = svfL.lowpass.mult(swarmGain);
+    final swarmR = svfR.lowpass.mult(swarmGain);
+
+    // Pre-gain into Saturator so Tape Drive adds audible harmonic warmth
+    final combinedL = (resoL.outlet + swarmL.outlet).mult(2.4);
+    final combinedR = (resoR.outlet + swarmR.outlet).mult(2.4);
 
     final sat = Saturator.stereo(
-      combinedL,
-      combinedR,
+      combinedL.outlet,
+      combinedR.outlet,
       drive: .value(drive),
-      mode: SaturationMode.tanh,
+      mode: .tanh,
+      dcBlock: true,
     );
 
     final effectiveCrackle = (vinylEnabled && !isMuted) ? vinylCrackle : 0.0;
@@ -103,7 +209,7 @@ class Synth({
       density: .value(5.0 + effectiveCrackle * 45.0),
       warp: const .value(0.12),
     );
-    final vinylGain = (effectiveCrackle * 0.5).clamp(0.0, 0.4);
+    final vinylGain = (effectiveCrackle * 0.45).clamp(0.0, 0.35);
     final vinylL = vinyl.left.mult(vinylGain);
     final vinylR = vinyl.right.mult(vinylGain);
 
@@ -114,23 +220,44 @@ class Synth({
       leftInput: saturatedL,
       rightInput: saturatedR,
       time: .value(delayTime),
-      feedback: .value(delayFeedback),
-      mix: .value(delayMix),
+      feedback: .value((0.15 + space * 0.62).clamp(0.0, 0.80)),
+      mix: const .value(0.42),
+      damp: const .value(0.35),
       interpTime: 0.06,
     );
 
+    final chorus = Chorus.stereo(
+      leftInput: delay.left,
+      rightInput: delay.right,
+      rate: .value(0.35 + motion * 0.65),
+      depth: .value(0.0015 + motion * 0.0035),
+      baseDelay: const .value(0.015),
+      mix: .value((0.15 + motion * 0.55).clamp(0.0, 0.75)),
+    );
+
     final reverb = Freeverb.stereo(
-      left: delay.left,
-      right: delay.right,
-      roomSize: .value(reverbSize),
-      damp: .value(reverbDamp),
-      mix: .value((reverbSize * 0.75).clamp(0.0, 1.0)),
+      left: chorus.left,
+      right: chorus.right,
+      roomSize: .value((0.20 + space * 0.72).clamp(0.1, 0.95)),
+      damp: const .value(0.35),
+      mix: .value((0.18 + space * 0.62).clamp(0.0, 0.85)),
       interpTime: 0.03,
     );
 
-    final masterGain = isMuted ? 0.0 : 0.4;
-    final masterL = reverb.left.mult(masterGain, interpTime: 0.03);
-    final masterR = reverb.right.mult(masterGain, interpTime: 0.03);
+    final comp = Compressor.stereo(
+      reverb.left,
+      reverb.right,
+      threshold: const .value(-30.0),
+      ratio: const .value(8.0),
+      attack: const .value(0.015),
+      release: const .value(0.200),
+      knee: const .value(8.0),
+      makeupGain: const .value(19.0),
+    );
+
+    final masterGain = isMuted ? 0.0 : 0.7;
+    final masterL = comp.left.mult(masterGain, interpTime: 0.03);
+    final masterR = comp.right.mult(masterGain, interpTime: 0.03);
 
     final m = meter = Meter.stereo(
       left: masterL.outlet,
@@ -223,60 +350,60 @@ void main(List<String> args) async {
 
   final pairs = [
     ParamPair(
-      name: 'Timbre',
+      name: 'Reso',
       xLabel: 'Brightness',
       yLabel: 'Resonance Q',
       colour: '\x1b[96m', // Bright Cyan
       dimColour: '\x1b[36m', // Cyan
-      x: 0.47,
-      y: 0.33,
-      customFormatX: (x) => '${(0.1 + x * 1.9).toStringAsFixed(2)}x',
-      customFormatY: (y) => (8.0 + y * 112.0).toStringAsFixed(0),
+      x: 0.46,
+      y: 0.32,
+      customFormatX: (x) => '${(0.15 + x * 1.85).toStringAsFixed(2)}x',
+      customFormatY: (y) => (8.0 + y * 132.0).toStringAsFixed(0),
     ),
     ParamPair(
-      name: 'Delay',
+      name: 'Swarm',
+      xLabel: 'Filter Cutoff',
+      yLabel: 'Swarm Level',
+      colour: '\x1b[92m', // Bright Green
+      dimColour: '\x1b[32m', // Green
+      x: 0.54,
+      y: 0.45,
+      customFormatX: (x) =>
+          '${(140.0 * math.pow(34.0, x)).toStringAsFixed(0)} Hz',
+      customFormatY: (y) => '${(y * 100).toStringAsFixed(0)}%',
+    ),
+    ParamPair(
+      name: 'Motion',
+      xLabel: 'Sparkles',
+      yLabel: 'Drift/Chorus',
+      colour: '\x1b[93m', // Bright Yellow
+      dimColour: '\x1b[33m', // Yellow
+      x: 0.45,
+      y: 0.45,
+    ),
+    ParamPair(
+      name: 'Space',
       xLabel: 'Delay Time',
-      yLabel: 'Feedback',
+      yLabel: 'Space & Verb',
       colour: '\x1b[94m', // Bright Blue
       dimColour: '\x1b[34m', // Blue
+      driftRadiusX: 0.05,
       x: 0.41,
-      y: 0.47,
+      y: 0.60,
       customFormatX: (x) =>
           '${((0.05 + x * 0.80) * 1000).toStringAsFixed(0)} ms',
-      customFormatY: (y) => '${(y * 85).toStringAsFixed(0)}%',
-    ),
-    ParamPair(
-      name: 'Verb',
-      xLabel: 'Room Size',
-      yLabel: 'Dampening',
-      colour: '\x1b[95m', // Bright Magenta
-      dimColour: '\x1b[35m', // Magenta
-      x: 0.65,
-      y: 0.40,
-      customFormatX: (x) => '${((0.10 + x * 0.85) * 100).toStringAsFixed(0)}%',
       customFormatY: (y) => '${(y * 100).toStringAsFixed(0)}%',
     ),
     ParamPair(
       name: 'Grit',
-      xLabel: 'Drive',
+      xLabel: 'Tape Drive',
       yLabel: 'Vinyl Crackle',
-      colour: '\x1b[93m', // Bright Yellow
-      dimColour: '\x1b[33m', // Yellow
-      x: 0.10,
-      y: 0.35,
-      customFormatX: (x) => '${(1.0 + x * 3.5).toStringAsFixed(2)}x',
+      colour: '\x1b[95m', // Bright Magenta
+      dimColour: '\x1b[35m', // Magenta
+      x: 0.13,
+      y: 0.30,
+      customFormatX: (x) => '${(1.0 + x * 6.0).toStringAsFixed(2)}x',
       customFormatY: (y) => '${(y * 100).toStringAsFixed(0)}%',
-    ),
-    ParamPair(
-      name: 'Swarm',
-      xLabel: 'Swarm Level',
-      yLabel: 'Detune Spread',
-      colour: '\x1b[92m', // Bright Green
-      dimColour: '\x1b[32m', // Green
-      x: 0.44,
-      y: 0.21,
-      customFormatX: (x) => '${(x * 45).toStringAsFixed(0)}%',
-      customFormatY: (y) => '${(3.0 + y * 42.0).toStringAsFixed(1)} cents',
     ),
   ];
 
@@ -285,24 +412,24 @@ void main(List<String> args) async {
 
   void syncSynthParams() {
     final p0 = pairs[0];
-    synth.brightness = 0.1 + p0.x * 1.9;
-    synth.q = 8.0 + p0.y * 112.0;
+    synth.brightness = 0.15 + p0.x * 1.85;
+    synth.q = 8.0 + p0.y * 132.0;
 
     final p1 = pairs[1];
-    synth.delayTime = 0.05 + p1.x * 0.80;
-    synth.delayFeedback = p1.y * 0.85;
+    synth.filterCutoff = 140.0 * math.pow(34.0, p1.x);
+    synth.swarmLevel = p1.y;
 
     final p2 = pairs[2];
-    synth.reverbSize = 0.10 + p2.x * 0.85;
-    synth.reverbDamp = p2.y;
+    synth.sparkle = p2.x;
+    synth.motion = p2.y;
 
     final p3 = pairs[3];
-    synth.drive = 1.0 + p3.x * 3.5;
-    synth.vinylCrackle = p3.y;
+    synth.delayTime = 0.05 + p3.x * 0.80;
+    synth.space = p3.y;
 
     final p4 = pairs[4];
-    synth.swarmLevel = p4.x * 0.45;
-    synth.swarmDetune = 3.0 + p4.y * 42.0;
+    synth.drive = 1.0 + p4.x * 6.0;
+    synth.vinylCrackle = p4.y;
   }
 
   syncSynthParams();
@@ -347,23 +474,27 @@ void main(List<String> args) async {
     for (int i = 0; i < pairs.length; i++) {
       final p = pairs[i];
       final isSel = i == activePairIndex;
-      final label = '[${i + 1}:${p.name.toUpperCase()}]';
+      final driftMark = p.driftEnabled ? '~' : '';
+      final label = '[${i + 1}:${p.name.toUpperCase()}$driftMark]';
       if (isSel) {
         tabs.write('${p.colour}\x1b[1m$label\x1b[0m  ');
+      } else if (p.driftEnabled) {
+        tabs.write('${p.dimColour}$label\x1b[0m  ');
       } else {
         tabs.write('\x1b[90m$label\x1b[0m  ');
       }
     }
-    tabs.write('\x1b[90m(Keys [1-5] / [←/→])\x1b[0m');
+    tabs.write('\x1b[90m([1-5] / [←/→])\x1b[0m');
     line(tabs.toString());
 
     final activePair = pairs[activePairIndex];
     final chordName = '${synth.chord.root.name} ${synth.chord.pattern.name}';
     final chordNotesStr = synth.chord.notes.map((n) => n.name).join(' ');
+    final driftBadge = activePair.driftEnabled ? ' \x1b[93m[DRIFT]\x1b[0m' : '';
 
     // Side panel lines (18 lines, corresponding to Rows 4 to 21)
     final side = [
-      '${activePair.colour}\x1b[1mPAIR ${activePairIndex + 1}: ${activePair.name.toUpperCase()}\x1b[0m',
+      '${activePair.colour}\x1b[1mPAIR ${activePairIndex + 1}: ${activePair.name.toUpperCase()}\x1b[0m$driftBadge',
       '──────────────────────────────────',
       '[X] ${activePair.xLabel.padRight(14)} ${activePair.formatX()}',
       '[Y] ${activePair.yLabel.padRight(14)} ${activePair.formatY()}',
@@ -374,13 +505,13 @@ void main(List<String> args) async {
       '',
       '\x1b[1mCHAIN STATUS\x1b[0m',
       '• Resonators  \x1b[96m[B: ${synth.brightness.toStringAsFixed(2)} / Q: ${synth.q.toStringAsFixed(0)}]\x1b[0m',
-      '• Delay Line  \x1b[94m[${(synth.delayTime * 1000).toStringAsFixed(0)}ms / ${(synth.delayFeedback * 100).toStringAsFixed(0)}%]\x1b[0m',
-      '• Freeverb    \x1b[95m[${(synth.reverbSize * 100).toStringAsFixed(0)}% / ${(synth.reverbDamp * 100).toStringAsFixed(0)}% dmp]\x1b[0m',
-      '• Tape Drive  \x1b[93m[${synth.drive.toStringAsFixed(1)}x]\x1b[0m',
-      '• Vinyl       ${synth.vinylEnabled ? '\x1b[93m[${(synth.vinylCrackle * 100).toStringAsFixed(0)}%]\x1b[0m' : '\x1b[90m[OFF]\x1b[0m'}',
-      '• Swarm       ${synth.swarmEnabled ? '\x1b[92m[${(synth.swarmLevel * 100).toStringAsFixed(0)}%]\x1b[0m' : '\x1b[90m[OFF]\x1b[0m'}',
+      '• Swarm+SVF   ${synth.swarmEnabled ? '\x1b[92m[${(synth.swarmLevel * 100).toStringAsFixed(0)}% / ${synth.filterCutoff.toStringAsFixed(0)}Hz]\x1b[0m' : '\x1b[90m[OFF]\x1b[0m'}',
+      '• Motion      \x1b[93m[S: ${(synth.sparkle * 100).toStringAsFixed(0)}% / D: ${(synth.motion * 100).toStringAsFixed(0)}%]\x1b[0m',
+      '• Delay/Verb  \x1b[94m[${(synth.delayTime * 1000).toStringAsFixed(0)}ms / ${(synth.space * 100).toStringAsFixed(0)}%]\x1b[0m',
+      '• Tape Drive  \x1b[95m[${synth.drive.toStringAsFixed(1)}x]\x1b[0m',
+      '• Vinyl       ${synth.vinylEnabled ? '\x1b[95m[${(synth.vinylCrackle * 100).toStringAsFixed(0)}%]\x1b[0m' : '\x1b[90m[OFF]\x1b[0m'}',
       '',
-      '\x1b[1mKEYS:\x1b[0m [1-5]  [c] [v] [s] [Space]',
+      '\x1b[1mKEYS:\x1b[0m [1-5] [d/D] [c] [v] [s]',
     ];
 
     // Row 4: Top border + side[0]
@@ -438,7 +569,7 @@ void main(List<String> args) async {
 
     // Row 25: Tips
     line(
-      'Mouse: Drag inside pad | [1-5]/[←/→] Pairs | [c] Chord | [↑/↓] Oct | [Space] Mute',
+      'Drag pad | [1-5] Pair | [d/D] Drift | [c] Chord | [↑/↓] Oct | [Space] Mute',
     );
 
     stdout.write(buf.toString());
@@ -459,19 +590,13 @@ void main(List<String> args) async {
 
       if (button == 64) {
         // Scroll wheel up -> nudge Y
-        pairs[activePairIndex].y = (pairs[activePairIndex].y + 0.03).clamp(
-          0.0,
-          1.0,
-        );
+        pairs[activePairIndex].nudgeY(0.03);
         syncSynthParams();
         updateGraph();
         render();
       } else if (button == 65) {
         // Scroll wheel down -> nudge Y
-        pairs[activePairIndex].y = (pairs[activePairIndex].y - 0.03).clamp(
-          0.0,
-          1.0,
-        );
+        pairs[activePairIndex].nudgeY(-0.03);
         syncSynthParams();
         updateGraph();
         render();
@@ -484,8 +609,7 @@ void main(List<String> args) async {
         if (isDraggingPad) {
           final normX = ((col - 3) / 39.0).clamp(0.0, 1.0);
           final normY = (1.0 - ((row - 5) / 15.0)).clamp(0.0, 1.0);
-          pairs[activePairIndex].x = normX;
-          pairs[activePairIndex].y = normY;
+          pairs[activePairIndex].setPosition(normX, normY);
           syncSynthParams();
           updateGraph();
           render();
@@ -541,20 +665,33 @@ void main(List<String> args) async {
       }
     }
 
-    if (cleanText.contains('c') || cleanText.contains('C')) {
+    // Strip arrow escape sequences before checking single-letter commands
+    // (Left arrow is \x1b[D, which would otherwise match 'D').
+    final keyChars = cleanText.replaceAll(RegExp(r'\x1b\[[ABCD]'), '');
+
+    if (keyChars.contains('d')) {
+      pairs[activePairIndex].toggleDrift();
+    } else if (keyChars.contains('D')) {
+      final anyDrifting = pairs.any((p) => p.driftEnabled);
+      for (final p in pairs) {
+        p.toggleDrift(!anyDrifting);
+      }
+    }
+
+    if (keyChars.contains('c') || keyChars.contains('C')) {
       currentChordIndex = (currentChordIndex + 1) % availableChords.length;
       synth.chord = getActiveChord();
     }
 
-    if (cleanText.contains('v') || cleanText.contains('V')) {
+    if (keyChars.contains('v') || keyChars.contains('V')) {
       synth.vinylEnabled = !synth.vinylEnabled;
     }
 
-    if (cleanText.contains('s') || cleanText.contains('S')) {
+    if (keyChars.contains('s') || keyChars.contains('S')) {
       synth.swarmEnabled = !synth.swarmEnabled;
     }
 
-    if (cleanText.contains(' ')) {
+    if (keyChars.contains(' ')) {
       synth.isMuted = !synth.isMuted;
     }
 
@@ -564,6 +701,24 @@ void main(List<String> args) async {
 
   render();
 
+  final driftRng = math.Random();
+  const driftDt = 0.04;
+  final driftTimer = Timer.periodic(const Duration(milliseconds: 40), (_) {
+    bool changed = false;
+    for (int i = 0; i < pairs.length; i++) {
+      final p = pairs[i];
+      if (p.driftEnabled && !(isDraggingPad && i == activePairIndex)) {
+        p.stepDrift(driftRng, driftDt);
+        changed = true;
+      }
+    }
+    if (changed) {
+      syncSynthParams();
+      updateGraph();
+      render();
+    }
+  });
+
   final meterSub = meterChannel?.stream.listen((reading) {
     latestMeter = reading;
     render();
@@ -572,6 +727,7 @@ void main(List<String> args) async {
   try {
     await completer.future;
   } finally {
+    driftTimer.cancel();
     await meterSub?.cancel();
     stdin.lineMode = oldLineMode;
     stdin.echoMode = oldEchoMode;
