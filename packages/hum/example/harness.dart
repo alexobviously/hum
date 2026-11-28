@@ -10,8 +10,11 @@ import 'package:hum/io.dart';
 ///
 /// Can return a [TerminalNode] (such as [Out] or [WavSink]), an [AudioNode],
 /// an [Outlet], or a `List<Outlet>`.
-typedef DemoBuilder =
-    Object Function(ProcessContext context, Tempo tempo, ArgResults args);
+typedef DemoBuilder = Object Function(
+  ProcessContext context,
+  Tempo tempo,
+  ArgResults args,
+);
 
 /// Lightweight buffer/wavetable registry for demos that use [SamplePlayer] or
 /// [WavetableOscillator] with [runDemo].
@@ -84,7 +87,7 @@ class const DemoOptions({
         'play',
         abbr: 'p',
         negatable: false,
-        help: 'Stream real-time audio (auto-detects ffplay or sox)',
+        help: 'Stream real-time audio (auto-detects sox or ffplay)',
       )
       ..addFlag('ffplay', negatable: false, help: 'Stream audio using ffplay')
       ..addFlag('sox', negatable: false, help: 'Stream audio using play (SoX)')
@@ -405,7 +408,7 @@ Future<void> _runLivePlayback({
   StreamSubscription? sigintSub;
 
   try {
-    output = await _resolvePlayer(
+    output = await resolvePlayer(
       mode: playerMode,
       numChannels: numChannels,
       vectorSize: vectorSize,
@@ -482,7 +485,7 @@ Future<void> _runLivePlayback({
 }
 
 /// Resolves audio subprocess player using pattern matching.
-Future<PipedAudioOutput> _resolvePlayer({
+Future<PipedAudioOutput> resolvePlayer({
   required AudioPlayerMode mode,
   required int numChannels,
   required int vectorSize,
@@ -498,28 +501,28 @@ Future<PipedAudioOutput> _resolvePlayer({
     vectorSize: vectorSize,
     sampleRate: sampleRate,
   ),
-  .auto => switch (await _hasExecutable('ffplay')) {
-    true => .ffplay(
+  .auto => switch (await hasExecutable('play')) {
+    true => .sox(
       numChannels: numChannels,
       vectorSize: vectorSize,
       sampleRate: sampleRate,
     ),
-    false => switch (await _hasExecutable('play')) {
-      true => .sox(
+    false => switch (await hasExecutable('ffplay')) {
+      true => .ffplay(
         numChannels: numChannels,
         vectorSize: vectorSize,
         sampleRate: sampleRate,
       ),
       false => throw StateError(
-        'No supported real-time audio player found on PATH (checked "ffplay" and "play" [SoX]).\n'
-        'Please install ffmpeg (for ffplay) or sox, or run without --play to bounce a WAV file.',
+        'No supported real-time audio player found on PATH (checked "play" [SoX] and "ffplay").\n'
+        'Please install sox or ffmpeg (for ffplay), or run without --play to bounce a WAV file.',
       ),
     },
   },
 };
 
 /// Checks if an executable exists on the system PATH.
-Future<bool> _hasExecutable(String executable) async {
+Future<bool> hasExecutable(String executable) async {
   try {
     final cmd = Platform.isWindows ? 'where' : 'which';
     final result = await Process.run(cmd, [executable]);

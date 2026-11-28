@@ -1,21 +1,23 @@
 // Simple guitar tuner.
 
-// You need ffmpeg installed with `ffplay` or SoX installed with `play` in path.
+// You need SoX installed with `sox` or ffmpeg installed with `ffmpeg` in path.
 
 import 'dart:async';
-import 'dart:io' show exit, stdin, stdout;
+import 'dart:io' show exit, stderr, stdin, stdout;
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
 import 'package:hum/io.dart';
 
+import '../harness.dart' show hasExecutable;
+
 final parser = ArgParser()
   ..addOption(
     'input',
     abbr: 'i',
-    allowed: ['ffplay', 'sox'],
-    defaultsTo: 'ffplay',
-    help: 'Audio input backend (ffplay or sox/play)',
+    allowed: ['auto', 'sox', 'ffmpeg'],
+    defaultsTo: 'auto',
+    help: 'Audio input backend (auto prefers sox, falls back to ffmpeg)',
   )
   ..addFlag(
     'help',
@@ -36,22 +38,37 @@ void main(List<String> args) async {
   final results = parser.parse(args);
 
   if (results['help'] == true) {
-    stdout.writeln('Interactive Arpeggiator');
+    stdout.writeln('Interactive Guitar Tuner');
     stdout.writeln(parser.usage);
     exit(0);
   }
 
-  final player = results.option('input')!;
-
+  final inputMode = results.option('input')!;
   final sr = 44100, vs = 64;
+
+  final SubprocessSource source;
+  switch (inputMode) {
+    case 'sox':
+      source = SubprocessSource.sox(sampleRate: sr);
+    case 'ffmpeg':
+      // TODO: figure out why ffmpeg isn't working well
+      source = SubprocessSource.ffmpeg(sampleRate: sr, input: ':0');
+    default:
+      if (await hasExecutable('sox')) {
+        source = SubprocessSource.sox(sampleRate: sr);
+      } else if (await hasExecutable('ffmpeg')) {
+        source = SubprocessSource.ffmpeg(sampleRate: sr, input: ':0');
+      } else {
+        stderr.writeln(
+          'No supported audio capture tool found on PATH (checked "sox" and "ffmpeg").\n'
+          'Please install sox or ffmpeg.',
+        );
+        exit(1);
+      }
+  }
+
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await IsolateAudioHost.spawn(context: context);
-
-  final source = switch (player) {
-    // TODO: figure out why ffmpeg isn't working well
-    'ffplay' => SubprocessSource.ffmpeg(sampleRate: sr, input: ':0'),
-    _ => SubprocessSource.sox(sampleRate: sr),
-  };
 
   // Band-limit mic input (70 Hz – 1000 Hz) to strip room rumble, DC offset,
   // and high-frequency pick/air noise before pitch detection.

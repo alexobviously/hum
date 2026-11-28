@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:io' show exit, stdin, stdout;
+import 'dart:io' show exit, stderr, stdin, stdout;
 
 import 'package:args/args.dart';
 import 'package:hum/hum.dart';
 import 'package:hum/io.dart';
 
-// You need ffmpeg installed with `ffplay` or SoX installed with `play` in path.
+import '../harness.dart' show AudioPlayerMode, resolvePlayer;
+
+// You need SoX installed with `play` or ffmpeg installed with `ffplay` in path.
 
 final availableScales = <Scale>[
   .minor(.parse('A3')),
@@ -22,9 +24,9 @@ final parser = ArgParser()
   ..addOption(
     'output',
     abbr: 'o',
-    allowed: ['ffplay', 'sox'],
-    defaultsTo: 'ffplay',
-    help: 'Audio output backend (ffplay or sox/play)',
+    allowed: ['auto', 'sox', 'ffplay'],
+    defaultsTo: 'auto',
+    help: 'Audio output backend (auto prefers sox, falls back to ffplay)',
   )
   ..addFlag(
     'help',
@@ -42,9 +44,22 @@ void main(List<String> args) async {
     exit(0);
   }
 
-  final player = results.option('output')!;
-
   final sr = 44100, vs = 64;
+  final playerMode = AudioPlayerMode.values.byName(results.option('output')!);
+  final PipedAudioOutput output;
+  try {
+    output = await resolvePlayer(
+      mode: playerMode,
+      numChannels: 2,
+      vectorSize: vs,
+      sampleRate: sr,
+    );
+  } on StateError catch (e) {
+    stderr.writeln(e.message);
+    exit(1);
+  }
+  final player = output.executable == 'play' ? 'sox' : output.executable;
+
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await IsolateAudioHost.spawn(context: context);
   int currentScaleIndex = 0;
@@ -56,18 +71,6 @@ void main(List<String> args) async {
   void updateGraph() => host.setGraph(root: synth.buildGraph());
   updateGraph();
 
-  final output = switch (player) {
-    'sox' => PipedAudioOutput.sox(
-      numChannels: 2,
-      vectorSize: vs,
-      sampleRate: sr,
-    ),
-    _ => PipedAudioOutput.ffplay(
-      numChannels: 2,
-      vectorSize: vs,
-      sampleRate: sr,
-    ),
-  };
   await host.startPlayback(output: output);
 
   final oldLineMode = stdin.lineMode;

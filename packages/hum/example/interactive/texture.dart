@@ -6,6 +6,8 @@ import 'package:args/args.dart';
 import 'package:hum/hum.dart';
 import 'package:hum/io.dart';
 
+import '../harness.dart' show AudioPlayerMode, resolvePlayer;
+
 // TODO: clean this file up a bit, but tbh I might just make a TUI library and put some of this code there
 
 class ParamPair({
@@ -143,9 +145,9 @@ final parser = ArgParser()
   ..addOption(
     'output',
     abbr: 'o',
-    allowed: ['ffplay', 'sox'],
-    defaultsTo: 'ffplay',
-    help: 'Audio output backend (ffplay or sox/play)',
+    allowed: ['auto', 'sox', 'ffplay'],
+    defaultsTo: 'auto',
+    help: 'Audio output backend (auto prefers sox, falls back to ffplay)',
   )
   ..addFlag(
     'help',
@@ -173,9 +175,23 @@ void main(List<String> args) async {
     }
   }
 
-  final player = results.option('output')!;
   const sr = 44100;
   const vs = 64;
+  final playerMode = AudioPlayerMode.values.byName(results.option('output')!);
+  final PipedAudioOutput output;
+  try {
+    output = await resolvePlayer(
+      mode: playerMode,
+      numChannels: 2,
+      vectorSize: vs,
+      sampleRate: sr,
+    );
+  } on StateError catch (e) {
+    stderr.writeln(e.message);
+    exit(1);
+  }
+  final player = output.executable == 'play' ? 'sox' : output.executable;
+
   final context = ProcessContext(sampleRate: sr, vectorSize: vs);
   final host = await IsolateAudioHost.spawn(
     context: context,
@@ -297,18 +313,6 @@ void main(List<String> args) async {
   final meterChannel = host.telemetryOf(synth.meter!);
   MeterReading? latestMeter;
 
-  final output = switch (player) {
-    'sox' => PipedAudioOutput.sox(
-      numChannels: 2,
-      vectorSize: vs,
-      sampleRate: sr,
-    ),
-    _ => PipedAudioOutput.ffplay(
-      numChannels: 2,
-      vectorSize: vs,
-      sampleRate: sr,
-    ),
-  };
   await host.startPlayback(output: output);
 
   final oldLineMode = stdin.lineMode;
