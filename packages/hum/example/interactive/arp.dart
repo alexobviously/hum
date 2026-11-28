@@ -91,6 +91,7 @@ void main(List<String> args) async {
         '${availableScales[currentScaleIndex].root.name} ${availableScales[currentScaleIndex].pattern.name}';
     line('${'(m)   Scale'.padRight(24)}$scaleName');
     line('${'(+/-) BPM'.padRight(24)}${synth.bpm.toStringAsFixed(0)}');
+    line('${'(o/p) Step Mode'.padRight(24)}${synth.stepMode.name}');
     line('${'(←/→) Cutoff'.padRight(24)}${synth.cutoff.toStringAsFixed(0)} Hz');
     line('${'(↑/↓) Reso'.padRight(24)}${synth.reso.toStringAsFixed(2)}');
     line(
@@ -127,6 +128,12 @@ void main(List<String> args) async {
         synth.bpm = (synth.bpm + 5).clamp(10, 300);
       case [45]: // minus: tempo -5
         synth.bpm = (synth.bpm - 5).clamp(10, 300);
+      case [111]: // o: step mode back
+        synth.stepMode = StepMode
+            .values[(synth.stepMode.index - 1) % StepMode.values.length];
+      case [112]: // p: step mode forward
+        synth.stepMode = StepMode
+            .values[(synth.stepMode.index + 1) % StepMode.values.length];
       case [27, 91, 65]: // ↑: reso + 0.1
         synth.reso = (synth.reso + 0.1).clamp(0, 5);
       case [27, 91, 66]: // ↓: reso - 0.1
@@ -195,6 +202,7 @@ class Synth({
   var double sawLevel = 0.3,
   var double delayFeedback = 0.4,
   var double delayMix = 0.1,
+  var StepMode stepMode = .forward,
 }) {
   bool isStepActive(int index) => activeSteps[index] ?? false;
 
@@ -227,6 +235,7 @@ class Synth({
       steps: [
         for (final n in notes) n.hz,
       ],
+      mode: stepMode,
     );
 
     final pitch = seq; //.slew(0.015, notes.first.hz);

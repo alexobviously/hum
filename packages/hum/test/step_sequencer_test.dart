@@ -202,5 +202,71 @@ void main() {
         expect(pipeline.outputs.first.length, equals(64));
       },
     );
+
+    test('supports reverse and pingPong step modes', () {
+      const context = ProcessContext(sampleRate: 100, vectorSize: 16);
+      final clockBuf = Float32List.fromList([
+        for (int i = 0; i < 16; i++) i.isEven ? 1.0 : 0.0,
+      ]);
+      final resetBuf = Float32List(16);
+
+      // Reverse: 400, 300, 200, 100, 400, 300, 200, 100
+      final rev = StepSequencerProcessor(
+        steps: [100.0, 200.0, 300.0, 400.0],
+        mode: .reverse,
+      );
+      final revOut = Float32List(16);
+      rev.process(context, [clockBuf, resetBuf], [revOut]);
+      expect(
+        [for (int i = 0; i < 16; i += 2) revOut[i]],
+        equals([400.0, 300.0, 200.0, 100.0, 400.0, 300.0, 200.0, 100.0]),
+      );
+
+      // PingPong: 100, 200, 300, 400, 300, 200, 100, 200
+      final pp = StepSequencerProcessor(
+        steps: [100.0, 200.0, 300.0, 400.0],
+        mode: .pingPong,
+      );
+      final ppOut = Float32List(16);
+      pp.process(context, [clockBuf, resetBuf], [ppOut]);
+      expect(
+        [for (int i = 0; i < 16; i += 2) ppOut[i]],
+        equals([100.0, 200.0, 300.0, 400.0, 300.0, 200.0, 100.0, 200.0]),
+      );
+    });
+
+    test('supports random and randomNoRepeat step modes', () {
+      const context = ProcessContext(sampleRate: 100, vectorSize: 64);
+      final clockBuf = Float32List.fromList([
+        for (int i = 0; i < 64; i++) i.isEven ? 1.0 : 0.0,
+      ]);
+      final resetBuf = Float32List(64);
+      const pool = [100.0, 200.0, 300.0, 400.0];
+
+      final rnd = StepSequencerProcessor(
+        steps: pool,
+        mode: .random,
+        seed: 42,
+      );
+      final rndOut = Float32List(64);
+      rnd.process(context, [clockBuf, resetBuf], [rndOut]);
+      final rndSteps = [for (int i = 0; i < 64; i += 2) rndOut[i]];
+      expect(rndSteps.toSet().length, greaterThan(1));
+      for (final v in rndSteps) {
+        expect(pool, contains(v));
+      }
+
+      final noRep = StepSequencerProcessor(
+        steps: pool,
+        mode: .randomNoRepeat,
+        seed: 42,
+      );
+      final noRepOut = Float32List(64);
+      noRep.process(context, [clockBuf, resetBuf], [noRepOut]);
+      final noRepSteps = [for (int i = 0; i < 64; i += 2) noRepOut[i]];
+      for (int i = 1; i < noRepSteps.length; i++) {
+        expect(noRepSteps[i], isNot(equals(noRepSteps[i - 1])));
+      }
+    });
   });
 }
