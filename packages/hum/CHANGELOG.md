@@ -5,7 +5,8 @@
 * Wavetable synthesis: `WavetableOscillator`, with `Wavetable` buffer wrapper and utilities.
 * `StepSequencer.mode` (`enum StepMode`): allows reverse, random, etc step selection instead of just forward.
 * `KarplusStrong` v2, params: `pickHardness`, `pickPosition`, `damping`.
-* Safety: guard against out of boards/NaN/infinity in audio output.
+* Safety: guard against out of bounds/NaN/infinity in audio output.
+* `Expander` and `NoiseGate` nodes.
 
 ## 0.1.1
 

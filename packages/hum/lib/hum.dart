@@ -34,6 +34,7 @@ export 'src/nodes/composite/hihat.dart';
 export 'src/nodes/composite/kick.dart';
 export 'src/nodes/composite/snare.dart';
 export 'src/nodes/dynamics/compressor.dart';
+export 'src/nodes/dynamics/expander.dart';
 export 'src/nodes/effects/bitcrusher.dart';
 export 'src/nodes/effects/chorus.dart';
 export 'src/nodes/effects/delay.dart';

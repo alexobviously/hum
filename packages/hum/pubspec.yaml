@@ -1,6 +1,6 @@
 name: hum
 description: High-performance, modular audio graph and real-time DSP synthesis engine for Dart and Flutter.
-version: 0.1.1
+version: 0.1.2
 resolution: workspace
 homepage: https://alxbkr.xyz
 repository: https://github.com/alexobviously/hum
