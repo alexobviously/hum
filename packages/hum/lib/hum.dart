@@ -1,4 +1,5 @@
 export 'src/compiler/buffer_allocation.dart';
+export 'src/compiler/graph_ascii.dart';
 export 'src/compiler/graph_compiler.dart';
 export 'src/compiler/graph_diff.dart';
 export 'src/compiler/graph_snapshot.dart';

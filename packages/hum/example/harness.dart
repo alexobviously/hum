@@ -63,6 +63,7 @@ class const DemoOptions({
   final bool bench = false,
   final bool benchWorker = false,
   final bool verboseGc = false,
+  final bool graph = false,
   final String? outputPath,
   final int? bars,
   final double? bpm,
@@ -113,6 +114,12 @@ class const DemoOptions({
         abbr: 'v',
         negatable: false,
         help: 'Print raw GC scavenge event logs during benchmark',
+      )
+      ..addFlag(
+        'graph',
+        abbr: 'g',
+        negatable: false,
+        help: 'Print an ASCII visualization of the compiled audio graph',
       )
       ..addOption(
         'out',
@@ -173,10 +180,11 @@ class const DemoOptions({
 
     final isBench = results.flag('bench') || results.flag('bench-worker');
     final isWorker = results.flag('bench-worker');
+    final hasGraph = results.flag('graph');
     final hasFfplay = results.flag('ffplay');
     final hasSox = results.flag('sox');
     final hasPlay = results.flag('play') || hasFfplay || hasSox;
-    final isOffline = results.flag('offline') || (!hasPlay && !isBench);
+    final isOffline = results.flag('offline') || (!hasPlay && !isBench && !hasGraph);
 
     final AudioPlayerMode playerMode = switch ((hasFfplay, hasSox)) {
       (true, _) => .ffplay,
@@ -185,12 +193,13 @@ class const DemoOptions({
     };
 
     return DemoOptions(
-      play: hasPlay && !results.flag('offline') && !isBench,
+      play: hasPlay && !results.flag('offline') && !isBench && !hasGraph,
       player: playerMode,
       offline: isOffline,
       bench: isBench,
       benchWorker: isWorker,
       verboseGc: results.flag('verbose-gc'),
+      graph: hasGraph,
       outputPath: results.option('out'),
       bars: int.tryParse(results.option('bars') ?? ''),
       bpm: double.tryParse(results.option('bpm') ?? ''),
@@ -247,6 +256,11 @@ Future<void> runDemo({
   final terminal = _resolveTerminal(rawResult);
 
   final demoBuffers = buffers?._all;
+
+  if (options.graph) {
+    stdout.writeln(formatGraphAscii(root: terminal, title: name));
+    return;
+  }
 
   if (options.bench) {
     await _runBenchmark(
