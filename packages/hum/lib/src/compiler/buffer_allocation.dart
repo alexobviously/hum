@@ -77,13 +77,8 @@ Map<Outlet, LiveRange> computeLiveRanges(
   return ranges;
 }
 
-// TODO(buffer-allocation): wire this into `compileGraph` (replacing the
-// one-slot-per-outlet allocation in step 4). It is deliberately not used by the
-// host yet. Remaining blockers:
-//  - Processors that cache views of their buffers (`Sum`, `Mult`, `Crossfade`)
-//    must be invalidated when slot assignments change (planned: a topology
-//    epoch in `ProcessContext`).
-//  - Decide which nodes opt in to `canProcessInPlace`.
+// TODO(buffer-allocation): audit processors and opt safe 1-in/1-out nodes into
+// `canProcessInPlace` when calling `allocateBufferSlots` from `compileGraph`.
 /// Assigns virtual buffer slots to the outlets of [sortedNodes], reusing slots
 /// whose contents are no longer needed.
 ///

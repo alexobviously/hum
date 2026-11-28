@@ -155,5 +155,51 @@ void main() {
         }
       },
     );
+
+    test(
+      'reuseBuffers colors slots cleanly and matches uncolored output bit-for-bit',
+      () {
+        const context = ProcessContext(sampleRate: 48000, vectorSize: 64);
+
+        AudioNode buildChain() {
+          final osc = SineOscillator(frequency: const .value(440));
+          final g1 = Mult.mono(input: osc.outlet, value: const .value(0.8));
+          final g2 = Mult.mono(input: g1.outlet, value: const .value(0.5));
+          final g3 = Mult.mono(input: g2.outlet, value: const .value(1.2));
+          final g4 = Mult.mono(input: g3.outlet, value: const .value(0.75));
+          final g5 = Mult.mono(input: g4.outlet, value: const .value(0.9));
+          return Out.mono(g5.outlet);
+        }
+
+        final coloredSnap = compileGraph(
+          root: buildChain(),
+          reuseBuffers: true,
+        ).snapshot!;
+        final flatSnap = compileGraph(
+          root: buildChain(),
+          reuseBuffers: false,
+        ).snapshot!;
+
+        expect(coloredSnap.totalSlots, equals(2));
+        expect(flatSnap.totalSlots, equals(6));
+
+        final colored = compilePipeline(
+          root: buildChain(),
+          context: context,
+          reuseBuffers: true,
+        ).pipeline!;
+        final flat = compilePipeline(
+          root: buildChain(),
+          context: context,
+          reuseBuffers: false,
+        ).pipeline!;
+
+        for (int b = 0; b < 5; b++) {
+          colored.process();
+          flat.process();
+          expect(colored.outputs[0], equals(flat.outputs[0]));
+        }
+      },
+    );
   });
 }

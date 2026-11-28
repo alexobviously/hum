@@ -142,6 +142,7 @@ CompileGraphResult compileGraph({
   AudioNode? root,
   List<AudioNode>? roots,
   List<Outlet>? targetOutputs,
+  bool reuseBuffers = true,
 }) {
   final resolvedRoots = <AudioNode>{
     ?root,
@@ -173,26 +174,47 @@ CompileGraphResult compileGraph({
   // 3. Linearize execution order via Kahn's algorithm
   final sortedNodes = topologicalSort(discovered);
 
-  // 4. Virtual buffer slot allocation
-  // TODO(buffer-allocation): replace this one-slot-per-outlet scheme with
-  // `allocateBufferSlots(sortedNodes, pinned: <final output outlets>)` from
-  // buffer_allocation.dart. Not wired up yet: processors that cache buffer
-  // views need invalidating when slots change (topology epoch), and we need to
-  // decide which nodes opt in to in-place processing. See the TODO there.
-  final outletSlots = <Outlet, int>{};
-  int nextSlot = 0;
+  // 4. Determine graph output outlets (pinned live through the end of the schedule)
+  List<Outlet> extractOutputs(AudioNode node) => switch (node) {
+    Out(:final channels) => channels,
+    TerminalNode(:final inlets) => [for (final i in inlets) ?i.source],
+    AudioNode(:final outlets) when outlets.isNotEmpty => outlets,
+    AudioNode(:final inlets) => [for (final i in inlets) ?i.source],
+  };
 
-  int getSlot(Outlet outlet) {
-    return outletSlots.putIfAbsent(outlet, () => nextSlot++);
-  }
+  final finalOutputPorts = switch ((targetOutputs, root)) {
+    (final targets?, _) => targets,
+    (_, final root?) => extractOutputs(root),
+    _ => [for (final r in resolvedRoots) ...extractOutputs(r)],
+  };
 
-  for (final node in sortedNodes) {
-    for (final outlet in node.outlets) {
-      getSlot(outlet);
+  // 5. Virtual buffer slot allocation (graph coloring when reuseBuffers is true)
+  final Map<Outlet, int> outletSlots;
+  final int totalSlots;
+  if (reuseBuffers) {
+    final allocation = allocateBufferSlots(
+      sortedNodes,
+      pinned: finalOutputPorts,
+    );
+    outletSlots = allocation.slots;
+    totalSlots = allocation.totalSlots;
+  } else {
+    final flatSlots = <Outlet, int>{};
+    int nextSlot = 0;
+    for (final node in sortedNodes) {
+      for (final outlet in node.outlets) {
+        flatSlots.putIfAbsent(outlet, () => nextSlot++);
+      }
     }
+    outletSlots = flatSlots;
+    totalSlots = nextSlot;
   }
 
-  // 5. Create SnapshotSteps
+  int getSlot(Outlet outlet) =>
+      outletSlots[outlet] ??
+      (throw StateError('No buffer slot allocated for $outlet.'));
+
+  // 6. Create SnapshotSteps and output slot list
   final steps = [
     for (final node in sortedNodes)
       SnapshotStep(
@@ -207,20 +229,6 @@ CompileGraphResult compileGraph({
       ),
   ];
 
-  // 6. Determine graph output slots
-  List<Outlet> extractOutputs(AudioNode node) => switch (node) {
-    Out(:final channels) => channels,
-    TerminalNode(:final inlets) => [for (final i in inlets) ?i.source],
-    AudioNode(:final outlets) when outlets.isNotEmpty => outlets,
-    AudioNode(:final inlets) => [for (final i in inlets) ?i.source],
-  };
-
-  final finalOutputPorts = switch ((targetOutputs, root)) {
-    (final targets?, _) => targets,
-    (_, final root?) => extractOutputs(root),
-    _ => [for (final r in resolvedRoots) ...extractOutputs(r)],
-  };
-
   final graphOutputSlots = [
     for (final outlet in finalOutputPorts) getSlot(outlet),
   ];
@@ -228,7 +236,7 @@ CompileGraphResult compileGraph({
   final snapshot = GraphSnapshot(
     nodes: sortedNodes,
     steps: steps,
-    totalSlots: nextSlot,
+    totalSlots: totalSlots,
     outputSlots: graphOutputSlots,
   );
 
@@ -242,11 +250,13 @@ CompileResult compilePipeline({
   List<Outlet>? targetOutputs,
   required ProcessContext context,
   Map<BufferId, AudioBuffer>? buffers,
+  bool reuseBuffers = true,
 }) {
   final graphResult = compileGraph(
     root: root,
     roots: roots,
     targetOutputs: targetOutputs,
+    reuseBuffers: reuseBuffers,
   );
 
   if (graphResult.isFailure) {
